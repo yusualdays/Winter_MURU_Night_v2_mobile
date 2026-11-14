@@ -66,8 +66,9 @@ const GREET_COOLDOWN = 3000;  // 인사 도배 방지 (3초에 한 번)
 // ===== 휴대폰 카메라 =====
 // 화면 전체에 맵을 욱여넣으면 폰에서는 너무 작아져요 → 좁은 화면에서는 "내 캐릭터를 따라다니는 카메라"로 바꿔요
 const CAMERA_FIT_BELOW = 0.45; // 맵 전체가 이 배율보다 작게 보여야 하면 카메라 모드
-const CAMERA_ZOOM = 0.5;      // 카메라 모드 배율 (배경 그림이 4배 확대라서 0.75면 도트가 정확히 3px로 또렷해요)
-const UI_BOOST = 1.6;         // 카메라 모드에서 닉네임·버튼을 이만큼 키워서 읽기 쉽게
+const CAMERA_ZOOM = 0.5;       // 카메라 모드 배율 (배경 그림이 4배 확대라서 0.75면 도트가 정확히 3px로 또렷해요)
+const UI_BOOST = 1.6; 
+const FLOOR_EXT_SRC = "/floor-extension.png"; // 배경 그림 아래에 이어 붙이는 나무 바닥 (세로로 긴 휴대폰 화면의 빈 곳 채우기)         // 카메라 모드에서 닉네임·버튼을 이만큼 키워서 읽기 쉽게
 
 // 충돌은 아바타의 "발밑" 부분으로만 판정 (위에서 내려다보는 시점이라 자연스러움)
 // (캐릭터 크기가 바뀌어도 항상 발밑 가운데에 오도록 자동 계산)
@@ -648,7 +649,8 @@ export default function LivingRoom() {
   //  - 좁은 화면(휴대폰): 일정한 배율로 키우고 내 캐릭터를 따라가요
   const fitScale = mapSize ? Math.min(vp.w / mapSize.w, vp.h / mapSize.h) : 1;
   const cameraMode = !!mapSize && fitScale < CAMERA_FIT_BELOW;
-  const scale = cameraMode ? CAMERA_ZOOM : fitScale;
+  // (가로 화면에서 맵 양옆이 비지 않게, 가로가 꽉 차는 배율보다 작아지지는 않아요)
+  const scale = cameraMode ? Math.max(CAMERA_ZOOM, vp.w / mapSize.w) : fitScale;
   const uiBoost = cameraMode ? UI_BOOST : 1;
   const portrait = vp.h > vp.w;
   let camX = 0;
@@ -666,6 +668,7 @@ export default function LivingRoom() {
       const cx = (pos.x + AVATAR_WIDTH / 2) * scale;
       const cy = (pos.y + AVATAR_HEIGHT * 0.6) * scale;
       camX = sw <= vp.w ? (vp.w - sw) / 2 : clamp(vp.w / 2 - cx, vp.w - sw, 0);
+      // 맵이 화면보다 짧으면 위에 붙이고, 아래 빈 곳은 바닥 그림을 이어 붙여 채워요 (아래 FLOOR_EXT_SRC)
       camY = clamp(vp.h * (portrait ? 0.4 : 0.45) - cy, Math.min(0, vp.h - sh - bottomPad), 0);
     }
   }
@@ -673,7 +676,7 @@ export default function LivingRoom() {
   if (!nickname) return <LoadingScreen />;
 
   return (
-    <main id="party-room" className={`relative h-screen w-screen overflow-hidden ${cameraMode ? "bg-[#1a110e]" : "bg-slate-950"}`}>
+    <main id="party-room" className={`relative h-screen w-screen overflow-hidden ${cameraMode ? "bg-[#f7c17f]" : "bg-slate-950"}`}>
       {/* 안내 문구 (왼쪽 위에 작게, 8초 뒤 사라짐) */}
       <div
         className={`safe-top safe-left pointer-events-none absolute z-30 max-w-[calc(100vw-5.5rem)] rounded-xl bg-slate-900/70 px-4 py-2 shadow-lg backdrop-blur transition-opacity duration-1000 sm:max-w-[60vw] ${
@@ -707,6 +710,21 @@ export default function LivingRoom() {
               : "repeating-linear-gradient(90deg, #6b4430 0 120px, #5e3b29 120px 240px)",
           }}
         >
+          {/* 휴대폰: 배경 그림 아래로 나무 바닥을 이어서, 조작 버튼 뒤가 까맣게 비지 않게 */}
+          {cameraMode && hasBackground && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute left-0"
+              style={{
+                top: mapSize.h,
+                width: mapSize.w,
+                height: mapSize.h * 1.2,
+                background: `url(${FLOOR_EXT_SRC}) 0 0 / 100% auto repeat-y`,
+                imageRendering: "pixelated",
+              }}
+            />
+          )}
+
           {/* 거실 분위기: 창밖 날씨(눈·불꽃) + 조명 오버레이 (클릭을 막지 않아요) */}
           <StaticRoomAmbience lighting={lighting} weather={weather} mapW={mapSize.w} mapH={mapSize.h} />
 
@@ -835,6 +853,15 @@ export default function LivingRoom() {
             text={nearInfo.title}
           />
         </div>
+      )}
+
+      {/* 휴대폰: 아래쪽을 살짝 어둡게 → 조작 버튼이 바닥 위에서 잘 보여요 */}
+      {cameraMode && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-[15] h-56"
+          style={{ background: "linear-gradient(to bottom, rgba(26,17,14,0) 0%, rgba(26,17,14,0.45) 100%)" }}
+        />
       )}
 
       {/* 친구 프로필 창 + 인사 알림 */}
