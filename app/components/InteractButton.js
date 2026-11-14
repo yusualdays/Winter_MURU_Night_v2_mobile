@@ -15,6 +15,7 @@ export default function InteractButton({
   icon = '🔍',
   text = '',
   boost = 1, // 휴대폰 카메라 모드에서 버튼을 키우는 배율
+  minTop = 8, // 버튼이 올라갈 수 있는 맨 위 (맵 좌표). 휴대폰은 위로 늘린 벽까지 올라가요
 }) {
   const label = text || '살펴보기';
 
@@ -27,7 +28,7 @@ export default function InteractButton({
           className="absolute z-20 flex w-0 justify-center"
           style={{
             left: target.x + target.width / 2,
-            top: Math.max(8, target.y - SIZE - 10),
+            top: Math.max(minTop, target.y - SIZE - 10),
             scale: boost, // 아래 가운데를 기준으로 키워서 물건 위치는 그대로
             transformOrigin: '50% 100%',
           }}
