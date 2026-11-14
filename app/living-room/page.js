@@ -68,6 +68,8 @@ const GREET_COOLDOWN = 3000;  // 인사 도배 방지 (3초에 한 번)
 const CAMERA_FIT_BELOW = 0.45; // 맵 전체가 이 배율보다 작게 보여야 하면 카메라 모드
 const CAMERA_ZOOM = 0.5;       // 카메라 모드 배율 (배경 그림이 4배 확대라서 0.75면 도트가 정확히 3px로 또렷해요)
 const UI_BOOST = 1.6; 
+const WALL_EXT_SRC = "/wall-extension.png"; // 배경 그림 위에 이어 붙이는 벽 + 천장 몰딩 (포스터·책꽂이 위 여유 공간)
+const WALL_EXT_H = 256; // 위로 늘린 벽 높이 (맵 기준 px, 그림 64px × 4배)
 const FLOOR_EXT_SRC = "/floor-extension.png"; // 배경 그림 아래에 이어 붙이는 나무 바닥 (세로로 긴 휴대폰 화면의 빈 곳 채우기)         // 카메라 모드에서 닉네임·버튼을 이만큼 키워서 읽기 쉽게
 
 // 충돌은 아바타의 "발밑" 부분으로만 판정 (위에서 내려다보는 시점이라 자연스러움)
@@ -669,7 +671,9 @@ export default function LivingRoom() {
       const cy = (pos.y + AVATAR_HEIGHT * 0.6) * scale;
       camX = sw <= vp.w ? (vp.w - sw) / 2 : clamp(vp.w / 2 - cx, vp.w - sw, 0);
       // 맵이 화면보다 짧으면 위에 붙이고, 아래 빈 곳은 바닥 그림을 이어 붙여 채워요 (아래 FLOOR_EXT_SRC)
-      camY = clamp(vp.h * (portrait ? 0.4 : 0.45) - cy, Math.min(0, vp.h - sh - bottomPad), 0);
+      // 위로는 늘린 벽(WALL_EXT_H)까지 올라가서, 포스터·책꽂이 위에 여유가 생겨요
+      const topRoom = WALL_EXT_H * scale;
+      camY = clamp(vp.h * (portrait ? 0.4 : 0.45) - cy, Math.min(topRoom, vp.h - sh - bottomPad), topRoom);
     }
   }
 
@@ -710,6 +714,21 @@ export default function LivingRoom() {
               : "repeating-linear-gradient(90deg, #6b4430 0 120px, #5e3b29 120px 240px)",
           }}
         >
+          {/* 휴대폰: 배경 그림 위로 벽을 이어서 (포스터·책꽂이 버튼이 위에 넉넉히 떠요) */}
+          {cameraMode && hasBackground && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute left-0"
+              style={{
+                top: -WALL_EXT_H,
+                width: mapSize.w,
+                height: WALL_EXT_H,
+                background: `url(${WALL_EXT_SRC}) 0 0 / 100% 100% no-repeat`,
+                imageRendering: "pixelated",
+              }}
+            />
+          )}
+
           {/* 휴대폰: 배경 그림 아래로 나무 바닥을 이어서, 조작 버튼 뒤가 까맣게 비지 않게 */}
           {cameraMode && hasBackground && (
             <div
@@ -848,6 +867,7 @@ export default function LivingRoom() {
           <InteractButton
             target={openId ? null : nearTarget}
             boost={uiBoost}
+            minTop={cameraMode ? -WALL_EXT_H : 8}
             onClick={interact}
             icon={nearInfo.icon}
             text={nearInfo.title}
