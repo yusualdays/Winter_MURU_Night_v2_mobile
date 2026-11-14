@@ -1,0 +1,135 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  /* 노치·홈 바 안전 영역 (휴대폰) */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+html,
+body {
+  background: #020617; /* 어두운 겨울밤 (화면 끝이 하얗게 보이지 않게) */
+  overscroll-behavior: none; /* 당겨서 새로고침·바운스 방지 */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  color: var(--foreground);
+  font-family: Arial, Helvetica, "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", sans-serif;
+}
+
+/* 거실 화면: 주소창이 늘었다 줄어도 딱 맞게 (dvh), 터치 제스처 막기 */
+#party-room {
+  height: 100vh;
+  height: 100dvh;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+#party-room input,
+#party-room textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  touch-action: manipulation;
+}
+
+/* 입력칸은 16px 이상이어야 iOS가 멋대로 확대하지 않아요 */
+input,
+textarea,
+select {
+  font-size: max(16px, 1em);
+}
+
+/* 터치 기기: 버튼은 손가락으로 누르기 편한 크기 + 더블탭 확대 방지 */
+@media (pointer: coarse) {
+  button,
+  [role="button"],
+  a {
+    touch-action: manipulation;
+  }
+}
+
+/* 안전 영역을 피해서 놓는 도우미 */
+.safe-top {
+  top: calc(var(--sat) + 0.75rem);
+}
+.safe-bottom {
+  bottom: calc(var(--sab) + 0.75rem);
+}
+.safe-left {
+  left: calc(var(--sal) + 0.75rem);
+}
+.safe-right {
+  right: calc(var(--sar) + 0.75rem);
+}
+
+/* ===== 휴대폰 오른쪽 아래 버튼 자리 =====
+   세로 화면: 아래 → 위 = 행동(큰 버튼) / 1 💬 / 2 😊 / 3 🥂 / 4 📜
+   가로 화면(낮은 화면): 행동 버튼 왼쪽으로 한 줄 */
+.mhud {
+  position: fixed;
+  z-index: 40;
+  right: calc(var(--sar) + 0.75rem);
+}
+.mhud-action {
+  bottom: calc(var(--sab) + 1rem);
+}
+.mhud-s {
+  position: fixed;
+  z-index: 40;
+  right: calc(var(--sar) + 1.05rem);
+  bottom: calc(var(--sab) + 1rem + 84px + (var(--n) - 1) * 52px);
+}
+.emote-pop {
+  right: calc(100% + 0.5rem);
+  top: 50%;
+  transform: translateY(-50%);
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .mhud-s {
+    right: calc(var(--sar) + 0.75rem + 84px + (var(--n) - 1) * 52px);
+    bottom: calc(var(--sab) + 1.25rem);
+  }
+  .emote-pop {
+    right: auto;
+    top: auto;
+    left: 50%;
+    bottom: calc(100% + 0.5rem);
+    transform: translateX(-50%);
+    flex-direction: column;
+  }
+}
+
+/* 휴대폰 채팅 기록: 세로 = 방향 패드 위쪽 / 가로(낮은 화면) = 왼쪽 위 */
+.chatlog-compact {
+  left: calc(var(--sal) + 0.75rem);
+  right: calc(var(--sar) + 4.25rem);
+  bottom: calc(var(--sab) + 1rem + 138px + 12px);
+  max-width: 360px;
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  .chatlog-compact {
+    top: calc(var(--sat) + 0.75rem);
+    bottom: auto;
+    right: auto;
+    width: min(300px, 40vw);
+  }
+}
