@@ -2,11 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ref, set, update, remove, push, onValue, onDisconnect, serverTimestamp } from "firebase/database";
+import { ref, set, update, remove, push, onValue, onDisconnect, runTransaction, serverTimestamp } from "firebase/database";
 import { db } from "../lib/firebase";
 import { getMyId, getLook } from "../lib/session";
 import { DEFAULT_LOOK, normalizeLook } from "../lib/pixelCharacter";
-import { ROOMS, rememberFrom, takeArrival, lastExitOf, inZone, isRoomOpen, isHost, getForceOpen, setForceOpen, inSchedule, scheduleText } from "../lib/rooms";
+import { ROOMS, rememberFrom, takeArrival, lastExitOf, inZone, isRoomOpen, getForceOpen, setForceOpen, scheduleText, getOwnerLocal, setOwnerLocal } from "../lib/rooms";
 import GreetToast from "./GreetToast";
 import Avatar, { AVATAR_WIDTH, AVATAR_HEIGHT } from "./Avatar";
 import InteractButton from "./InteractButton";
@@ -32,6 +32,10 @@ import { EMOTE_KEYS } from "./EmoteBubble";
 //             "온 방:이 방에서 나갔던 통로" 로 적으면, 나갔던 그 통로 앞에서 다시 시작해요
 //  children : 지도 그림 (바닥·벽·가구) / renderModals(openId, close): 상세 창들
 //  onEnter  : 방에 들어왔을 때 한 번 ({ openDetail }) — 예: 첫 방문이면 안내 창 열기
+//  seats    : 앉을 수 있는 자리 [{ id, x, y, dir, stand: {x,y}, label }]
+//             x,y = 앉았을 때 엉덩이 자리(캐릭터 아래 가운데), stand = 의자 옆 서는 자리 (모두 0~1 비율)
+//  hud(api) : 화면 위에 덧붙일 UI (설정 창·배너 등). api = { nickname, myId, isOwner, setOwner,
+//             forceOpen, changeForceOpen, mySeat, showToast }
 //  spots의 radius: 버튼이 뜨는 거리 (맵 기준 px, 기본 90)
 const SPEED = 320;
 const SYNC_INTERVAL = 100;
@@ -39,6 +43,7 @@ const EMOTE_MS = 3000;
 const CHAT_MS = 5000;
 const CHAT_COOLDOWN = 800;
 const NEAR_RADIUS = 90;
+const SEAT_RADIUS = 60; // 의자 옆 서는 자리에서 이만큼 안이면 [🪑 앉기]
 const CAMERA_FIT_BELOW = 0.45; // 휴대폰처럼 좁은 화면 → 내 캐릭터를 따라다니는 카메라
 const CAMERA_ZOOM = 0.5;
 const UI_BOOST = 1.6;
@@ -71,6 +76,8 @@ export default function SimpleRoom({
   children,
   renderModals,
   onEnter,
+  seats = [],
+  hud,
 }) {
   const router = useRouter();
   const [nickname, setNickname] = useState(null);
@@ -92,7 +99,10 @@ export default function SimpleRoom({
   const [arriving, setArriving] = useState(true); // 들어올 때 어두운 화면이 스르륵 밝아져요
   const [toast, setToast] = useState(null);       // 화면 위 알림 { id, text }
   const [forceOpen, setForceOpenState] = useState(false); // 호스트 테스트용 강제 오픈
-  const [hostPanel, setHostPanel] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);           // 🍵 사장님 모드 (앞치마 + 배지)
+  const [seatId, setSeatId] = useState(null);              // 내가 앉아 있는 자리
+  const seatIdRef = useRef(null);
+  const standPointRef = useRef(null);
   const [clock, setClock] = useState(0);          // 1분마다 오픈 기간 다시 확인
   const lockedNoticeRef = useRef(null);           // 이미 "준비중" 안내를 띄운 통로
 
@@ -107,6 +117,7 @@ export default function SimpleRoom({
   const seenChat = useRef({});
   const lastChatSent = useRef(0);
   const armedRef = useRef(false);
+  const othersRef = useRef({});
   const latest = useRef({ x: 0, y: 0, isMoving: false, dir: "down" });
 
   const rects = useMemo(() => blockers.map((o) => ({ x: o.x * mapW, y: o.y * mapH, w: o.w * mapW, h: o.h * mapH })), [blockers, mapW, mapH]);
@@ -131,6 +142,7 @@ export default function SimpleRoom({
     setLook(normalizeLook(getLook()));
     setMyId(getMyId());
     setForceOpenState(getForceOpen());
+    setIsOwner(getOwnerLocal());
     const from = takeArrival();
     const s = (from && spawns[`${from}:${lastExitOf(roomId)}`]) ?? spawns[from] ?? spawns.default;
     const p = posFromFeet(s.x * mapW, s.y * mapH);
@@ -176,16 +188,25 @@ export default function SimpleRoom({
     const myRef = ref(db, `users/${myId}`);
     onDisconnect(myRef).remove();
     latest.current = { x: Math.round(posRef.current.x), y: Math.round(posRef.current.y), isMoving: false, dir: "down" };
-    set(myRef, { nickname, ...look, room: roomId, joinedAt: serverTimestamp(), ...latest.current, isSitting: false, seatId: null, emote: null }).catch(() => {});
+    set(myRef, { nickname, ...look, room: roomId, joinedAt: serverTimestamp(), ...latest.current, isSitting: false, seatId: null, emote: null, isOwner: getOwnerLocal() }).catch(() => {});
     return () => {
       remove(myRef).catch(() => {});
     };
   }, [nickname, myId, look, roomId]);
 
+  // 사장님 모드가 바뀌면 모두에게 알리기
+  useEffect(() => {
+    if (myId && db && nickname) update(ref(db, `users/${myId}`), { isOwner }).catch(() => {});
+  }, [isOwner, myId, nickname]);
+  const setOwner = useCallback((on) => {
+    setOwnerLocal(on);
+    setIsOwner(!!on);
+  }, []);
+
   // 3) 내 위치를 0.1초마다 보내기
   useEffect(() => {
-    if (pos) latest.current = { x: Math.round(pos.x), y: Math.round(pos.y), isMoving, dir };
-  }, [pos, isMoving, dir]);
+    if (pos) latest.current = { x: Math.round(pos.x), y: Math.round(pos.y), isMoving, dir, isSitting: !!seatId, seatId: seatId ?? null };
+  }, [pos, isMoving, dir, seatId]);
   useEffect(() => {
     if (!nickname || !myId || !db) return;
     const myRef = ref(db, `users/${myId}`);
@@ -209,6 +230,7 @@ export default function SimpleRoom({
         if (child.key !== myId && u && typeof u.x === "number" && u.room === roomId) all[child.key] = u;
       });
       setOthers(all);
+      othersRef.current = all;
     });
   }, [myId, roomId]);
 
@@ -267,8 +289,16 @@ export default function SimpleRoom({
         bestDist = d;
       }
     }
+    // 의자: 의자 옆 서는 자리에서 SEAT_RADIUS 안
+    for (const seat of seats) {
+      const d = Math.hypot(fx - seat.stand.x * mapW, fy - seat.stand.y * mapH);
+      if (d <= SEAT_RADIUS && d < bestDist) {
+        best = { id: `seat:${seat.id}`, seat };
+        bestDist = d;
+      }
+    }
     return best;
-  }, [pos, spots, mapW, mapH]);
+  }, [pos, spots, seats, mapW, mapH]);
   useEffect(() => {
     nearIdRef.current = near?.id ?? null;
   }, [near]);
@@ -287,7 +317,64 @@ export default function SimpleRoom({
   const closeDetail = useCallback(() => setOpenId(null), []);
   const openDetailRef = useRef(openDetail);
   openDetailRef.current = openDetail;
+  // ===== 의자에 앉기 / 일어나기 =====
+  // 다른 사람이 앉아 있는 자리 { 자리id: 닉네임 }
+  const takenSeats = {};
+  for (const u of Object.values(others)) if (u.isSitting && u.seatId) takenSeats[u.seatId] = u.nickname || "손님";
+
+  const sitDown = async (seat) => {
+    if (!seat || seatIdRef.current || takenSeats[seat.id]) return;
+    if (db && myId) {
+      const seatRef = ref(db, `roomSeats/${roomId}/${seat.id}`);
+      try {
+        const result = await runTransaction(seatRef, (cur) => (cur && cur !== myId && othersRef.current[cur] ? undefined : myId));
+        if (!result.committed) return;
+        onDisconnect(seatRef).remove();
+      } catch {
+        return;
+      }
+    }
+    pressedKeys.current.clear();
+    targetRef.current = null;
+    standPointRef.current = seat.stand;
+    seatIdRef.current = seat.id;
+    setSeatId(seat.id);
+    setDir(seat.dir ?? "down");
+    const p = { x: seat.x * mapW - AVATAR_WIDTH / 2, y: seat.y * mapH - AVATAR_HEIGHT };
+    posRef.current = p;
+    setPos(p);
+  };
+  const standUp = () => {
+    const id = seatIdRef.current;
+    if (!id) return;
+    seatIdRef.current = null;
+    setSeatId(null);
+    const st = standPointRef.current;
+    if (st) {
+      const p = posFromFeet(st.x * mapW, st.y * mapH);
+      posRef.current = p;
+      setPos(p);
+    }
+    if (db) {
+      const seatRef = ref(db, `roomSeats/${roomId}/${id}`);
+      remove(seatRef).catch(() => {});
+      onDisconnect(seatRef).cancel().catch(() => {});
+    }
+  };
+  const standUpRef = useRef(standUp);
+  standUpRef.current = standUp;
+  // 방을 나가면 자리 비우기
+  useEffect(
+    () => () => {
+      if (seatIdRef.current && db) remove(ref(db, `roomSeats/${roomId}/${seatIdRef.current}`)).catch(() => {});
+    },
+    [roomId]
+  );
+
+  // 버튼/E키: 앉아 있으면 일어나기, 의자 옆이면 앉기, 물건 옆이면 상세 창
   const interact = () => {
+    if (seatIdRef.current) return standUp();
+    if (near?.seat) return sitDown(near.seat);
     if (nearIdRef.current) openDetail(nearIdRef.current);
   };
   const interactRef = useRef(interact);
@@ -314,6 +401,7 @@ export default function SimpleRoom({
       if (!d) return;
       e.preventDefault();
       targetRef.current = null; // 방향키 → 터치 자동 이동 멈춤
+      if (seatIdRef.current) standUpRef.current(); // 앉아 있을 때 방향키 → 일어나서 걷기
       pressedKeys.current.add(d);
     };
     const onKeyUp = (e) => {
@@ -341,6 +429,11 @@ export default function SimpleRoom({
       const keys = pressedKeys.current;
       let dx = (keys.has("right") ? 1 : 0) - (keys.has("left") ? 1 : 0);
       let dy = (keys.has("down") ? 1 : 0) - (keys.has("up") ? 1 : 0);
+      if (seatIdRef.current) {
+        dx = 0;
+        dy = 0;
+        targetRef.current = null;
+      }
       let autoDist = 0;
       const p0 = posRef.current;
       if (dx || dy) {
@@ -454,7 +547,7 @@ export default function SimpleRoom({
     const el = mapElRef.current;
     if (!el || !el.contains(e.target)) return;
     if (e.target.closest('button, a, input, textarea, select, [role="dialog"]')) return;
-    if (openIdRef.current) return;
+    if (openIdRef.current || seatIdRef.current) return; // 창이 열려 있거나 앉아 있으면 무시 (일어나기는 버튼으로만)
     const rect = el.getBoundingClientRect();
     const x = clamp((e.clientX - rect.left) / scale, 0, mapW);
     const y = clamp((e.clientY - rect.top) / scale, 0, mapH);
@@ -477,7 +570,29 @@ export default function SimpleRoom({
 
   if (!nickname || !pos) return <LoadingScreen />;
 
-  const nearTarget = near && !openId ? { x: near.rect.x * mapW, y: near.rect.y * mapH, width: near.rect.w * mapW, height: near.rect.h * mapH } : null;
+  // 버튼 위치·이름: 앉아 있으면 [🚶 자리에서 일어나기], 의자 옆이면 [🪑 앉기], 물건 옆이면 물건 이름
+  let nearTarget = null;
+  let nearIcon = near?.icon;
+  let nearTitle = near?.title;
+  if (seatId) {
+    nearTarget = { x: pos.x, y: pos.y + 10, width: AVATAR_WIDTH, height: 10 };
+    nearIcon = "🚶";
+    nearTitle = "자리에서 일어나기";
+  } else if (near?.seat) {
+    const st = near.seat;
+    nearTarget = { x: st.x * mapW - AVATAR_WIDTH / 2, y: st.y * mapH - AVATAR_HEIGHT + 30, width: AVATAR_WIDTH, height: 10 };
+    if (takenSeats[st.id]) {
+      nearIcon = "🚫";
+      nearTitle = `${takenSeats[st.id]}님 자리예요`;
+    } else {
+      nearIcon = "🪑";
+      nearTitle = st.label ?? "앉기";
+    }
+  } else if (near) {
+    nearTarget = { x: near.rect.x * mapW, y: near.rect.y * mapH, width: near.rect.w * mapW, height: near.rect.h * mapH };
+  }
+  if (openId) nearTarget = null;
+  const mySeat = seats.find((st) => st.id === seatId) ?? null;
 
   return (
     <main className="relative h-screen w-screen select-none overflow-hidden" style={{ background: outside, touchAction: "manipulation" }}>
@@ -533,57 +648,37 @@ export default function SimpleRoom({
         {tapFx && <TapRipple key={tapFx.id} x={tapFx.x} y={tapFx.y} size={Math.max(64, 44 / scale)} />}
 
         {Object.entries(others).map(([id, u]) => (
-          <Avatar key={id} nickname={u.nickname || "손님"} x={u.x} y={u.y} isMoving={!!u.isMoving} dir={u.dir || "down"} look={normalizeLook(u)} emote={u.emote} chat={bubbles[id]} smooth />
+          <Avatar key={id} nickname={u.nickname || "손님"} x={u.x} y={u.y} isMoving={!!u.isMoving} dir={u.dir || "down"} look={normalizeLook(u)} emote={u.emote} chat={bubbles[id]} sitting={!!u.isSitting} owner={!!u.isOwner} eating={false} smooth />
         ))}
-        <Avatar nickname={nickname} x={pos.x} y={pos.y} isMoving={isMoving} dir={dir} look={look} emote={emote} chat={bubbles.me} isMe />
+        <Avatar nickname={nickname} x={pos.x} y={pos.y} isMoving={isMoving} dir={dir} look={look} emote={emote} chat={bubbles.me} sitting={!!seatId} owner={isOwner} eating={false} isMe />
 
-        <InteractButton target={nearTarget} onClick={interact} icon={near?.icon} text={near?.title} boost={uiBoost} />
+        <InteractButton target={nearTarget} onClick={interact} icon={nearIcon} text={nearTitle} boost={uiBoost} />
       </div>
 
       {renderModals?.(openId, closeDetail)}
 
       <ChatBox compact={isTouch} nickname={nickname} onOpenInput={openChat} />
-      {isTouch && <MobileControls onAction={interact} actionIcon={nearTarget ? near.icon : null} onEmote={(type) => setEmote({ type, id: Date.now() })} />}
+      {isTouch && <MobileControls onAction={interact} actionIcon={nearTarget ? nearIcon : null} onEmote={(type) => setEmote({ type, id: Date.now() })} />}
       <ChatInput ref={chatInputRef} open={chatOpen} onSend={sendChat} onClose={() => setChatOpen(false)} />
 
       {/* 화면 위 알림 ("현재 준비중입니다") */}
       <GreetToast toast={toast} />
 
-      {/* 🔧 호스트 설정 (data.js의 hostNickname과 닉네임이 같을 때만 보여요) */}
-      {isHost(nickname) && (
-        <div className="safe-top safe-right fixed z-40 flex flex-col items-end gap-2">
-          <button
-            type="button"
-            onClick={() => setHostPanel((o) => !o)}
-            aria-label="호스트 설정"
-            className="flex h-12 w-12 items-center justify-center border-4 border-[#1a110e] bg-[#f5e6c8] text-2xl shadow-[3px_3px_0_0_rgba(0,0,0,0.4)] active:translate-y-0.5 active:shadow-none"
-          >
-            🔧
-          </button>
-          {hostPanel && (
-            <div className="w-72 max-w-[calc(100vw-1.5rem)] border-4 border-[#1a110e] bg-[#2b1d1a] p-3 text-white shadow-[6px_6px_0_0_rgba(0,0,0,0.35)]">
-              <p className="text-sm font-black text-amber-300">🔧 호스트 설정</p>
-              <p className="mt-1 text-xs text-white/70">
-                거실·전시회 오픈 기간: {scheduleText() || "제한 없음"} · 지금은 {inSchedule() ? "✅ 오픈 중" : "🚧 준비중"}
-              </p>
-              <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 border-2 border-white/20 bg-black/20 px-3 py-2">
-                <span className="text-sm font-bold">🔓 기간 외에도 열기 (테스트용)</span>
-                <input
-                  type="checkbox"
-                  checked={forceOpen}
-                  onChange={(e) => {
-                    setForceOpen(e.target.checked);
-                    setForceOpenState(e.target.checked);
-                    lockedNoticeRef.current = null;
-                  }}
-                  className="h-5 w-5 accent-amber-400"
-                />
-              </label>
-              <p className="mt-2 text-[11px] leading-snug text-white/50">이 브라우저의 호스트에게만 열려요. 친구들 화면은 기간이 될 때까지 계속 "준비중"이에요.</p>
-            </div>
-          )}
-        </div>
-      )}
+      {/* 방마다 덧붙이는 화면 UI (찻집: ⚙️ 설정·사장님 관리·공지 배너) */}
+      {hud?.({
+        nickname,
+        myId,
+        isOwner,
+        setOwner,
+        forceOpen,
+        changeForceOpen: (on) => {
+          setForceOpen(on);
+          setForceOpenState(on);
+          lockedNoticeRef.current = null;
+        },
+        mySeat,
+        showToast,
+      })}
 
       {/* 방을 옮길 때: 화면이 스르륵 어두워졌다가 밝아져요 */}
       <div className={`pointer-events-none fixed inset-0 z-[90] bg-black transition-opacity duration-300 ${leaving || arriving ? "opacity-100" : "opacity-0"}`} />

@@ -24,7 +24,7 @@ import ProfileModal from "../components/ProfileModal";
 import ToastParty from "../components/ToastParty";
 import SnowGame from "../components/SnowGame";
 import TapRipple, { TAP_FX_MS } from "../components/TapRipple";
-import { ROOMS, rememberFrom, inZone, isRoomOpen } from "../lib/rooms";
+import { ROOMS, rememberFrom, inZone, isRoomOpen, getOwnerLocal } from "../lib/rooms";
 import { EMOTE_KEYS } from "../components/EmoteBubble";
 import { ref, set, update, remove, push, onValue, onDisconnect, runTransaction, serverTimestamp } from "firebase/database";
 import { db } from "../lib/firebase";
@@ -141,7 +141,8 @@ export default function LivingRoom() {
   const [tapFx, setTapFx] = useState(null); // 터치한 곳 파동 { x, y, id }
   const doorArmedRef = useRef(false);     // 문 밖으로 한 번 나와야 문이 작동 (도착하자마자 되돌아가지 않게)
   const [leaving, setLeaving] = useState(false); // 다른 방으로 가는 중 (화면이 어두워져요)
-  const [arriving, setArriving] = useState(true); // 들어올 때 어두운 화면이 스르륵 밝아져요
+  const [arriving, setArriving] = useState(true);
+  const [ownerMode, setOwnerMode] = useState(false); // 🍵 찻집에서 사장님 인증을 했으면 앞치마 // 들어올 때 어두운 화면이 스르륵 밝아져요
 
   const [showWelcome, setShowWelcome] = useState(true); // 환영 문구 (8초 뒤 사라짐)
   const [mapSize, setMapSize] = useState(null); // { w, h }
@@ -204,6 +205,7 @@ export default function LivingRoom() {
     if (!saved) router.replace("/");
     else if (!isRoomOpen("livingRoom", saved)) router.replace(ROOMS.teaHouse.href); // 오픈 기간이 아니면 찻집으로
     else setNickname(saved);
+    setOwnerMode(getOwnerLocal());
     setLook(normalizeLook(getLook()));
   }, [router]);
 
@@ -259,7 +261,7 @@ export default function LivingRoom() {
     const myRef = ref(db, `users/${myId}`);
     onDisconnect(myRef).remove();
     // 유저 데이터: { nickname, hair, hairColor, skin, outfit } + 위치
-    set(myRef, { nickname, ...look, room: "livingRoom", joinedAt: serverTimestamp(), ...latest.current, emote: null }).catch((err) =>
+    set(myRef, { nickname, ...look, room: "livingRoom", isOwner: getOwnerLocal(), joinedAt: serverTimestamp(), ...latest.current, emote: null }).catch((err) =>
       console.error("접속자 등록 실패:", err)
     );
     return () => {
@@ -923,12 +925,13 @@ export default function LivingRoom() {
               emote={u.emote}
               chat={bubbles[id]}
               sitting={!!u.isSitting}
+              owner={!!u.isOwner}
               smooth
             />
           ))}
 
           {/* 내 아바타 */}
-          <Avatar nickname={nickname} x={pos.x} y={pos.y} isMoving={isMoving} dir={dir} look={look} emote={emote} chat={bubbles.me} sitting={!!seatId} isMe />
+          <Avatar nickname={nickname} x={pos.x} y={pos.y} isMoving={isMoving} dir={dir} look={look} emote={emote} chat={bubbles.me} sitting={!!seatId} owner={ownerMode} isMe />
 
           {/* ❄️ 눈덩이 피하기 미니게임 (눈덩이·"앗!"·폭죽 + 호스트 시작 버튼) */}
           <SnowGame

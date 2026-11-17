@@ -32,6 +32,8 @@ export default function Avatar({
   chat = null,
   sitting = false,
   isMe = false,
+  owner = false, // 사장님 모드: 앞치마 + 닉네임 옆 🍵 배지
+  eating = true, // 앉아 있을 때 냠냠 효과 (찻집 단체석에서는 끄기)
 }) {
   const cheering = emote?.type === 'toast'; // 건배 중이면 잔을 번쩍 드는 포즈
 
@@ -72,6 +74,7 @@ export default function Avatar({
           style={{ scale: 'var(--ui-boost, 1)', transformOrigin: '50% 100%' }} // 휴대폰에서는 닉네임을 키워요
         >
           {nickname}
+          {owner && <span className="ml-1" title="사장님">🍵</span>}
           <span className="absolute left-1/2 top-full -translate-x-1/2 border-x-4 border-t-4 border-x-transparent border-t-slate-900/80" />
         </div>
 
@@ -97,13 +100,70 @@ export default function Avatar({
             cheering={cheering}
             scale={AVATAR_SCALE}
           />
+          {/* 사장님 앞치마 (캐릭터 그림 위에 겹쳐 그려요) */}
+          {owner && <OwnerApron dir={dir} cheering={cheering} />}
         </div>
 
         {/* 앉아서 냠냠 (음식이 바라보는 쪽에서 통통) */}
-        {sitting && !cheering && (
+        {sitting && eating && !cheering && (
           <EatingFx side={dir === 'left' ? 'left' : 'right'} />
         )}
       </div>
     </div>
+  );
+}
+
+// ---------- 사장님 앞치마 ----------
+// 캐릭터 그림(18x25 도트)과 같은 칸에 겹쳐 그리는 모던한 캔버스 앞치마 + 가죽 끈
+//  - 좌표는 pixelCharacter.js와 같은 "디자인 좌표" (실제 칸 = +1)
+const APRON = { base: '#4b5445', shade: '#3a4136', strap: '#c8a27a' };
+function apronPixels(dir) {
+  const px = [];
+  const rect = (x1, y1, x2, y2, c) => {
+    for (let y = y1; y <= y2; y++) for (let x = x1; x <= x2; x++) px.push([x + 1, y + 1, c]);
+  };
+  if (dir === 'up') {
+    // 뒷모습: X자 끈 + 허리 리본
+    rect(6, 12, 6, 12, APRON.strap);
+    rect(7, 13, 8, 13, APRON.strap);
+    rect(9, 12, 9, 12, APRON.strap);
+    rect(4, 15, 11, 15, APRON.strap);
+    rect(7, 16, 8, 16, APRON.strap);
+  } else if (dir === 'left' || dir === 'right') {
+    // 옆모습(오른쪽 보기 기준): 앞쪽에 앞치마, 등 뒤에 리본
+    rect(9, 12, 10, 14, APRON.base);
+    rect(5, 15, 10, 15, APRON.strap);
+    rect(9, 16, 10, 20, APRON.base);
+    rect(9, 20, 10, 20, APRON.shade);
+    rect(4, 15, 4, 16, APRON.strap);
+  } else {
+    // 앞모습: 목끈 + 가슴판 + 허리끈 + 치마 + 주머니
+    rect(6, 11, 6, 11, APRON.strap);
+    rect(9, 11, 9, 11, APRON.strap);
+    rect(6, 12, 9, 14, APRON.base);
+    rect(4, 15, 11, 15, APRON.strap);
+    rect(5, 16, 10, 20, APRON.base);
+    rect(6, 17, 9, 17, APRON.shade);
+    rect(5, 20, 10, 20, APRON.shade);
+  }
+  return px;
+}
+
+function OwnerApron({ dir, cheering }) {
+  const view = cheering ? 'down' : dir;
+  return (
+    <svg
+      className="pointer-events-none absolute left-0 top-0"
+      width={GRID_W * AVATAR_SCALE}
+      height={GRID_H * AVATAR_SCALE}
+      viewBox={`0 0 ${GRID_W} ${GRID_H}`}
+      shapeRendering="crispEdges"
+      style={{ transform: !cheering && dir === 'left' ? 'scaleX(-1)' : undefined }}
+      aria-hidden="true"
+    >
+      {apronPixels(view).map(([x, y, c], i) => (
+        <rect key={i} x={x} y={y} width="1.02" height="1.02" fill={c} />
+      ))}
+    </svg>
   );
 }

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import SimpleRoom from "../components/SimpleRoom";
 import PixelModal from "../components/PixelModal";
 import { TeaNpc, TeaNpcLabel, DayeonSprite, NPC_W, NPC_H } from "../components/TeaNpc";
+import SeasonWindow from "../components/SeasonWindow";
+import TeaHouseHud, { useTeaHouse, menuId } from "../components/TeaHouseHud";
 import { cafeData } from "../spaceData";
 
 // ☕ 군산 온라인 찻집 (teaHouse) — 입장하면 가장 먼저 오는 곳
@@ -16,6 +18,19 @@ const MAP_W = 1600;
 const MAP_H = 1200;
 const WALL_H = 0.24; // 위쪽 벽 높이
 const PASSAGE = { x: 0.44, w: 0.12 }; // 위쪽 가운데 통로 (벽이 뚫린 곳)
+
+// 🪟 통창 자리 (0~1 비율) — 계절 풍경은 이 네모 안에서만 보여요. 배경 그림이 생기면 그림 속 통창에 맞춰 고쳐 주세요
+const WINDOW_AREA = { x: 0.6, y: 0.03, w: 0.37, h: 0.15 };
+
+// 📚 가운데 단체석(쉐어 테이블) — 모임이 열리면 여기 앉은 손님에게 발제문·미트 링크가 보여요
+const SHARE_TABLE = { x: 0.43, y: 0.56, w: 0.14, h: 0.17 };
+const SHARE_SEATS = [
+  // x,y = 앉았을 때 엉덩이 자리 / stand = 의자 옆 서는 자리 (일어나면 여기로)
+  { id: "share1", group: "share", x: 0.405, y: 0.64, dir: "right", stand: { x: 0.34, y: 0.64 }, label: "단체석에 앉기" },
+  { id: "share2", group: "share", x: 0.405, y: 0.72, dir: "right", stand: { x: 0.34, y: 0.72 }, label: "단체석에 앉기" },
+  { id: "share3", group: "share", x: 0.595, y: 0.64, dir: "left", stand: { x: 0.66, y: 0.64 }, label: "단체석에 앉기" },
+  { id: "share4", group: "share", x: 0.595, y: 0.72, dir: "left", stand: { x: 0.66, y: 0.72 }, label: "단체석에 앉기" },
+];
 
 // 카운터 (벽 바로 앞) — 안쪽(벽과 카운터 사이)에 알바생 다연이 서 있어요
 const COUNTER = { x: 0.04, y: 0.3, w: 0.3, h: 0.13 };
@@ -44,8 +59,8 @@ const TABLES = [
   { x: 0.2, y: 0.6 },
   { x: 0.8, y: 0.6 },
   { x: 0.78, y: 0.36 },
-  { x: 0.25, y: 0.8 },
-  { x: 0.75, y: 0.8 },
+  { x: 0.2, y: 0.8 },
+  { x: 0.8, y: 0.8 },
 ];
 
 const BLOCKERS = [
@@ -53,6 +68,7 @@ const BLOCKERS = [
   { x: PASSAGE.x + PASSAGE.w, y: 0, w: 1 - PASSAGE.x - PASSAGE.w, h: WALL_H }, // 위쪽 벽 (통로 오른쪽)
   { x: COUNTER.x, y: WALL_H, w: COUNTER.w, h: COUNTER.y + COUNTER.h - WALL_H }, // 카운터 + 안쪽 (손님은 못 들어가요)
   ...TABLES.map((t) => ({ x: t.x - 0.085, y: t.y - 0.035, w: 0.17, h: 0.06 })), // 테이블 + 의자
+  { x: 0.37, y: SHARE_TABLE.y + 0.01, w: 0.26, h: SHARE_TABLE.h }, // 단체석 + 의자
 ];
 
 const SPOTS = [
@@ -104,7 +120,7 @@ function Table({ x, y }) {
 }
 
 // 코드로 그린 임시 찻집 (npcBubble: 다연의 말풍선)
-function CafeScene({ npcBubble }) {
+function CafeScene({ npcBubble, season }) {
   return (
     <div className="absolute inset-0">
       {/* 나무 바닥 */}
@@ -118,16 +134,8 @@ function CafeScene({ npcBubble }) {
       <div className="absolute left-0 top-0 w-full" style={{ height: `${WALL_H * 100}%`, background: "repeating-linear-gradient(90deg, #8fa98a 0 40px, #86a081 40px 80px)" }} />
       <div className="absolute left-0 w-full" style={{ top: `${(WALL_H - 0.06) * 100}%`, height: "6%", background: "#7b5236", boxShadow: "inset 0 6px 0 #946545, inset 0 -8px 0 #5e3d28" }} />
 
-      {/* 창문 2개 (밤하늘) */}
-      {[0.62, 0.82].map((x) => (
-        <div key={x} className="absolute border-[6px]" style={{ ...pct({ x, y: 0.035, w: 0.12, h: 0.12 }), borderColor: "#f5e6c8", background: "linear-gradient(#1e2a5a, #3b4a8a)", boxShadow: `0 0 0 4px ${OUTLINE}` }}>
-          <div className="absolute inset-y-0 left-1/2 w-1.5 -translate-x-1/2 bg-[#f5e6c8]" />
-          <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 bg-[#f5e6c8]" />
-          <span className="absolute h-1.5 w-1.5 bg-white" style={{ left: "20%", top: "25%" }} />
-          <span className="absolute h-1.5 w-1.5 bg-white" style={{ left: "70%", top: "65%" }} />
-          <span className="absolute h-2 w-2 bg-amber-100" style={{ left: "75%", top: "18%" }} />
-        </div>
-      ))}
+      {/* 🪟 사계절 통창 (설정에서 고른 계절 풍경 — 모두에게 같이 보여요) */}
+      <SeasonWindow rect={{ x: WINDOW_AREA.x * MAP_W, y: WINDOW_AREA.y * MAP_H, w: WINDOW_AREA.w * MAP_W, h: WINDOW_AREA.h * MAP_H }} season={season} />
 
       {/* 메뉴판 (칠판) */}
       <div className="absolute flex flex-col items-center gap-2 border-[6px] pt-2" style={{ ...pct(SPOTS[0].rect), borderColor: "#7b5236", background: "#2f4a3a", boxShadow: `0 0 0 4px ${OUTLINE}` }}>
@@ -161,6 +169,16 @@ function CafeScene({ npcBubble }) {
         <Table key={i} {...t} />
       ))}
 
+      {/* 📚 가운데 단체석 (긴 테이블 + 의자 4개) */}
+      {SHARE_SEATS.map((st) => (
+        <div key={st.id} className="absolute border-4" style={{ left: st.x * MAP_W - 30, top: st.y * MAP_H - 58, width: 60, height: 66, borderColor: OUTLINE, background: "#8a5a3b", boxShadow: "inset 0 -12px 0 #6e4530" }} />
+      ))}
+      <div className="absolute border-[6px]" style={{ ...pct(SHARE_TABLE), borderColor: OUTLINE, background: "#c08a57", boxShadow: "inset 0 -14px 0 #9c6a3c, 0 10px 0 rgba(0,0,0,0.18)" }}>
+        <div className="absolute left-1/2 top-2 -translate-x-1/2 whitespace-nowrap border-2 border-[#2b1d1a] bg-[#f5e6c8] px-2 text-xs font-black text-[#2b1d1a]">📚 단체석</div>
+        <div className="absolute left-[18%] top-[38%] text-3xl">📖</div>
+        <div className="absolute right-[18%] top-[52%] text-2xl">🍵</div>
+      </div>
+
       {/* 왼쪽 아래 · 오른쪽 아래 구석 통로 (돌길이 바깥으로 이어져요) */}
       {[
         { x: 0, flip: false },
@@ -182,6 +200,9 @@ function CafeScene({ npcBubble }) {
 }
 
 export default function CafePage() {
+  // 찻집 공용 상태 (계절 · 모임 · 라이브 · 메뉴 상태) — Firebase "teaHouse"
+  const tea = useTeaHouse();
+
   // 다연의 말풍선 { text, key }
   const [npcBubble, setNpcBubble] = useState(null);
   const timers = useRef([]);
@@ -232,6 +253,8 @@ export default function CafePage() {
       spots={SPOTS}
       exits={EXITS}
       spawns={SPAWNS}
+      seats={SHARE_SEATS}
+      hud={(api) => <TeaHouseHud tea={tea} api={api} />}
       onEnter={handleEnter}
       renderModals={(openId, close) => (
         <>
@@ -267,22 +290,31 @@ export default function CafePage() {
 
         <PixelModal open={openId === "menu"} onClose={close} label="☕ 군산 온라인 찻집" title="📜 차림표" width={460}>
           <ul className="flex flex-col gap-3">
-            {cafeData.menu.map((m) => (
-              <li key={m.name} className="flex gap-3 border-4 border-[#1a110e] bg-[#f5e6c8] p-3 text-[#2b1d1a]">
-                <span className="text-3xl leading-none">{m.emoji}</span>
-                <div>
-                  <p className="font-black">{m.name}</p>
-                  <p className="text-sm text-[#2b1d1a]/70">{m.description}</p>
-                </div>
-              </li>
-            ))}
+            {/* 사장님이 정한 상태: 오늘의 추천 ⭐ 은 맨 위, 재료 소진 🍂 은 흐리게 */}
+            {cafeData.menu
+              .map((m, i) => ({ ...m, key: menuId(m, i), status: tea.menuStatus[menuId(m, i)] || "" }))
+              .sort((a, b) => (b.status === "recommend") - (a.status === "recommend"))
+              .map((m) => (
+                <li
+                  key={m.key}
+                  className={`relative flex gap-3 border-4 p-3 text-[#2b1d1a] ${m.status === "recommend" ? "border-amber-500 bg-[#fef3c7]" : "border-[#1a110e] bg-[#f5e6c8]"} ${m.status === "soldout" ? "opacity-55 grayscale" : ""}`}
+                >
+                  <span className="text-3xl leading-none">{m.emoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-black ${m.status === "soldout" ? "line-through" : ""}`}>{m.name}</p>
+                    <p className="text-sm text-[#2b1d1a]/70">{m.description}</p>
+                  </div>
+                  {m.status === "recommend" && <span className="shrink-0 self-start border-2 border-[#1a110e] bg-amber-400 px-1.5 text-xs font-black">⭐ 오늘의 추천</span>}
+                  {m.status === "soldout" && <span className="shrink-0 self-start border-2 border-[#1a110e] bg-[#e7e5e4] px-1.5 text-xs font-black">🍂 재료 소진</span>}
+                </li>
+              ))}
           </ul>
           {cafeData.note && <p className="mt-4 text-sm text-amber-100/80">{cafeData.note}</p>}
         </PixelModal>
         </>
       )}
     >
-      <CafeScene npcBubble={npcBubble} />
+      <CafeScene npcBubble={npcBubble} season={tea.season} />
     </SimpleRoom>
   );
 }

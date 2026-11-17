@@ -87,11 +87,26 @@ export function setForceOpen(on) {
   } catch {}
 }
 
-// 이 방에 지금 들어갈 수 있는지
+// 🍵 사장님 모드 (사장님 인증을 한 브라우저에 기억)
+export function getOwnerLocal() {
+  try {
+    return localStorage.getItem("teaOwner") === "1";
+  } catch {
+    return false;
+  }
+}
+export function setOwnerLocal(on) {
+  try {
+    if (on) localStorage.setItem("teaOwner", "1");
+    else localStorage.removeItem("teaOwner");
+  } catch {}
+}
+
+// 이 방에 지금 들어갈 수 있는지 (기간 밖이면: 강제 오픈을 켠 호스트·사장님만)
 export function isRoomOpen(roomId, nickname) {
   if (!LOCKABLE_ROOMS.includes(roomId)) return true;
   if (inSchedule()) return true;
-  return getForceOpen() && isHost(nickname);
+  return getForceOpen() && (isHost(nickname) || getOwnerLocal());
 }
 
 // "12월 1일 ~ 12월 31일" 같은 안내 문구
