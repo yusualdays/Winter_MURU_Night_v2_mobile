@@ -9,6 +9,7 @@ import { DEFAULT_LOOK, normalizeLook } from "../lib/pixelCharacter";
 import { ROOMS, rememberFrom, takeArrival, lastExitOf, inZone, isRoomOpen, getForceOpen, setForceOpen, scheduleText, getOwnerLocal, setOwnerLocal } from "../lib/rooms";
 import GreetToast from "./GreetToast";
 import Avatar, { AVATAR_WIDTH, AVATAR_HEIGHT } from "./Avatar";
+import TeaChat from "./TeaChat";
 import InteractButton from "./InteractButton";
 import ChatBox from "./ChatBox";
 import ChatInput from "./ChatInput";
@@ -35,7 +36,9 @@ import { EMOTE_KEYS } from "./EmoteBubble";
 //  seats    : 앉을 수 있는 자리 [{ id, x, y, dir, stand: {x,y}, label }]
 //             x,y = 앉았을 때 엉덩이 자리(캐릭터 아래 가운데), stand = 의자 옆 서는 자리 (모두 0~1 비율)
 //  hud(api) : 화면 위에 덧붙일 UI (설정 창·배너 등). api = { nickname, myId, isOwner, setOwner,
-//             forceOpen, changeForceOpen, mySeat, showToast, playAction }
+//             forceOpen, changeForceOpen, mySeat, showToast, playAction, focus, setFocus }
+//  📖 focus: 공부 집중 모드 (users/{ID}.focus → 머리 위 "📖 집중 중...", 파티 UI 숨김, 1:1 대화 신청 막힘)
+//  🍵 다른 사람 캐릭터를 누르면 [🍵 대화 신청하기] → 상대가 수락하면 둘만의 1:1 찻자리 채팅 (TeaChat.js)
 //  onSeatLeave(seatId): 자리에서 일어나거나 방을 나갈 때 (예: 테이블 위 주문 치우기)
 //  playAction("drinking" | "eating" | "pouring"): 내 아바타 모션 (Firebase users/{ID}.action 으로 모두에게)
 //  spots의 radius: 버튼이 뜨는 거리 (맵 기준 px, 기본 90)
@@ -105,6 +108,8 @@ export default function SimpleRoom({
   const [isOwner, setIsOwner] = useState(false);           // 🍵 사장님 모드 (앞치마 + 배지)
   const [seatId, setSeatId] = useState(null);              // 내가 앉아 있는 자리
   const [action, setAction] = useState(null);              // 내 식음료 모션 { type, at }
+  const [focus, setFocusState] = useState(false);          // 📖 공부 집중 모드
+  const [picked, setPicked] = useState(null);              // 누른 다른 사람 캐릭터 id (대화 신청 버튼)
   const onSeatLeaveRef = useRef(onSeatLeave);
   onSeatLeaveRef.current = onSeatLeave;
   const seatIdRef = useRef(null);
@@ -194,7 +199,7 @@ export default function SimpleRoom({
     const myRef = ref(db, `users/${myId}`);
     onDisconnect(myRef).remove();
     latest.current = { x: Math.round(posRef.current.x), y: Math.round(posRef.current.y), isMoving: false, dir: "down" };
-    set(myRef, { nickname, ...look, room: roomId, joinedAt: serverTimestamp(), ...latest.current, isSitting: false, seatId: null, emote: null, isOwner: getOwnerLocal() }).catch(() => {});
+    set(myRef, { nickname, ...look, room: roomId, joinedAt: serverTimestamp(), ...latest.current, isSitting: false, seatId: null, emote: null, isOwner: getOwnerLocal(), focus: roomId === "teaHouse" && (() => { try { return localStorage.getItem("partyFocus") === "true"; } catch { return false; } })() }).catch(() => {});
     return () => {
       remove(myRef).catch(() => {});
     };
@@ -204,6 +209,22 @@ export default function SimpleRoom({
   useEffect(() => {
     if (myId && db && nickname) update(ref(db, `users/${myId}`), { isOwner }).catch(() => {});
   }, [isOwner, myId, nickname]);
+  // 📖 집중 모드 (이 브라우저에 기억 + 모두에게 알리기)
+  useEffect(() => {
+    try {
+      // 집중 모드 토글은 찻집에만 있어서, 다른 방에서는 꺼진 채로 보여요
+      setFocusState(roomId === "teaHouse" && localStorage.getItem("partyFocus") === "true");
+    } catch {}
+  }, []);
+  useEffect(() => {
+    if (myId && db && nickname) update(ref(db, `users/${myId}`), { focus }).catch(() => {});
+  }, [focus, myId, nickname]);
+  const setFocus = useCallback((on) => {
+    try {
+      localStorage.setItem("partyFocus", on ? "true" : "false");
+    } catch {}
+    setFocusState(!!on);
+  }, []);
   const setOwner = useCallback((on) => {
     setOwnerLocal(on);
     setIsOwner(!!on);
@@ -565,6 +586,7 @@ export default function SimpleRoom({
     const el = mapElRef.current;
     if (!el || !el.contains(e.target)) return;
     if (e.target.closest('button, a, input, textarea, select, [role="dialog"]')) return;
+    setPicked(null);
     if (openIdRef.current || seatIdRef.current) return; // 창이 열려 있거나 앉아 있으면 무시 (일어나기는 버튼으로만)
     const rect = el.getBoundingClientRect();
     const x = clamp((e.clientX - rect.left) / scale, 0, mapW);
@@ -666,16 +688,32 @@ export default function SimpleRoom({
         {tapFx && <TapRipple key={tapFx.id} x={tapFx.x} y={tapFx.y} size={Math.max(64, 44 / scale)} />}
 
         {Object.entries(others).map(([id, u]) => (
-          <Avatar key={id} nickname={u.nickname || "손님"} x={u.x} y={u.y} isMoving={!!u.isMoving} dir={u.dir || "down"} look={normalizeLook(u)} emote={u.emote} chat={bubbles[id]} sitting={!!u.isSitting} owner={!!u.isOwner} eating={false} action={u.action} smooth />
+          <Avatar key={id} nickname={u.nickname || "손님"} x={u.x} y={u.y} isMoving={!!u.isMoving} dir={u.dir || "down"} look={normalizeLook(u)} emote={u.emote} chat={bubbles[id]} sitting={!!u.isSitting} owner={!!u.isOwner} focus={!!u.focus} eating={false} action={u.action} smooth />
         ))}
-        <Avatar nickname={nickname} x={pos.x} y={pos.y} isMoving={isMoving} dir={dir} look={look} emote={emote} chat={bubbles.me} sitting={!!seatId} owner={isOwner} eating={false} action={action} isMe />
+        <Avatar nickname={nickname} x={pos.x} y={pos.y} isMoving={isMoving} dir={dir} look={look} emote={emote} chat={bubbles.me} sitting={!!seatId} owner={isOwner} focus={focus} eating={false} action={action} isMe />
+
+        {/* 🍵 다른 사람 캐릭터 누르기 → [대화 신청하기] (투명 버튼) */}
+        {Object.entries(others).map(([id, u]) => (
+          <button
+            key={`pick-${id}`}
+            type="button"
+            aria-label={`${u.nickname || "손님"}님에게 대화 신청`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => setPicked((p) => (p === id ? null : id))}
+            className="absolute z-[12] cursor-pointer bg-transparent"
+            style={{ left: u.x, top: u.y + (u.isSitting ? 20 : 0), width: AVATAR_WIDTH, height: AVATAR_HEIGHT - (u.isSitting ? 30 : 0), transition: "left 0.12s linear, top 0.12s linear" }}
+          />
+        ))}
 
         <InteractButton target={nearTarget} onClick={interact} icon={nearIcon} text={nearTitle} boost={uiBoost} />
       </div>
 
       {renderModals?.(openId, closeDetail)}
 
-      <ChatBox compact={isTouch} nickname={nickname} onOpenInput={openChat} />
+      {/* 🍵 1:1 찻자리 채팅 (신청 버튼 · 수락/거절 알림 · 둘만의 채팅창) */}
+      <TeaChat myId={myId} nickname={nickname} focus={focus} others={others} picked={picked} setPicked={setPicked} pickedPos={picked && others[picked] ? { x: others[picked].x * scale + camX, y: others[picked].y * scale + camY, w: AVATAR_WIDTH * scale } : null} showToast={showToast} />
+
+      {!focus && <ChatBox compact={isTouch} nickname={nickname} onOpenInput={openChat} />}
       {isTouch && <MobileControls onAction={interact} actionIcon={nearTarget ? nearIcon : null} onEmote={(type) => setEmote({ type, id: Date.now() })} />}
       <ChatInput ref={chatInputRef} open={chatOpen} onSend={sendChat} onClose={() => setChatOpen(false)} />
 
@@ -697,6 +735,8 @@ export default function SimpleRoom({
         mySeat,
         showToast,
         playAction,
+        focus,
+        setFocus,
       })}
 
       {/* 방을 옮길 때: 화면이 스르륵 어두워졌다가 밝아져요 */}

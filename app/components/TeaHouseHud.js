@@ -9,6 +9,7 @@ import { isHost, inSchedule, scheduleText } from "../lib/rooms";
 import PixelModal from "./PixelModal";
 import { SEASONS } from "./SeasonWindow";
 import { OrderBar } from "./TeaTable";
+import { FocusToggle, FocusPanel, NoiseMixer } from "./FocusMode";
 
 // ☕ 찻집 화면 위 UI 모음
 //  - ⚙️ 설정: 🪟 사계절 통창 풍경 (모두에게 실시간 반영) · 🔑 사장님 인증 · 🔓 테스트용 강제 오픈
@@ -99,6 +100,11 @@ function SettingsPanel({ tea, api, onOpenOwner }) {
           ))}
         </div>
         <p className="mt-1 text-[11px] text-white/50">찻집에 있는 모두의 창밖이 함께 바뀌어요{tea.seasonBy ? ` · 마지막 변경: ${tea.seasonBy}님` : ""}</p>
+
+        {/* 🎧 백색소음 믹서 (나만 들려요) */}
+        <div className="mt-4 border-t-2 border-white/15 pt-3">
+          <NoiseMixer />
+        </div>
 
         {/* 🔓 테스트용 강제 오픈 (호스트·사장님) */}
         {(isHost(api.nickname) || api.isOwner) && (
@@ -317,14 +323,17 @@ export default function TeaHouseHud({ tea, api }) {
 
   return (
     <>
-      <Banners tea={tea} />
-      {atShareTable && tea.gathering && <GatheringCard gathering={tea.gathering} />}
+      {/* 📖 집중 모드에서는 파티성 공지·모임 카드를 숨겨요 */}
+      {!api.focus && <Banners tea={tea} />}
+      {!api.focus && atShareTable && tea.gathering && <GatheringCard gathering={tea.gathering} />}
 
       {/* 자리에 앉으면: 아래쪽 미니 주문 바 (차 · 다식) */}
       {api.mySeat && <OrderBar seat={api.mySeat} order={tea.orders[api.mySeat.id]} api={api} />}
 
       {/* ⚙️ 오른쪽 위 설정 */}
       <div className="safe-top safe-right fixed z-40 flex flex-col items-end gap-2">
+        <div className="flex items-center gap-2">
+        <FocusToggle focus={api.focus} setFocus={(on) => { api.setFocus(on); if (on) setPanelOpen(false); api.showToast(on ? "집중 모드를 켰어요. 대화 신청이 잠시 막혀요" : "집중 모드를 껐어요. 수고했어요!", "📖"); }} />
         <button
           type="button"
           onClick={() => setPanelOpen((o) => !o)}
@@ -334,6 +343,8 @@ export default function TeaHouseHud({ tea, api }) {
         >
           ⚙️
         </button>
+        </div>
+        {api.focus && !panelOpen && <FocusPanel />}
         {panelOpen && (
           <SettingsPanel
             tea={tea}

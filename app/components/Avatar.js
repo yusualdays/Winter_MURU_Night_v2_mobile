@@ -35,6 +35,7 @@ export default function Avatar({
   isMe = false,
   owner = false, // 사장님 모드: 앞치마 + 닉네임 옆 🍵 배지
   eating = true, // 앉아 있을 때 냠냠 효과 (찻집 단체석에서는 끄기)
+  focus = false, // 📖 공부 집중 모드: 머리 위 "📖 집중 중..."
   action = null, // 찻집 식음료 모션 { type: "pouring" | "drinking" | "eating", at }
 }) {
   const cheering = emote?.type === 'toast'; // 건배 중이면 잔을 번쩍 드는 포즈
@@ -67,6 +68,13 @@ export default function Avatar({
             <ChatBubble key={chat.key} text={chat.text} raised={!!emote} />
           )}
         </AnimatePresence>
+
+        {/* 📖 공부 집중 중 표시 (닉네임 위) */}
+        {focus && (
+          <div className="absolute -top-[68px] left-1/2 -translate-x-1/2 whitespace-nowrap border-2 border-[#1a110e] bg-[#f5e6c8] px-2 py-0.5 text-xs font-black text-[#2b1d1a] shadow-[2px_2px_0_0_rgba(0,0,0,0.4)]" style={{ scale: 'var(--ui-boost, 1)', transformOrigin: '50% 100%' }}>
+            📖 집중 중...
+          </div>
+        )}
 
         {/* 닉네임 (내 캐릭터는 노란 테두리) */}
         <div
