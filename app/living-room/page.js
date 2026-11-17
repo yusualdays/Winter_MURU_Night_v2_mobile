@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Avatar, { AVATAR_WIDTH, AVATAR_HEIGHT } from "../components/Avatar";
 import DiningTable from "../components/DiningTable";
@@ -17,11 +17,14 @@ import { partyData } from "../data";
 import AudioSettings from "../components/AudioSettings";
 import RoomAmbience from "../components/RoomAmbience";
 import LoadingScreen from "../components/LoadingScreen";
+import MobileControls from "../components/MobileControls";
 import UserActions from "../components/UserActions";
 import GreetToast from "../components/GreetToast";
 import ProfileModal from "../components/ProfileModal";
 import ToastParty from "../components/ToastParty";
 import SnowGame from "../components/SnowGame";
+import TapRipple, { TAP_FX_MS } from "../components/TapRipple";
+import { ROOMS, rememberFrom, inZone } from "../lib/rooms";
 import { EMOTE_KEYS } from "../components/EmoteBubble";
 import { ref, set, update, remove, push, onValue, onDisconnect, runTransaction, serverTimestamp } from "firebase/database";
 import { db } from "../lib/firebase";
@@ -42,6 +45,14 @@ import {
   SEAT_RADIUS,
 } from "../lib/mapConfig";
 
+// 맵 위의 "안 움직이는" 그림들은 내 위치가 바뀔 때마다 다시 그리지 않게 (휴대폰이 훨씬 가벼워져요)
+const StaticWallPosters = memo(WallPosters);
+const StaticQuoteWall = memo(QuoteWall);
+const StaticDiningTable = memo(DiningTable);
+const StaticCallInvite = memo(CallInvite);
+const StaticWishTree = memo(WishTree);
+const StaticRoomAmbience = memo(RoomAmbience);
+
 // ================== 화면 설정 ==================
 // (노란 점선 원 = 🔍 버튼이 뜨는 범위. SHOW_OBSTACLES를 true로 하면 같이 보여요)
 const SPEED = 320;            // 1초에 이동하는 거리(맵 단위)
@@ -52,8 +63,17 @@ const CHAT_MS = 5000;         // 채팅 말풍선이 떠 있는 시간 (5초)
 const CHAT_COOLDOWN = 800;    // 도배 방지 (0.8초에 한 번)
 const FRIEND_RADIUS = 60;     // 친구와 이만큼(맵 기준 px) 가까우면 [🤝 인사하기] [🔍 프로필]
 const GREET_EMOTE = "smile";  // 인사할 때 두 캐릭터가 짓는 표정 ("smile" 방긋 / "heart" 하트 / "hurray" 만세)
+const CAFE_DOOR = { x: 0.4, y: 0.965, w: 0.2, h: 0.035 }; // 아래쪽 가운데 문 → ☕ 찻집 (비율 좌표)
 const GREET_COOLDOWN = 3000;  // 인사 도배 방지 (3초에 한 번)
-const TAP_FX_MS = 800;        // 터치한 곳에 뜨는 동그라미 파동 (0.8초)
+
+// ===== 휴대폰 카메라 =====
+// 화면 전체에 맵을 욱여넣으면 폰에서는 너무 작아져요 → 좁은 화면에서는 "내 캐릭터를 따라다니는 카메라"로 바꿔요
+const CAMERA_FIT_BELOW = 0.45; // 맵 전체가 이 배율보다 작게 보여야 하면 카메라 모드
+const CAMERA_ZOOM = 0.5;       // 카메라 모드 배율 (배경 그림이 4배 확대라서 0.75면 도트가 정확히 3px로 또렷해요)
+const UI_BOOST = 1.6; 
+const WALL_EXT_SRC = "/wall-extension.png"; // 배경 그림 위에 이어 붙이는 벽 + 천장 몰딩 (포스터·책꽂이 위 여유 공간)
+const WALL_EXT_H = 256; // 위로 늘린 벽 높이 (맵 기준 px, 그림 64px × 4배)
+const FLOOR_EXT_SRC = "/floor-extension.png"; // 배경 그림 아래에 이어 붙이는 나무 바닥 (세로로 긴 휴대폰 화면의 빈 곳 채우기)         // 카메라 모드에서 닉네임·버튼을 이만큼 키워서 읽기 쉽게
 
 // 충돌은 아바타의 "발밑" 부분으로만 판정 (위에서 내려다보는 시점이라 자연스러움)
 // (캐릭터 크기가 바뀌어도 항상 발밑 가운데에 오도록 자동 계산)
@@ -105,27 +125,6 @@ const standPos = (point, w, h) => ({
   y: point.y * h - (FEET.offsetY + FEET.height / 2),
 });
 
-// 터치한 곳에 뜨는 픽셀 동그라미 (11x11 칸 중 테두리만 칠하기)
-const RING_PIXELS = [];
-for (let r = 0; r < 11; r++) {
-  for (let c = 0; c < 11; c++) {
-    const d = Math.hypot(r - 5, c - 5);
-    if (d >= 3.6 && d < 5.1) RING_PIXELS.push([c, r]);
-  }
-}
-function TapRipple({ x, y, size }) {
-  return (
-    <div className="pointer-events-none absolute z-[5]" style={{ left: x - size / 2, top: y - size / 2, width: size, height: size }}>
-      <svg viewBox="0 0 11 11" width={size} height={size} shapeRendering="crispEdges" className="tap-ripple">
-        {RING_PIXELS.map(([c, r]) => (
-          <rect key={`${c}-${r}`} x={c} y={r} width="1" height="1" fill="#fef3c7" stroke="#1a110e" strokeWidth="0.15" />
-        ))}
-        <rect x="5" y="5" width="1" height="1" fill="#fbbf24" />
-      </svg>
-    </div>
-  );
-}
-
 export default function LivingRoom() {
   const router = useRouter();
   const [nickname, setNickname] = useState(null);
@@ -140,11 +139,13 @@ export default function LivingRoom() {
   const stuckRef = useRef(0);             // 장애물에 막혀 못 가는 프레임 수
   const mapElRef = useRef(null);          // 맵 화면(div)
   const [tapFx, setTapFx] = useState(null); // 터치한 곳 파동 { x, y, id }
+  const doorArmedRef = useRef(false);     // 문 밖으로 한 번 나와야 문이 작동 (도착하자마자 되돌아가지 않게)
+  const [leaving, setLeaving] = useState(false); // 다른 방으로 가는 중 (화면이 어두워져요)
 
   const [showWelcome, setShowWelcome] = useState(true); // 환영 문구 (8초 뒤 사라짐)
   const [mapSize, setMapSize] = useState(null); // { w, h }
   const [hasBackground, setHasBackground] = useState(false);
-  const [scale, setScale] = useState(1);
+  const [vp, setVp] = useState({ w: 1280, h: 720 }); // 화면(뷰포트) 크기
   const mapRef = useRef(null); // 이동 계산용: { w, h, rects }
 
   // ===== 멀티플레이어 =====
@@ -172,6 +173,7 @@ export default function LivingRoom() {
   const [bubbles, setBubbles] = useState({});      // 머리 위 말풍선 { 유저ID 또는 "me": { text, key } }
   const seenChat = useRef({});                     // 유저별로 마지막으로 본 chatTimestamp
   const lastChatSent = useRef(0);
+  const chatInputRef = useRef(null);               // 휴대폰: 버튼을 누르는 "그 순간" 입력칸에 포커스를 줘야 키보드가 떠요
 
   // ===== 친구와 인사·프로필 =====
   const [toast, setToast] = useState(null);           // 화면 위 알림 { id, text }
@@ -181,7 +183,6 @@ export default function LivingRoom() {
 
   // ===== 휴대폰 조작 =====
   const [isTouch, setIsTouch] = useState(false);  // 손가락으로 쓰는 기기인지 (휴대폰·태블릿)
-  const [isNarrow, setIsNarrow] = useState(false); // 화면이 좁은지 (휴대폰 세로 화면 등)
 
   // ===== 오디오 상태 (각각 독립된 useState) =====
   const [bgmPlaying, setBgmPlaying] = useState(false);
@@ -218,15 +219,21 @@ export default function LivingRoom() {
     } catch {}
   }, [lighting, weather]);
 
-  // 1-0-1) 휴대폰인지 확인 (손가락 입력 / 좁은 화면)
+  // 1-0-1) 휴대폰인지 확인 (손가락 입력) + 화면 크기 추적 (회전·주소창 변화 포함)
   useEffect(() => {
     const check = () => {
       setIsTouch(window.matchMedia("(pointer: coarse)").matches);
-      setIsNarrow(window.innerWidth < 768);
+      setVp((v) => (v.w === window.innerWidth && v.h === window.innerHeight ? v : { w: window.innerWidth, h: window.innerHeight }));
     };
     check();
     window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
+    window.addEventListener("orientationchange", check);
+    window.visualViewport?.addEventListener("resize", check);
+    return () => {
+      window.removeEventListener("resize", check);
+      window.removeEventListener("orientationchange", check);
+      window.visualViewport?.removeEventListener("resize", check);
+    };
   }, []);
 
   // 1-1) 환영 문구는 8초 뒤에 사라지게 (포스터를 가리지 않도록)
@@ -246,7 +253,7 @@ export default function LivingRoom() {
     const myRef = ref(db, `users/${myId}`);
     onDisconnect(myRef).remove();
     // 유저 데이터: { nickname, hair, hairColor, skin, outfit } + 위치
-    set(myRef, { nickname, ...look, joinedAt: serverTimestamp(), ...latest.current, emote: null }).catch((err) =>
+    set(myRef, { nickname, ...look, room: "living", joinedAt: serverTimestamp(), ...latest.current, emote: null }).catch((err) =>
       console.error("접속자 등록 실패:", err)
     );
     return () => {
@@ -282,7 +289,7 @@ export default function LivingRoom() {
       const all = {};
       snap.forEach((child) => {
         const u = child.val();
-        if (child.key !== myId && u && typeof u.x === "number") all[child.key] = u;
+        if (child.key !== myId && u && typeof u.x === "number" && (u.room ?? "living") === "living") all[child.key] = u; // 거실에 있는 사람만
       });
       setOthers(all);
       othersRef.current = all;
@@ -395,16 +402,6 @@ export default function LivingRoom() {
     img.onerror = () => setupMap(FALLBACK_MAP.w, FALLBACK_MAP.h, false);
     img.src = BACKGROUND_SRC;
   }, []);
-
-  // 3) 화면 크기에 맞춰 맵 확대/축소
-  useEffect(() => {
-    if (!mapSize) return;
-    const onResize = () =>
-      setScale(Math.min(window.innerWidth / mapSize.w, window.innerHeight / mapSize.h));
-    onResize();
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [mapSize]);
 
   // 4) 키보드 누름/뗌 기록
   useEffect(() => {
@@ -579,12 +576,18 @@ export default function LivingRoom() {
     if (openId) pressedKeys.current.clear(); // 창이 열리면 걷기 멈춤
   }, [openId]);
 
-  const openDetail = (id) => {
+  const openDetail = useCallback((id) => {
     pressedKeys.current.clear();
     targetRef.current = null;
     setOpenId(id);
-  };
-  const closeDetail = () => setOpenId(null);
+  }, []);
+  const closeDetail = useCallback(() => setOpenId(null), []);
+  const openChat = useCallback(() => {
+    pressedKeys.current.clear();
+    setChatOpen(true);
+    chatInputRef.current?.focus();
+  }, []);
+  const openInvite = useCallback(() => openDetail("invite"), [openDetail]);
 
   // ===== 의자에 앉기 / 일어나기 =====
   // 다른 친구가 앉아 있는 의자: { 의자id: 닉네임 }
@@ -672,6 +675,24 @@ export default function LivingRoom() {
     return () => clearTimeout(timer);
   }, [tapFx]);
 
+  // 아래쪽 문에 닿으면 → ☕ 찻집으로 (도착한 자리가 문 위라면, 한 번 문 밖으로 나온 뒤부터 작동)
+  useEffect(() => {
+    if (!mapSize || leaving) return;
+    const feet = { x: pos.x + FEET.offsetX, y: pos.y + FEET.offsetY, w: FEET.width, h: FEET.height };
+    const onDoor = inZone(feet, CAFE_DOOR, mapSize.w, mapSize.h);
+    if (!onDoor) {
+      doorArmedRef.current = true;
+      return;
+    }
+    if (!doorArmedRef.current || seatIdRef.current) return;
+    setLeaving(true);
+    targetRef.current = null;
+    pressedKeys.current.clear();
+    rememberFrom("living");
+    setTimeout(() => router.push(ROOMS.cafe.href), 280);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pos, mapSize, leaving]);
+
   // 가장 가까운 친구 (발끼리 FRIEND_RADIUS 안) → 친구 머리 위에 [🤝] [🔍]
   let nearFriend = null;
   if (mapSize && !openId) {
@@ -701,26 +722,53 @@ export default function LivingRoom() {
   else if (nearSeat) nearInfo = takenSeats[nearSeat.id] ? { icon: "🚫", title: `${takenSeats[nearSeat.id]}님 자리예요` } : { icon: "🪑", title: "앉기" };
   else nearInfo = SPOT_TITLES[nearId] ?? { icon: "🔍", title: nearFood ? `${nearFood.emoji} ${nearFood.name}` : "" };
 
+  // ===== 카메라 / 화면 배율 =====
+  //  - 넓은 화면(PC·태블릿): 맵 전체가 한눈에 보이게 맞춰요 (예전과 동일)
+  //  - 좁은 화면(휴대폰): 일정한 배율로 키우고 내 캐릭터를 따라가요
+  const fitScale = mapSize ? Math.min(vp.w / mapSize.w, vp.h / mapSize.h) : 1;
+  const cameraMode = !!mapSize && fitScale < CAMERA_FIT_BELOW;
+  // (가로 화면에서 맵 양옆이 비지 않게, 가로가 꽉 차는 배율보다 작아지지는 않아요)
+  const scale = cameraMode ? Math.max(CAMERA_ZOOM, vp.w / mapSize.w) : fitScale;
+  const uiBoost = cameraMode ? UI_BOOST : 1;
+  const portrait = vp.h > vp.w;
+  let camX = 0;
+  let camY = 0;
+  if (mapSize) {
+    const sw = mapSize.w * scale;
+    const sh = mapSize.h * scale;
+    if (!cameraMode) {
+      camX = (vp.w - sw) / 2;
+      camY = (vp.h - sh) / 2;
+    } else {
+      // 캐릭터를 화면 가운데(조금 위)에 두고, 맵 끝에서는 멈춰요
+      // 아래쪽은 조작 버튼에 가리지 않도록 여백을 더 줘요
+      const bottomPad = portrait ? 190 : 100;
+      const cx = (pos.x + AVATAR_WIDTH / 2) * scale;
+      const cy = (pos.y + AVATAR_HEIGHT * 0.6) * scale;
+      camX = sw <= vp.w ? (vp.w - sw) / 2 : clamp(vp.w / 2 - cx, vp.w - sw, 0);
+      // 맵이 화면보다 짧으면 위에 붙이고, 아래 빈 곳은 바닥 그림을 이어 붙여 채워요 (아래 FLOOR_EXT_SRC)
+      // 위로는 늘린 벽(WALL_EXT_H)까지 올라가서, 포스터·책꽂이 위에 여유가 생겨요
+      const topRoom = WALL_EXT_H * scale;
+      camY = clamp(vp.h * (portrait ? 0.4 : 0.45) - cy, Math.min(topRoom, vp.h - sh - bottomPad), topRoom);
+    }
+  }
+
   if (!nickname) return <LoadingScreen />;
 
   return (
-    <main id="party-room" className="relative h-[100dvh] w-screen select-none overflow-hidden bg-slate-950" style={{ touchAction: "manipulation" }}>
-      <style>{`
-        @keyframes tap-ripple { 0% { transform: scale(0.3); opacity: 1; } 70% { opacity: 0.9; } 100% { transform: scale(1.25); opacity: 0; } }
-        .tap-ripple { animation: tap-ripple ${TAP_FX_MS}ms ease-out forwards; }
-      `}</style>
+    <main id="party-room" className={`relative h-screen w-screen select-none overflow-hidden ${cameraMode ? "bg-[#f7c17f]" : "bg-slate-950"}`} style={{ touchAction: "manipulation" }}>
       {/* 안내 문구 (왼쪽 위에 작게, 8초 뒤 사라짐) */}
       <div
-        className={`pointer-events-none absolute left-4 top-4 z-30 max-w-[60vw] rounded-xl bg-slate-900/70 px-4 py-2 shadow-lg backdrop-blur transition-opacity duration-1000 ${
+        className={`safe-top safe-left pointer-events-none absolute z-30 max-w-[calc(100vw-5.5rem)] rounded-xl bg-slate-900/70 px-4 py-2 shadow-lg backdrop-blur transition-opacity duration-1000 sm:max-w-[60vw] ${
           showWelcome ? "opacity-100" : "opacity-0"
         }`}
       >
         <h1 className="text-base font-bold text-amber-100">{nickname}님, 거실에 오신 걸 환영해요! 🔥</h1>
-        <p className="mt-0.5 text-xs text-amber-100/80">
-          {isTouch
-            ? "가고 싶은 곳을 터치하면 걸어가요 · 물건·의자 가까이에서 뜨는 버튼을 눌러 보세요"
-            : "방향키·W·A·S·D 또는 바닥 클릭으로 이동 · 물건 가까이에서 버튼 클릭 또는 E키 · Enter = 말풍선 채팅 · 의자 옆에서 E = 앉기 · 숫자키 1·2·3 = 표정 · T = 건배"}
-        </p>
+        {isTouch ? (
+          <p className="mt-0.5 text-xs text-amber-100/80">가고 싶은 곳을 터치하면 걸어가요 · 물건 가까이에서 ✋ 버튼 · 💬 말풍선 · 😊 표정 · 🥂 건배 · 아래쪽 문 = ☕ 찻집</p>
+        ) : (
+          <p className="mt-0.5 text-xs text-amber-100/80">방향키·W·A·S·D 또는 바닥 클릭으로 이동 · 물건·트리 가까이에서 버튼 클릭 또는 E키 · Enter = 말풍선 채팅 · 의자 옆에서 E = 앉기 · 숫자키 1·2·3 = 표정 · T = 건배</p>
+        )}
       </div>
 
       {/* 배경 그림을 불러오는 동안 로딩 화면 */}
@@ -731,42 +779,74 @@ export default function LivingRoom() {
         <div
           ref={mapElRef}
           onPointerDown={handleMapTap}
-          className="absolute left-1/2 top-1/2 cursor-pointer"
+          className="absolute left-0 top-0 cursor-pointer will-change-transform"
           style={{
             width: mapSize.w,
             height: mapSize.h,
-            transform: `translate(-50%, -50%) scale(${scale})`,
+            transformOrigin: "0 0",
+            transform: `translate3d(${camX}px, ${camY}px, 0) scale(${scale})`,
+            "--ui-boost": uiBoost, // 닉네임·말풍선 크기 배율 (휴대폰에서 키워요)
             imageRendering: "pixelated", // 픽셀아트를 흐리지 않고 또렷하게 확대
             background: hasBackground
               ? `url(${BACKGROUND_SRC}) center / 100% 100%`
               : "repeating-linear-gradient(90deg, #6b4430 0 120px, #5e3b29 120px 240px)",
           }}
         >
+          {/* 휴대폰: 배경 그림 위로 벽을 이어서 (포스터·책꽂이 버튼이 위에 넉넉히 떠요) */}
+          {cameraMode && hasBackground && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute left-0"
+              style={{
+                top: -WALL_EXT_H,
+                width: mapSize.w,
+                height: WALL_EXT_H,
+                background: `url(${WALL_EXT_SRC}) 0 0 / 100% 100% no-repeat`,
+                imageRendering: "pixelated",
+              }}
+            />
+          )}
+
+          {/* 휴대폰: 배경 그림 아래로 나무 바닥을 이어서, 조작 버튼 뒤가 까맣게 비지 않게 */}
+          {cameraMode && hasBackground && (
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute left-0"
+              style={{
+                top: mapSize.h,
+                width: mapSize.w,
+                height: mapSize.h * 1.2,
+                background: `url(${FLOOR_EXT_SRC}) 0 0 / 100% auto repeat-y`,
+                imageRendering: "pixelated",
+              }}
+            />
+          )}
+
           {/* 거실 분위기: 창밖 날씨(눈·불꽃) + 조명 오버레이 (클릭을 막지 않아요) */}
-          <RoomAmbience lighting={lighting} weather={weather} mapW={mapSize.w} mapH={mapSize.h} />
+          <StaticRoomAmbience lighting={lighting} weather={weather} mapW={mapSize.w} mapH={mapSize.h} />
 
           {/* 벽에 걸린 영화 포스터 3장 (data.js movies의 poster 그림) */}
-          <WallPosters mapW={mapSize.w} mapH={mapSize.h} />
+          <StaticWallPosters mapW={mapSize.w} mapH={mapSize.h} />
 
           {/* 포스터와 책꽂이 사이: 방명록 액자 + 방명록 창 */}
-          <QuoteWall mapW={mapSize.w} mapH={mapSize.h} open={openId === "quote"} onClose={closeDetail} />
+          <StaticQuoteWall mapW={mapSize.w} mapH={mapSize.h} open={openId === "quote"} onClose={closeDetail} />
 
           {/* 식탁 위 음식 그림 + 김 (음식을 클릭하면 설명 창이 열려요) */}
-          <DiningTable mapW={mapSize.w} mapH={mapSize.h} openFoodId={openId} onOpenFood={openDetail} onClose={closeDetail} />
+          <StaticDiningTable mapW={mapSize.w} mapH={mapSize.h} openFoodId={openId} onOpenFood={openDetail} onClose={closeDetail} />
 
           {/* 식탁 오른쪽 아래 봉투: 그룹 통화 초대장 (가까이 가서 E키 또는 봉투 클릭) */}
-          <CallInvite
+          <StaticCallInvite
             mapW={mapSize.w}
             mapH={mapSize.h}
             open={openId === "invite"}
-            onOpen={() => openDetail("invite")}
+            onOpen={openInvite}
             onClose={closeDetail}
             nickname={nickname}
             hideMarker={nearId === "invite"}
           />
 
           {/* 왼쪽 아래 크리스마스 트리: 소원 쪽지 + 소원 빌기 창 */}
-          <WishTree mapW={mapSize.w} mapH={mapSize.h} open={openId === "tree"} onClose={closeDetail} nickname={nickname} />
+          <StaticWishTree mapW={mapSize.w} mapH={mapSize.h} open={openId === "tree"} onClose={closeDetail} nickname={nickname} />
 
           {/* 위치 맞추기용 표시: 빨강 = 이동 불가, 파랑 = 클릭 영역 */}
           {SHOW_OBSTACLES && (
@@ -812,6 +892,15 @@ export default function LivingRoom() {
             </>
           )}
 
+          {/* 아래쪽 가운데 문 표시 → ☕ 찻집 */}
+          <div
+            className="pointer-events-none absolute z-[4] flex flex-col items-center justify-end"
+            style={{ left: CAFE_DOOR.x * mapSize.w, top: (CAFE_DOOR.y - 0.05) * mapSize.h, width: CAFE_DOOR.w * mapSize.w, height: (CAFE_DOOR.h + 0.05) * mapSize.h }}
+          >
+            <span className="mb-1 border-4 border-[#1a110e] bg-[#f5e6c8] px-3 py-0.5 text-lg font-black text-[#2b1d1a] shadow-[3px_3px_0_0_rgba(0,0,0,0.35)]">⬇ ☕ 찻집</span>
+            <span className="h-3 w-full bg-[#1a110e]/40" />
+          </div>
+
           {/* 터치(클릭)한 곳의 픽셀 동그라미 파동 */}
           {tapFx && <TapRipple key={tapFx.id} x={tapFx.x} y={tapFx.y} size={Math.max(64, 44 / scale)} />}
 
@@ -855,6 +944,7 @@ export default function LivingRoom() {
           {/* 친구 가까이 가면 친구 머리 위에 [🤝 인사하기] [🔍 프로필] */}
           <UserActions
             user={nearFriend}
+            boost={uiBoost}
             onGreet={() => nearFriend && greet(nearFriend.id)}
             onProfile={() => {
               if (!nearFriend) return;
@@ -867,11 +957,22 @@ export default function LivingRoom() {
           {/*   예: [🔍 올해의 영화] [✍️ 방명록] [🎄 소원 빌기 🙏] */}
           <InteractButton
             target={openId ? null : nearTarget}
+            boost={uiBoost}
+            minTop={cameraMode ? -WALL_EXT_H : 8}
             onClick={interact}
             icon={nearInfo.icon}
             text={nearInfo.title}
           />
         </div>
+      )}
+
+      {/* 휴대폰: 아래쪽을 살짝 어둡게 → 조작 버튼이 바닥 위에서 잘 보여요 */}
+      {cameraMode && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-0 z-[15] h-56"
+          style={{ background: "linear-gradient(to bottom, rgba(26,17,14,0) 0%, rgba(26,17,14,0.45) 100%)" }}
+        />
       )}
 
       {/* 친구 프로필 창 + 인사 알림 */}
@@ -883,13 +984,22 @@ export default function LivingRoom() {
       <Bookshelf open={openId === "bookshelf"} onClose={closeDetail} />
 
       {/* 왼쪽 아래: 건배하기 버튼 + 모두의 화면에 건배 축하 */}
-      <ToastParty nickname={nickname} onToast={() => setEmote({ type: "toast", id: Date.now() })} />
+      <ToastParty compact={isTouch} nickname={nickname} onToast={() => setEmote({ type: "toast", id: Date.now() })} />
 
       {/* 오른쪽 아래: 채팅 기록 + 💬 말하기 버튼 (미니 플레이어가 뜨면 그 위로 올라가요) */}
-      <ChatBox nickname={nickname} onOpenInput={() => setChatOpen(true)} />
+      <ChatBox compact={isTouch} nickname={nickname} onOpenInput={openChat} />
+
+      {/* 휴대폰·태블릿: 오른쪽 아래 행동·표정 버튼 (걷기는 화면 터치, PC에서는 안 보여요) */}
+      {isTouch && (
+        <MobileControls
+          onAction={interact}
+          actionIcon={!openId && nearTarget ? nearInfo.icon : null}
+          onEmote={(type) => setEmote({ type, id: Date.now() })}
+        />
+      )}
 
       {/* 하단 가운데: 말풍선 채팅 입력창 (Enter로 열기 → Enter로 보내기) */}
-      <ChatInput open={chatOpen} onSend={sendChat} onClose={() => setChatOpen(false)} />
+      <ChatInput ref={chatInputRef} open={chatOpen} onSend={sendChat} onClose={() => setChatOpen(false)} />
 
       {/* 오른쪽 위 ⚙️: 오디오 설정 (BGM + 장작불 ASMR) / 오른쪽 아래: 유튜브 미니 플레이어 */}
       <AudioSettings
@@ -906,6 +1016,8 @@ export default function LivingRoom() {
         weather={weather}
         setWeather={setWeather}
       />
+      {/* 다른 방으로 가는 중: 화면이 스르륵 어두워져요 */}
+      <div className={`pointer-events-none fixed inset-0 z-[90] bg-black transition-opacity duration-300 ${leaving ? "opacity-100" : "opacity-0"}`} />
     </main>
   );
 }

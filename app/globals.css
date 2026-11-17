@@ -118,11 +118,11 @@ select {
   }
 }
 
-/* 휴대폰 채팅 기록: 세로 = 방향 패드 위쪽 / 가로(낮은 화면) = 왼쪽 위 */
+/* 휴대폰 채팅 기록: 세로 = 왼쪽 아래 / 가로(낮은 화면) = 왼쪽 위 */
 .chatlog-compact {
   left: calc(var(--sal) + 0.75rem);
   right: calc(var(--sar) + 4.25rem);
-  bottom: calc(var(--sab) + 1rem + 138px + 12px);
+  bottom: calc(var(--sab) + 1rem);
   max-width: 360px;
 }
 @media (orientation: landscape) and (max-height: 520px) {

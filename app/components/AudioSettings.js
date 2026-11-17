@@ -286,7 +286,7 @@ export default function AudioSettings({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -8, scale: 0.95 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="absolute right-0 top-14 max-h-[80vh] w-80 max-w-[90vw] overflow-y-auto max-w-[calc(100vw-1.5rem)] origin-top-right bg-[#2b1d1a] p-1 shadow-[6px_6px_0_0_rgba(0,0,0,0.35)]"
+              className="absolute right-0 top-14 max-h-[80vh] w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto origin-top-right bg-[#2b1d1a] p-1 shadow-[6px_6px_0_0_rgba(0,0,0,0.35)]"
               style={{ clipPath: PIXEL_CORNERS }}
             >
               <div className="max-h-[calc(100dvh-5.5rem)] overflow-y-auto bg-[#f5e6c8] p-4" style={{ clipPath: PIXEL_CORNERS, overscrollBehavior: 'contain', touchAction: 'pan-y' }}>

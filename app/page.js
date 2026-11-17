@@ -18,7 +18,7 @@ export default function EntranceGate() {
 
   // 거실 화면을 미리 준비해 두기 → 입장할 때 더 빨리 열려요
   useEffect(() => {
-    router.prefetch('/living-room');
+    router.prefetch('/cafe');
   }, [router]);
   const inputRef = useRef(null);
 
@@ -53,7 +53,7 @@ export default function EntranceGate() {
     } catch {}
     saveLook(look); // 거실에 들어가면 Firebase 접속자 정보에도 함께 저장돼요
     setEntering(true); // 거실이 열릴 때까지 로딩 화면
-    router.push('/living-room');
+    router.push('/cafe');
   };
 
   return (
