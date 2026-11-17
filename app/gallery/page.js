@@ -1,41 +1,65 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import SimpleRoom from "../components/SimpleRoom";
 import PixelModal from "../components/PixelModal";
 import { galleryData } from "../spaceData";
 
-// 🖼️ 전시회 (exhibitionRoom) — 찻집의 왼쪽·오른쪽 아래 통로로 와요
-//  - 작품은 app/spaceData.js의 galleryData.artworks (앞 5개 = 벽, 나머지 = 이젤, 최대 8개)
-//  - 아래쪽 가운데 출구 경계 → ☕ 찻집 (나갔던 통로 앞으로 돌아가요)
+// 🖼️ 전시회 (exhibitionRoom) — 찻집 오른쪽 아래 통로로 와요
+//  - 배경 그림: public/gallery_bg.png (4:3) — 아래 좌표는 모두 이 그림 기준 0~1 비율. 주소 끝에 ?debug=1 → 장애물·버튼 위치 색칠
+//  - 작품은 app/spaceData.js의 galleryData.artworks (앞 4개 = 벽 액자, 5·6번째 = 유리 진열장, 최대 6개)
+//    image를 넣으면 그림 속 액자 안에 내 그림이 들어가고, 비워 두면 배경에 그려진 그림이 그대로 보여요
+//  - 왼쪽 문(왼쪽 벽 가운데) → ☕ 찻집 (오른쪽 아래 통로 앞으로 돌아가요)
 //  - data.js의 eventSchedule 기간에만 들어올 수 있어요
-//  - 좌표는 모두 0~1 비율
 const MAP_W = 1600;
 const MAP_H = 1200;
-const WALL_H = 0.3;
+const BG_IMAGE = "/gallery_bg.png";
+const WALL_BOTTOM = 0.335; // 벽 아래 끝 (바닥 시작)
+const FLOOR = { x: 0.05, y: WALL_BOTTOM, r: 0.95, b: 0.935 }; // 바닥 테두리
+const DOOR = { y: 0.53, h: 0.1 }; // 왼쪽 문 (찻집으로)
 
-// 작품 거는 자리: 벽 5칸 + 이젤 3칸
-const WALL_SLOTS = [0.14, 0.32, 0.5, 0.68, 0.86].map((cx) => ({ rect: { x: cx - 0.065, y: 0.06, w: 0.13, h: 0.17 }, near: { x: cx, y: 0.38 } }));
-const EASEL_SLOTS = [0.22, 0.5, 0.78].map((cx) => ({ rect: { x: cx - 0.05, y: 0.52, w: 0.1, h: 0.12 }, near: { x: cx, y: 0.77 }, easel: true }));
-const SLOTS = [...WALL_SLOTS, ...EASEL_SLOTS];
+// 작품 자리: inner = 액자 안쪽 그림 칸, frame = 버튼이 뜨는 곳, near = 이 근처에 서면 [🖼️ 작품 이름]
+const WALL_FRAMES = [
+  { inner: { x: 0.115, y: 0.145, w: 0.125, h: 0.115 }, near: { x: 0.18, y: 0.4 } },
+  { inner: { x: 0.345, y: 0.165, w: 0.11, h: 0.085 }, near: { x: 0.4, y: 0.4 } },
+  { inner: { x: 0.56, y: 0.145, w: 0.105, h: 0.115 }, near: { x: 0.615, y: 0.4 } },
+  { inner: { x: 0.775, y: 0.14, w: 0.085, h: 0.13 }, near: { x: 0.82, y: 0.4 } },
+];
+const CASES = [
+  { inner: { x: 0.262, y: 0.49, w: 0.074, h: 0.07 }, body: { x: 0.255, y: 0.4, w: 0.09, h: 0.23 }, near: { x: 0.3, y: 0.7 } },
+  { inner: { x: 0.662, y: 0.49, w: 0.074, h: 0.07 }, body: { x: 0.655, y: 0.4, w: 0.09, h: 0.23 }, near: { x: 0.7, y: 0.7 } },
+];
+const SLOTS = [...WALL_FRAMES, ...CASES.map((c) => ({ ...c, inCase: true }))];
+const BENCH = { x: 0.415, y: 0.53, w: 0.17, h: 0.1 };
 
 const artworks = (galleryData?.artworks ?? []).slice(0, SLOTS.length);
 const placed = artworks.map((art, i) => ({ art, ...SLOTS[i] }));
 
 const BLOCKERS = [
-  { x: 0, y: 0, w: 1, h: WALL_H }, // 위쪽 벽
-  ...placed.filter((p) => p.easel).map((p) => ({ x: p.rect.x + 0.01, y: 0.62, w: p.rect.w - 0.02, h: 0.06 })), // 이젤 다리
-  { x: 0.66, y: 0.82, w: 0.14, h: 0.05 }, // 벤치
+  { x: 0, y: 0, w: 1, h: FLOOR.y }, // 위쪽 벽
+  { x: 0, y: 0, w: FLOOR.x, h: DOOR.y }, // 왼쪽 벽 (문 위)
+  { x: 0, y: DOOR.y + DOOR.h, w: FLOOR.x, h: 1 }, // 왼쪽 벽 (문 아래)
+  { x: FLOOR.r, y: 0, w: 1 - FLOOR.r, h: 1 }, // 오른쪽 벽
+  { x: 0, y: FLOOR.b, w: 1, h: 1 - FLOOR.b }, // 아래쪽 벽
+  ...CASES.map((c) => ({ x: c.body.x, y: c.body.y + 0.1, w: c.body.w, h: c.body.h - 0.1 })), // 유리 진열장
+  { x: BENCH.x, y: BENCH.y + 0.04, w: BENCH.w, h: 0.05 }, // 벤치
+  { x: FLOOR.x, y: 0.66, w: 0.1, h: 0.3 }, // 화분 + 방명록 탁자
 ];
 
-const SPOTS = placed.map((p) => ({ id: p.art.id, rect: p.rect, near: p.near, icon: "🖼️", title: p.art.title }));
+// 🪑 가운데 벤치 (앉아서 작품 감상)
+const SEATS = [
+  { id: "bench1", x: 0.46, y: 0.6, dir: "down", stand: { x: 0.46, y: 0.69 }, label: "벤치에 앉기" },
+  { id: "bench2", x: 0.54, y: 0.6, dir: "down", stand: { x: 0.54, y: 0.69 }, label: "벤치에 앉기" },
+];
 
-// 아래쪽 가운데 출구 → 찻집
-const EXITS = [{ id: "out", to: "teaHouse", zone: { x: 0.42, y: 0.93, w: 0.16, h: 0.07 }, sign: { x: 0.5, y: 0.885 }, label: "⬇ ☕ 찻집으로" }];
+const SPOTS = placed.map((p) => ({ id: p.art.id, rect: p.inner, near: p.near, radius: 110, icon: "🖼️", title: p.art.title }));
+
+// 왼쪽 문 → 찻집
+const EXITS = [{ id: "out", to: "teaHouse", zone: { x: 0, y: DOOR.y + 0.01, w: 0.03, h: DOOR.h - 0.02 }, sign: { x: 0.11, y: 0.44 }, label: "⬅ ☕ 찻집으로" }];
 
 const SPAWNS = {
-  default: { x: 0.5, y: 0.83 },
-  teaHouse: { x: 0.5, y: 0.83 }, // 찻집에서 오면 → 출구 바로 위
+  default: { x: 0.13, y: 0.58 },
+  teaHouse: { x: 0.13, y: 0.58 }, // 찻집에서 오면 → 왼쪽 문 앞
 };
 
 const pct = (r) => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` });
@@ -68,53 +92,38 @@ function ArtImage({ art, index, big = false }) {
 }
 
 function GalleryScene() {
+  const [debug, setDebug] = useState(false);
+  useEffect(() => {
+    try {
+      setDebug(new URLSearchParams(window.location.search).has("debug"));
+    } catch {}
+  }, []);
   return (
     <div className="absolute inset-0">
-      {/* 밝은 나무 바닥 */}
-      <div className="absolute inset-0" style={{ background: "repeating-linear-gradient(0deg, #e2c9a4 0 56px, #d6bb93 56px 60px), #e2c9a4" }} />
+      {/* 배경 그림 */}
+      <div className="absolute inset-0" style={{ background: `url(${BG_IMAGE}) center / 100% 100% no-repeat, #c9bba8`, imageRendering: "pixelated" }} />
 
-      {/* 흰 벽 + 걸레받이 */}
-      <div className="absolute left-0 top-0 w-full" style={{ height: `${WALL_H * 100}%`, background: "linear-gradient(#f8f5ef, #ece6db)" }} />
-      <div className="absolute left-0 w-full" style={{ top: `${(WALL_H - 0.015) * 100}%`, height: "1.5%", background: "#8d8277" }} />
-      <div className="absolute left-0 w-full" style={{ top: "3%", height: 6, background: "#cfc6b8" }} /> {/* 그림 거는 레일 */}
+      {/* 작품 (image가 있을 때만 그림 속 액자·진열장 안에 덮어요) */}
+      {placed.map((p, i) =>
+        p.art.image ? (
+          <div key={p.art.id} className="pointer-events-none absolute overflow-hidden bg-white" style={pct(p.inner)}>
+            <ArtImage art={p.art} index={i} />
+            {p.inCase && <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-transparent" />}
+          </div>
+        ) : null
+      )}
 
       {/* 전시 제목 */}
-      <div className="absolute left-1/2 top-[0.6%] -translate-x-1/2 whitespace-nowrap text-xl font-black tracking-widest text-[#5b5148]">{galleryData?.title}</div>
+      <div className="absolute left-1/2 top-[5.5%] -translate-x-1/2 whitespace-nowrap text-xl font-black tracking-widest text-[#5b5148]">{galleryData?.title}</div>
 
-      {/* 작품 */}
-      {placed.map((p, i) => (
-        <div key={p.art.id}>
-          {/* 바닥의 조명 빛 */}
-          {!p.easel && <div className="pointer-events-none absolute" style={{ ...pct({ x: p.rect.x - 0.02, y: p.rect.y, w: p.rect.w + 0.04, h: 0.36 }), background: "radial-gradient(ellipse at 50% 0%, rgba(255,240,200,0.55), transparent 70%)" }} />}
-          {/* 이젤 다리 */}
-          {p.easel && (
-            <div className="absolute" style={pct({ x: p.rect.x, y: p.rect.y + p.rect.h - 0.01, w: p.rect.w, h: 0.16 })}>
-              <span className="absolute left-[18%] top-0 h-full w-2.5 origin-top rotate-[8deg] bg-[#7b5236]" />
-              <span className="absolute right-[18%] top-0 h-full w-2.5 origin-top -rotate-[8deg] bg-[#7b5236]" />
-              <span className="absolute left-1/2 top-0 h-[85%] w-2.5 -translate-x-1/2 bg-[#5e3d28]" />
-            </div>
-          )}
-          {/* 액자 */}
-          <div className="absolute border-[6px] bg-white p-1.5" style={{ ...pct(p.rect), borderColor: p.easel ? "#7b5236" : OUTLINE, boxShadow: "6px 8px 0 rgba(0,0,0,0.18)" }}>
-            <ArtImage art={p.art} index={i} />
-          </div>
-          {/* 이름표 */}
-          {!p.easel && (
-            <div className="absolute flex justify-center" style={{ left: `${p.rect.x * 100}%`, width: `${p.rect.w * 100}%`, top: `${(p.rect.y + p.rect.h + 0.012) * 100}%` }}>
-              <span className="max-w-full truncate bg-white px-2 text-xs font-bold text-[#5b5148] shadow">{p.art.title}</span>
-            </div>
-          )}
+      {debug && (
+        <div className="pointer-events-none absolute inset-0 z-[20]">
+          {BLOCKERS.map((b, i) => <div key={i} className="absolute border-2 border-red-600 bg-red-500/25" style={pct(b)} />)}
+          {SPOTS.map((s) => <div key={s.id} className="absolute border-2 border-yellow-400 bg-yellow-300/30" style={pct(s.rect)} />)}
+          {EXITS.map((e) => <div key={e.id} className="absolute border-2 border-purple-500 bg-purple-500/30" style={pct(e.zone)} />)}
+          {SEATS.map((st) => <span key={st.id} className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500" style={{ left: st.x * MAP_W, top: st.y * MAP_H }} />)}
         </div>
-      ))}
-
-      {/* 벤치 */}
-      <div className="absolute border-[5px]" style={{ ...pct({ x: 0.66, y: 0.8, w: 0.14, h: 0.06 }), borderColor: OUTLINE, background: "#9c6a3c", boxShadow: "inset 0 -10px 0 #7b5236" }} />
-
-      {/* 화분 */}
-      <div className="absolute -translate-x-1/2 text-[72px] leading-none" style={{ left: "96%", top: "86%" }}>🪴</div>
-
-      {/* 아래쪽 가운데 출구 (바닥이 어둡게 이어져요) */}
-      <div className="absolute" style={{ ...pct({ x: 0.42, y: 0.93, w: 0.16, h: 0.07 }), background: "linear-gradient(transparent, rgba(0,0,0,0.35))" }} />
+      )}
     </div>
   );
 }
@@ -124,7 +133,7 @@ export default function GalleryPage() {
     <SimpleRoom
       roomId="exhibitionRoom"
       roomName="🖼️ 전시회"
-      welcome={`${galleryData?.intro ?? ""} · 아래쪽 출구 = ☕ 찻집`}
+      welcome={`${galleryData?.intro ?? ""} · 왼쪽 문 = ☕ 찻집`}
       mapW={MAP_W}
       mapH={MAP_H}
       outside="#4a4038"
@@ -132,6 +141,7 @@ export default function GalleryPage() {
       spots={SPOTS}
       exits={EXITS}
       spawns={SPAWNS}
+      seats={SEATS}
       renderModals={(openId, close) =>
         placed.map((p, i) => (
           <PixelModal key={p.art.id} open={openId === p.art.id} onClose={close} label="🖼️ 전시회" title={p.art.title} width={560}>

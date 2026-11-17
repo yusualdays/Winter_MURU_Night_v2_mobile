@@ -12,8 +12,8 @@ export const cafeData = {
 export const galleryData = {
   title: "겨울밤 작은 전시회",
   intro: "호스트가 고른 올해의 장면들이에요. 작품 가까이 가서 살펴보세요.",
-  // 작품 (앞의 5개는 벽에, 나머지 3개까지는 이젤에 걸려요 — 최대 8개)
-  //  image: public/gallery 폴더에 그림을 넣고 "/gallery/파일이름.png" 로 적어요 (비워 두면 임시 그림)
+  // 작품 (앞의 4개는 벽 액자에, 5·6번째는 유리 진열장에 — 최대 6개)
+  //  image: public/gallery 폴더에 그림을 넣고 "/gallery/파일이름.png" 로 적어요 (비워 두면 배경 그림에 그려진 작품이 그대로 보여요)
   artworks: [
     { id: "art1", title: "첫눈 오는 골목", artist: "호스트", year: "2026", image: "", description: "올해 첫눈이 내리던 날, 집 앞 골목에서." },
     { id: "art2", title: "따뜻한 창가", artist: "호스트", year: "2026", image: "", description: "창가에 앉아 차를 마시던 오후." },
