@@ -1,7 +1,9 @@
 "use client";
 
+import { useCallback, useEffect, useRef, useState } from "react";
 import SimpleRoom from "../components/SimpleRoom";
 import PixelModal from "../components/PixelModal";
+import { TeaNpc, TeaNpcLabel, DayeonSprite, NPC_W, NPC_H } from "../components/TeaNpc";
 import { cafeData } from "../spaceData";
 
 // ☕ 군산 온라인 찻집 (teaHouse) — 입장하면 가장 먼저 오는 곳
@@ -15,6 +17,28 @@ const MAP_H = 1200;
 const WALL_H = 0.24; // 위쪽 벽 높이
 const PASSAGE = { x: 0.44, w: 0.12 }; // 위쪽 가운데 통로 (벽이 뚫린 곳)
 
+// 카운터 (벽 바로 앞) — 안쪽(벽과 카운터 사이)에 알바생 다연이 서 있어요
+const COUNTER = { x: 0.04, y: 0.3, w: 0.3, h: 0.13 };
+// 🍵 다연이 서 있는 자리 (발 가운데, 0~1 비율) — 사장님 접속과 상관없이 24시간 여기에 있어요
+const COUNTER_NPC_POS = { x: 0.19, y: 0.335 };
+const NPC_X = COUNTER_NPC_POS.x * MAP_W - NPC_W / 2; // 그림 왼쪽 위 (맵 좌표)
+const NPC_Y = COUNTER_NPC_POS.y * MAP_H - NPC_H;
+const NPC_TALK_RADIUS = 70; // 이만큼(맵 기준 px) 가까이 오면 [💬 말 걸기 / 이용 안내]
+
+// 다연의 말
+const NPC_LINES = {
+  first: "어서 오세요, 차의 인연이 닿는 곳입니다. 찻집 이용 방법을 알려드릴게요!",
+  again: "다시 오셨네요! 오늘도 편안한 시간 보내세요 🍵",
+};
+
+// 찻집 이용 가이드 (다연이 알려줘요)
+const GUIDE = [
+  { icon: "👆", title: "자리 이동", text: "바닥을 터치(클릭)하면 그곳으로 걸어가요. 빈 좌석이나 책장 앞으로 가 보세요. PC에서는 방향키·W·A·S·D도 돼요." },
+  { icon: "📜", title: "차림표 & 체험", text: "벽의 차림표에서 오늘의 차를 구경하고, 다식·말차 만들기 체험도 해 보세요." },
+  { icon: "🎧", title: "공부 집중 모드 & 백색소음", text: "오른쪽 위 [공부 집중 모드]를 켜면 조용히 집중할 수 있어요. 빗소리·장작불 같은 백색소음도 섞어 들을 수 있어요." },
+  { icon: "🚪", title: "통로 안내", text: "위쪽 가운데 통로는 🛋️ 거실, 왼쪽·오른쪽 아래 구석 통로는 🖼️ 전시회로 이어져요. (오픈 기간에만 열려요)" },
+];
+
 // 테이블 (가운데 좌표) — 의자는 테이블 양옆에 그려져요
 const TABLES = [
   { x: 0.2, y: 0.6 },
@@ -27,12 +51,21 @@ const TABLES = [
 const BLOCKERS = [
   { x: 0, y: 0, w: PASSAGE.x, h: WALL_H }, // 위쪽 벽 (통로 왼쪽)
   { x: PASSAGE.x + PASSAGE.w, y: 0, w: 1 - PASSAGE.x - PASSAGE.w, h: WALL_H }, // 위쪽 벽 (통로 오른쪽)
-  { x: 0.04, y: WALL_H, w: 0.3, h: 0.14 }, // 카운터
+  { x: COUNTER.x, y: WALL_H, w: COUNTER.w, h: COUNTER.y + COUNTER.h - WALL_H }, // 카운터 + 안쪽 (손님은 못 들어가요)
   ...TABLES.map((t) => ({ x: t.x - 0.085, y: t.y - 0.035, w: 0.17, h: 0.06 })), // 테이블 + 의자
 ];
 
 const SPOTS = [
-  { id: "menu", rect: { x: 0.26, y: 0.05, w: 0.13, h: 0.13 }, near: { x: 0.24, y: 0.44 }, icon: "☕", title: "오늘의 메뉴" },
+  { id: "menu", rect: { x: 0.26, y: 0.05, w: 0.13, h: 0.13 }, near: { x: 0.39, y: 0.33 }, icon: "📜", title: "차림표" },
+  // 다연에게 말 걸기 (버튼은 다연 머리 위에 떠요)
+  {
+    id: "guide",
+    rect: { x: NPC_X / MAP_W, y: (NPC_Y - 56) / MAP_H, w: NPC_W / MAP_W, h: 0.04 },
+    near: { x: COUNTER_NPC_POS.x, y: COUNTER.y + COUNTER.h + 0.03 }, // 카운터 앞 손님 자리
+    radius: NPC_TALK_RADIUS,
+    icon: "💬",
+    title: "말 걸기 / 이용 안내",
+  },
 ];
 
 // 통로 (zone = 발이 닿으면 이동하는 경계, sign = 팻말 위치)
@@ -70,8 +103,8 @@ function Table({ x, y }) {
   );
 }
 
-// 코드로 그린 임시 찻집
-function CafeScene() {
+// 코드로 그린 임시 찻집 (npcBubble: 다연의 말풍선)
+function CafeScene({ npcBubble }) {
   return (
     <div className="absolute inset-0">
       {/* 나무 바닥 */}
@@ -110,12 +143,18 @@ function CafeScene() {
         <div key={x} className="absolute text-[56px] leading-none" style={{ left: `${x * 100}%`, top: `${(WALL_H - 0.08) * 100}%` }}>🪴</div>
       ))}
 
+      {/* 🍵 알바생 다연 (카운터 안쪽 — 카운터가 다리를 가려요) */}
+      <TeaNpc x={NPC_X} y={NPC_Y} />
+
       {/* 카운터 + 커피 머신 */}
-      <div className="absolute border-[6px]" style={{ ...pct({ x: 0.04, y: WALL_H, w: 0.3, h: 0.14 }), borderColor: OUTLINE, background: "#8a5a3b", boxShadow: "inset 0 22px 0 #d9a066, inset 0 28px 0 #b97d48" }}>
+      <div className="absolute border-[6px]" style={{ ...pct(COUNTER), borderColor: OUTLINE, background: "#8a5a3b", boxShadow: "inset 0 22px 0 #d9a066, inset 0 28px 0 #b97d48" }}>
         <div className="absolute border-4" style={{ left: "8%", top: -46, width: 80, height: 70, borderColor: OUTLINE, background: "#9ca3af", boxShadow: "inset 0 -14px 0 #6b7280" }} />
-        <div className="absolute text-4xl" style={{ left: "44%", top: -34 }}>🍰</div>
-        <div className="absolute text-4xl" style={{ left: "70%", top: -34 }}>🧁</div>
+        <div className="absolute text-4xl" style={{ left: "70%", top: -34 }}>🍰</div>
+        <div className="absolute text-4xl" style={{ left: "85%", top: -34 }}>🧁</div>
       </div>
+
+      {/* 다연 이름표 + 말풍선 (카운터 위로 보이게) */}
+      <TeaNpcLabel x={NPC_X} y={NPC_Y} bubble={npcBubble} />
 
       {/* 테이블 */}
       {TABLES.map((t, i) => (
@@ -143,6 +182,44 @@ function CafeScene() {
 }
 
 export default function CafePage() {
+  // 다연의 말풍선 { text, key }
+  const [npcBubble, setNpcBubble] = useState(null);
+  const timers = useRef([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const later = (fn, ms) => timers.current.push(setTimeout(fn, ms));
+  const say = useCallback((text, ms) => {
+    const key = Date.now();
+    setNpcBubble({ text, key });
+    later(() => setNpcBubble((b) => (b?.key === key ? null : b)), ms);
+  }, []);
+
+  // 찻집에 들어왔을 때: 첫 방문이면 1초 뒤 인사 + 이용 가이드, 재방문이면 환영 인사만 4초
+  const handleEnter = useCallback(
+    ({ openDetail }) => {
+      let visited = false;
+      try {
+        visited = localStorage.getItem("teaHouseVisited") === "true";
+      } catch {}
+      if (!visited) {
+        later(() => {
+          say(NPC_LINES.first, 8000);
+          openDetail("guide");
+        }, 1000);
+      } else {
+        later(() => say(NPC_LINES.again, 4000), 600);
+      }
+    },
+    [say]
+  );
+
+  // 가이드를 닫으면 "이미 와 본 손님"으로 기억
+  const closeGuide = (close) => {
+    try {
+      localStorage.setItem("teaHouseVisited", "true");
+    } catch {}
+    close();
+  };
+
   return (
     <SimpleRoom
       roomId="teaHouse"
@@ -155,8 +232,40 @@ export default function CafePage() {
       spots={SPOTS}
       exits={EXITS}
       spawns={SPAWNS}
+      onEnter={handleEnter}
       renderModals={(openId, close) => (
-        <PixelModal open={openId === "menu"} onClose={close} label="☕ 군산 온라인 찻집" title="오늘의 메뉴" width={460}>
+        <>
+        {/* 찻집 이용 가이드 (다연) */}
+        <PixelModal open={openId === "guide"} onClose={() => closeGuide(close)} label="🍵 다연의 찻집 이용 가이드" title="군산 온라인 찻집에 오신 걸 환영해요" width={520}>
+          <div className="mb-4 flex items-center gap-3 border-4 border-[#1a110e] bg-[#f5e6c8] p-3 text-[#2b1d1a]">
+            <div className="shrink-0 bg-[#d9c7a6] px-1 pt-1">
+              <DayeonSprite scale={3} />
+            </div>
+            <p className="text-sm font-bold leading-relaxed">“{NPC_LINES.first}”</p>
+          </div>
+          <ol className="flex flex-col gap-2.5">
+            {GUIDE.map((g, i) => (
+              <li key={g.title} className="flex gap-3 border-2 border-white/15 bg-black/20 p-3">
+                <span className="text-2xl leading-none">{g.icon}</span>
+                <div>
+                  <p className="font-black text-amber-200">
+                    {"①②③④"[i]} {g.title}
+                  </p>
+                  <p className="mt-0.5 text-sm leading-relaxed text-white/85">{g.text}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <button
+            type="button"
+            onClick={() => closeGuide(close)}
+            className="mt-4 w-full border-4 border-[#1a110e] bg-amber-400 py-2 font-black text-[#2b1d1a] shadow-[4px_4px_0_0_rgba(0,0,0,0.4)] hover:bg-amber-300 active:translate-y-0.5 active:shadow-none"
+          >
+            알겠어요, 둘러볼게요! 🍵
+          </button>
+        </PixelModal>
+
+        <PixelModal open={openId === "menu"} onClose={close} label="☕ 군산 온라인 찻집" title="📜 차림표" width={460}>
           <ul className="flex flex-col gap-3">
             {cafeData.menu.map((m) => (
               <li key={m.name} className="flex gap-3 border-4 border-[#1a110e] bg-[#f5e6c8] p-3 text-[#2b1d1a]">
@@ -170,9 +279,10 @@ export default function CafePage() {
           </ul>
           {cafeData.note && <p className="mt-4 text-sm text-amber-100/80">{cafeData.note}</p>}
         </PixelModal>
+        </>
       )}
     >
-      <CafeScene />
+      <CafeScene npcBubble={npcBubble} />
     </SimpleRoom>
   );
 }

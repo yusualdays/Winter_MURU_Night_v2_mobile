@@ -31,6 +31,8 @@ import { EMOTE_KEYS } from "./EmoteBubble";
 //  spawns   : 시작 위치 (발 가운데) { default, livingRoom, "exhibitionRoom:exitLeft", ... }
 //             "온 방:이 방에서 나갔던 통로" 로 적으면, 나갔던 그 통로 앞에서 다시 시작해요
 //  children : 지도 그림 (바닥·벽·가구) / renderModals(openId, close): 상세 창들
+//  onEnter  : 방에 들어왔을 때 한 번 ({ openDetail }) — 예: 첫 방문이면 안내 창 열기
+//  spots의 radius: 버튼이 뜨는 거리 (맵 기준 px, 기본 90)
 const SPEED = 320;
 const SYNC_INTERVAL = 100;
 const EMOTE_MS = 3000;
@@ -68,6 +70,7 @@ export default function SimpleRoom({
   spawns = { default: { x: 0.5, y: 0.9 } },
   children,
   renderModals,
+  onEnter,
 }) {
   const router = useRouter();
   const [nickname, setNickname] = useState(null);
@@ -136,6 +139,15 @@ export default function SimpleRoom({
     setPos(start);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 방에 들어왔을 때 한 번 알려주기 (첫 방문 안내 등)
+  const enteredRef = useRef(false);
+  useEffect(() => {
+    if (enteredRef.current || !nickname || !pos) return;
+    enteredRef.current = true;
+    onEnter?.({ openDetail: (id) => openDetailRef.current(id) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nickname, pos]);
 
   // 화면 크기 + 터치 기기인지
   useEffect(() => {
@@ -247,10 +259,10 @@ export default function SimpleRoom({
     const fx = pos.x + FEET.offsetX + FEET.width / 2;
     const fy = pos.y + FEET.offsetY + FEET.height / 2;
     let best = null;
-    let bestDist = NEAR_RADIUS;
+    let bestDist = Infinity;
     for (const s of spots) {
       const d = Math.hypot(fx - s.near.x * mapW, fy - s.near.y * mapH);
-      if (d <= bestDist) {
+      if (d <= (s.radius ?? NEAR_RADIUS) && d < bestDist) {
         best = s;
         bestDist = d;
       }
@@ -273,6 +285,8 @@ export default function SimpleRoom({
     setOpenId(id);
   }, []);
   const closeDetail = useCallback(() => setOpenId(null), []);
+  const openDetailRef = useRef(openDetail);
+  openDetailRef.current = openDetail;
   const interact = () => {
     if (nearIdRef.current) openDetail(nearIdRef.current);
   };
