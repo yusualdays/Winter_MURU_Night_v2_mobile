@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Avatar, { AVATAR_WIDTH, AVATAR_HEIGHT } from "../components/Avatar";
 import DiningTable from "../components/DiningTable";
@@ -17,7 +17,6 @@ import { partyData } from "../data";
 import AudioSettings from "../components/AudioSettings";
 import RoomAmbience from "../components/RoomAmbience";
 import LoadingScreen from "../components/LoadingScreen";
-import MobileControls from "../components/MobileControls";
 import UserActions from "../components/UserActions";
 import GreetToast from "../components/GreetToast";
 import ProfileModal from "../components/ProfileModal";
@@ -43,14 +42,6 @@ import {
   SEAT_RADIUS,
 } from "../lib/mapConfig";
 
-// 맵 위의 "안 움직이는" 그림들은 내 위치가 바뀔 때마다 다시 그리지 않게 (휴대폰이 훨씬 가벼워져요)
-const StaticWallPosters = memo(WallPosters);
-const StaticQuoteWall = memo(QuoteWall);
-const StaticDiningTable = memo(DiningTable);
-const StaticCallInvite = memo(CallInvite);
-const StaticWishTree = memo(WishTree);
-const StaticRoomAmbience = memo(RoomAmbience);
-
 // ================== 화면 설정 ==================
 // (노란 점선 원 = 🔍 버튼이 뜨는 범위. SHOW_OBSTACLES를 true로 하면 같이 보여요)
 const SPEED = 320;            // 1초에 이동하는 거리(맵 단위)
@@ -62,15 +53,7 @@ const CHAT_COOLDOWN = 800;    // 도배 방지 (0.8초에 한 번)
 const FRIEND_RADIUS = 60;     // 친구와 이만큼(맵 기준 px) 가까우면 [🤝 인사하기] [🔍 프로필]
 const GREET_EMOTE = "smile";  // 인사할 때 두 캐릭터가 짓는 표정 ("smile" 방긋 / "heart" 하트 / "hurray" 만세)
 const GREET_COOLDOWN = 3000;  // 인사 도배 방지 (3초에 한 번)
-
-// ===== 휴대폰 카메라 =====
-// 화면 전체에 맵을 욱여넣으면 폰에서는 너무 작아져요 → 좁은 화면에서는 "내 캐릭터를 따라다니는 카메라"로 바꿔요
-const CAMERA_FIT_BELOW = 0.45; // 맵 전체가 이 배율보다 작게 보여야 하면 카메라 모드
-const CAMERA_ZOOM = 0.5;       // 카메라 모드 배율 (배경 그림이 4배 확대라서 0.75면 도트가 정확히 3px로 또렷해요)
-const UI_BOOST = 1.6; 
-const WALL_EXT_SRC = "/wall-extension.png"; // 배경 그림 위에 이어 붙이는 벽 + 천장 몰딩 (포스터·책꽂이 위 여유 공간)
-const WALL_EXT_H = 256; // 위로 늘린 벽 높이 (맵 기준 px, 그림 64px × 4배)
-const FLOOR_EXT_SRC = "/floor-extension.png"; // 배경 그림 아래에 이어 붙이는 나무 바닥 (세로로 긴 휴대폰 화면의 빈 곳 채우기)         // 카메라 모드에서 닉네임·버튼을 이만큼 키워서 읽기 쉽게
+const TAP_FX_MS = 800;        // 터치한 곳에 뜨는 동그라미 파동 (0.8초)
 
 // 충돌은 아바타의 "발밑" 부분으로만 판정 (위에서 내려다보는 시점이라 자연스러움)
 // (캐릭터 크기가 바뀌어도 항상 발밑 가운데에 오도록 자동 계산)
@@ -122,6 +105,27 @@ const standPos = (point, w, h) => ({
   y: point.y * h - (FEET.offsetY + FEET.height / 2),
 });
 
+// 터치한 곳에 뜨는 픽셀 동그라미 (11x11 칸 중 테두리만 칠하기)
+const RING_PIXELS = [];
+for (let r = 0; r < 11; r++) {
+  for (let c = 0; c < 11; c++) {
+    const d = Math.hypot(r - 5, c - 5);
+    if (d >= 3.6 && d < 5.1) RING_PIXELS.push([c, r]);
+  }
+}
+function TapRipple({ x, y, size }) {
+  return (
+    <div className="pointer-events-none absolute z-[5]" style={{ left: x - size / 2, top: y - size / 2, width: size, height: size }}>
+      <svg viewBox="0 0 11 11" width={size} height={size} shapeRendering="crispEdges" className="tap-ripple">
+        {RING_PIXELS.map(([c, r]) => (
+          <rect key={`${c}-${r}`} x={c} y={r} width="1" height="1" fill="#fef3c7" stroke="#1a110e" strokeWidth="0.15" />
+        ))}
+        <rect x="5" y="5" width="1" height="1" fill="#fbbf24" />
+      </svg>
+    </div>
+  );
+}
+
 export default function LivingRoom() {
   const router = useRouter();
   const [nickname, setNickname] = useState(null);
@@ -131,11 +135,16 @@ export default function LivingRoom() {
   const [dir, setDir] = useState("up"); // 바라보는 방향: down(앞) | up(뒤) | left | right
   const [look, setLook] = useState(DEFAULT_LOOK); // 입장할 때 꾸민 캐릭터
   const pressedKeys = useRef(new Set());
+  const posRef = useRef({ x: 0, y: 0 });  // 지금 내 위치 (자동 이동 계산용)
+  const targetRef = useRef(null);         // 터치(클릭)한 목표 지점 { x, y } — 발 가운데가 여기로 가요
+  const stuckRef = useRef(0);             // 장애물에 막혀 못 가는 프레임 수
+  const mapElRef = useRef(null);          // 맵 화면(div)
+  const [tapFx, setTapFx] = useState(null); // 터치한 곳 파동 { x, y, id }
 
   const [showWelcome, setShowWelcome] = useState(true); // 환영 문구 (8초 뒤 사라짐)
   const [mapSize, setMapSize] = useState(null); // { w, h }
   const [hasBackground, setHasBackground] = useState(false);
-  const [vp, setVp] = useState({ w: 1280, h: 720 }); // 화면(뷰포트) 크기
+  const [scale, setScale] = useState(1);
   const mapRef = useRef(null); // 이동 계산용: { w, h, rects }
 
   // ===== 멀티플레이어 =====
@@ -163,7 +172,6 @@ export default function LivingRoom() {
   const [bubbles, setBubbles] = useState({});      // 머리 위 말풍선 { 유저ID 또는 "me": { text, key } }
   const seenChat = useRef({});                     // 유저별로 마지막으로 본 chatTimestamp
   const lastChatSent = useRef(0);
-  const chatInputRef = useRef(null);               // 휴대폰: 버튼을 누르는 "그 순간" 입력칸에 포커스를 줘야 키보드가 떠요
 
   // ===== 친구와 인사·프로필 =====
   const [toast, setToast] = useState(null);           // 화면 위 알림 { id, text }
@@ -173,7 +181,7 @@ export default function LivingRoom() {
 
   // ===== 휴대폰 조작 =====
   const [isTouch, setIsTouch] = useState(false);  // 손가락으로 쓰는 기기인지 (휴대폰·태블릿)
-  const padDirsRef = useRef([]);                   // 방향 패드로 지금 누르고 있는 방향들
+  const [isNarrow, setIsNarrow] = useState(false); // 화면이 좁은지 (휴대폰 세로 화면 등)
 
   // ===== 오디오 상태 (각각 독립된 useState) =====
   const [bgmPlaying, setBgmPlaying] = useState(false);
@@ -210,21 +218,15 @@ export default function LivingRoom() {
     } catch {}
   }, [lighting, weather]);
 
-  // 1-0-1) 휴대폰인지 확인 (손가락 입력) + 화면 크기 추적 (회전·주소창 변화 포함)
+  // 1-0-1) 휴대폰인지 확인 (손가락 입력 / 좁은 화면)
   useEffect(() => {
     const check = () => {
       setIsTouch(window.matchMedia("(pointer: coarse)").matches);
-      setVp((v) => (v.w === window.innerWidth && v.h === window.innerHeight ? v : { w: window.innerWidth, h: window.innerHeight }));
+      setIsNarrow(window.innerWidth < 768);
     };
     check();
     window.addEventListener("resize", check);
-    window.addEventListener("orientationchange", check);
-    window.visualViewport?.addEventListener("resize", check);
-    return () => {
-      window.removeEventListener("resize", check);
-      window.removeEventListener("orientationchange", check);
-      window.visualViewport?.removeEventListener("resize", check);
-    };
+    return () => window.removeEventListener("resize", check);
   }, []);
 
   // 1-1) 환영 문구는 8초 뒤에 사라지게 (포스터를 가리지 않도록)
@@ -253,6 +255,9 @@ export default function LivingRoom() {
   }, [nickname, myId, look]);
 
   // 1-4) 내 위치를 0.1초마다 보내기 (바뀐 게 있을 때만)
+  useEffect(() => {
+    posRef.current = pos;
+  }, [pos]);
   useEffect(() => {
     latest.current = { x: Math.round(pos.x), y: Math.round(pos.y), isMoving, dir, isSitting: !!seatId, seatId: seatId ?? null };
   }, [pos, isMoving, dir, seatId]);
@@ -391,6 +396,16 @@ export default function LivingRoom() {
     img.src = BACKGROUND_SRC;
   }, []);
 
+  // 3) 화면 크기에 맞춰 맵 확대/축소
+  useEffect(() => {
+    if (!mapSize) return;
+    const onResize = () =>
+      setScale(Math.min(window.innerWidth / mapSize.w, window.innerHeight / mapSize.h));
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [mapSize]);
+
   // 4) 키보드 누름/뗌 기록
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -427,6 +442,7 @@ export default function LivingRoom() {
       const dir = KEY_MAP[e.code];
       if (!dir) return;
       e.preventDefault();
+      targetRef.current = null; // 방향키를 누르면 터치 자동 이동은 바로 멈춰요
       if (seatIdRef.current) standUpRef.current(); // 앉아 있을 때 방향키 → 일어나서 바로 걷기
       pressedKeys.current.add(dir);
     };
@@ -458,31 +474,60 @@ export default function LivingRoom() {
       const keys = pressedKeys.current;
       let dx = (keys.has("right") ? 1 : 0) - (keys.has("left") ? 1 : 0);
       let dy = (keys.has("down") ? 1 : 0) - (keys.has("up") ? 1 : 0);
-      if (cheeringRef.current || seatIdRef.current) { dx = 0; dy = 0; } // 건배하거나 앉아 있는 동안은 제자리
+      if (cheeringRef.current || seatIdRef.current) { dx = 0; dy = 0; targetRef.current = null; } // 건배하거나 앉아 있는 동안은 제자리
+
+      // 터치(클릭)한 곳으로 자동 이동: 방향키를 안 누르고 있을 때만
+      let autoDist = 0;
+      if (dx !== 0 || dy !== 0) {
+        targetRef.current = null;
+        if (dx !== 0 && dy !== 0) {
+          dx *= Math.SQRT1_2;
+          dy *= Math.SQRT1_2;
+        }
+      } else if (targetRef.current) {
+        const p = posRef.current;
+        const tx = targetRef.current.x - (p.x + FEET.offsetX + FEET.width / 2);
+        const ty = targetRef.current.y - (p.y + FEET.offsetY + FEET.height / 2);
+        autoDist = Math.hypot(tx, ty);
+        if (autoDist < 4) targetRef.current = null; // 도착!
+        else {
+          dx = tx / autoDist;
+          dy = ty / autoDist;
+        }
+      }
       const moving = (dx !== 0 || dy !== 0) && mapRef.current !== null;
 
       setIsMoving(moving);
 
       if (moving) {
-        if (dx !== 0 && dy !== 0) {
-          dx *= Math.SQRT1_2;
-          dy *= Math.SQRT1_2;
-        }
-        // 바라보는 방향 (대각선일 때는 옆모습)
-        if (dx < 0) setDir("left");
+        // 바라보는 방향 (자동 이동은 더 많이 가는 쪽, 방향키 대각선은 옆모습)
+        if (autoDist) {
+          if (Math.abs(dx) > Math.abs(dy)) setDir(dx < 0 ? "left" : "right");
+          else setDir(dy < 0 ? "up" : "down");
+        } else if (dx < 0) setDir("left");
         else if (dx > 0) setDir("right");
         else if (dy < 0) setDir("up");
         else if (dy > 0) setDir("down");
 
+        let step = SPEED * speedRef.current * dt; // 눈덩이에 맞으면 speedRef가 작아져요
+        if (autoDist) step = Math.min(step, autoDist); // 목표를 지나치지 않게
+
         setPos((p) => {
           const { w, h, rects } = mapRef.current;
-          const step = SPEED * speedRef.current * dt; // 눈덩이에 맞으면 speedRef가 작아져요
           const nextX = clamp(p.x + dx * step, 0, w - AVATAR_WIDTH);
           const nextY = clamp(p.y + dy * step, 0, h - AVATAR_HEIGHT);
 
           // 가로, 세로를 따로 검사 → 가구 모서리를 따라 미끄러지듯 이동 가능
           const x = isBlocked(nextX, p.y, rects) ? p.x : nextX;
           const y = isBlocked(x, nextY, rects) ? p.y : nextY;
+
+          // 자동 이동 중 장애물(식탁·벽)에 막혀 목표에 가까워지지 않으면 → 그 앞에서 멈춤
+          if (autoDist && targetRef.current) {
+            const moved = (x - p.x) * dx + (y - p.y) * dy; // 목표 쪽으로 간 거리
+            stuckRef.current = moved < step * 0.3 ? stuckRef.current + 1 : 0;
+            if (stuckRef.current >= 4) targetRef.current = null;
+          }
+          posRef.current = { x, y };
           return { x, y };
         });
       }
@@ -534,17 +579,12 @@ export default function LivingRoom() {
     if (openId) pressedKeys.current.clear(); // 창이 열리면 걷기 멈춤
   }, [openId]);
 
-  const openDetail = useCallback((id) => {
+  const openDetail = (id) => {
     pressedKeys.current.clear();
+    targetRef.current = null;
     setOpenId(id);
-  }, []);
-  const closeDetail = useCallback(() => setOpenId(null), []);
-  const openChat = useCallback(() => {
-    pressedKeys.current.clear();
-    setChatOpen(true);
-    chatInputRef.current?.focus();
-  }, []);
-  const openInvite = useCallback(() => openDetail("invite"), [openDetail]);
+  };
+  const closeDetail = () => setOpenId(null);
 
   // ===== 의자에 앉기 / 일어나기 =====
   // 다른 친구가 앉아 있는 의자: { 의자id: 닉네임 }
@@ -576,6 +616,7 @@ export default function LivingRoom() {
     }
 
     pressedKeys.current.clear();
+    targetRef.current = null;
     standPointRef.current = near.point ?? seat.approach[0]; // 일어나면 돌아올 자리
     seatIdRef.current = id;
     setSeatId(id);
@@ -608,14 +649,28 @@ export default function LivingRoom() {
   };
   interactRef.current = interact;
 
-  // 휴대폰 방향 패드: 누른 방향을 키보드 방향키처럼 처리
-  const handlePadDirs = (dirs) => {
-    if (openIdRef.current || chatOpen) dirs = []; // 창이 열려 있으면 안 움직여요
-    if (dirs.length && seatIdRef.current) standUpRef.current(); // 앉아 있으면 일어나서 걷기
-    padDirsRef.current.forEach((d) => pressedKeys.current.delete(d));
-    dirs.forEach((d) => pressedKeys.current.add(d));
-    padDirsRef.current = dirs;
+  // 맵의 바닥·물건을 터치(클릭)하면 그곳으로 걸어가기
+  const handleMapTap = (e) => {
+    if (e.button !== undefined && e.button !== 0) return; // 마우스 왼쪽 버튼·손가락만
+    const el = mapElRef.current;
+    if (!el || !el.contains(e.target)) return; // 창(모달) 안을 누른 건 무시
+    if (e.target.closest('button, a, input, textarea, select, [role="dialog"]')) return; // 버튼은 버튼대로
+    if (openIdRef.current || seatIdRef.current || !mapRef.current) return; // 창이 열려 있거나 앉아 있으면 무시
+    const rect = el.getBoundingClientRect();
+    const x = clamp((e.clientX - rect.left) / scale, 0, mapRef.current.w);
+    const y = clamp((e.clientY - rect.top) / scale, 0, mapRef.current.h);
+    pressedKeys.current.clear();
+    stuckRef.current = 0;
+    targetRef.current = { x, y };
+    setTapFx({ x, y, id: Date.now() });
   };
+
+  // 터치 파동은 0.8초 뒤 사라져요
+  useEffect(() => {
+    if (!tapFx) return;
+    const timer = setTimeout(() => setTapFx((t) => (t?.id === tapFx.id ? null : t)), TAP_FX_MS);
+    return () => clearTimeout(timer);
+  }, [tapFx]);
 
   // 가장 가까운 친구 (발끼리 FRIEND_RADIUS 안) → 친구 머리 위에 [🤝] [🔍]
   let nearFriend = null;
@@ -631,7 +686,7 @@ export default function LivingRoom() {
   }
 
   // 버튼을 띄울 위치 + 아이콘·이름
-  //  - 앉아 있으면: 내 의자 위에 [🙋 일어나기]
+  //  - 앉아 있으면: 내 의자 위에 [🚶 자리에서 일어나기] (빈 바닥을 눌러도 안 일어나요)
   //  - 의자 근처: [🪑 앉기] 또는 [🚫 OO님 자리예요]
   //  - 물건 근처: [🔍 올해의 책] [🔍 🍕 페퍼로니 피자] ...
   const mySeat = findSeat(seatId);
@@ -642,57 +697,30 @@ export default function LivingRoom() {
 
   const nearFood = partyData?.foods?.find((f) => f.id === nearId);
   let nearInfo;
-  if (mySeat) nearInfo = { icon: "🙋", title: "일어나기" };
+  if (mySeat) nearInfo = { icon: "🚶", title: "자리에서 일어나기" };
   else if (nearSeat) nearInfo = takenSeats[nearSeat.id] ? { icon: "🚫", title: `${takenSeats[nearSeat.id]}님 자리예요` } : { icon: "🪑", title: "앉기" };
   else nearInfo = SPOT_TITLES[nearId] ?? { icon: "🔍", title: nearFood ? `${nearFood.emoji} ${nearFood.name}` : "" };
-
-  // ===== 카메라 / 화면 배율 =====
-  //  - 넓은 화면(PC·태블릿): 맵 전체가 한눈에 보이게 맞춰요 (예전과 동일)
-  //  - 좁은 화면(휴대폰): 일정한 배율로 키우고 내 캐릭터를 따라가요
-  const fitScale = mapSize ? Math.min(vp.w / mapSize.w, vp.h / mapSize.h) : 1;
-  const cameraMode = !!mapSize && fitScale < CAMERA_FIT_BELOW;
-  // (가로 화면에서 맵 양옆이 비지 않게, 가로가 꽉 차는 배율보다 작아지지는 않아요)
-  const scale = cameraMode ? Math.max(CAMERA_ZOOM, vp.w / mapSize.w) : fitScale;
-  const uiBoost = cameraMode ? UI_BOOST : 1;
-  const portrait = vp.h > vp.w;
-  let camX = 0;
-  let camY = 0;
-  if (mapSize) {
-    const sw = mapSize.w * scale;
-    const sh = mapSize.h * scale;
-    if (!cameraMode) {
-      camX = (vp.w - sw) / 2;
-      camY = (vp.h - sh) / 2;
-    } else {
-      // 캐릭터를 화면 가운데(조금 위)에 두고, 맵 끝에서는 멈춰요
-      // 아래쪽은 조작 버튼에 가리지 않도록 여백을 더 줘요
-      const bottomPad = portrait ? 190 : 100;
-      const cx = (pos.x + AVATAR_WIDTH / 2) * scale;
-      const cy = (pos.y + AVATAR_HEIGHT * 0.6) * scale;
-      camX = sw <= vp.w ? (vp.w - sw) / 2 : clamp(vp.w / 2 - cx, vp.w - sw, 0);
-      // 맵이 화면보다 짧으면 위에 붙이고, 아래 빈 곳은 바닥 그림을 이어 붙여 채워요 (아래 FLOOR_EXT_SRC)
-      // 위로는 늘린 벽(WALL_EXT_H)까지 올라가서, 포스터·책꽂이 위에 여유가 생겨요
-      const topRoom = WALL_EXT_H * scale;
-      camY = clamp(vp.h * (portrait ? 0.4 : 0.45) - cy, Math.min(topRoom, vp.h - sh - bottomPad), topRoom);
-    }
-  }
 
   if (!nickname) return <LoadingScreen />;
 
   return (
-    <main id="party-room" className={`relative h-screen w-screen overflow-hidden ${cameraMode ? "bg-[#f7c17f]" : "bg-slate-950"}`}>
+    <main id="party-room" className="relative h-[100dvh] w-screen select-none overflow-hidden bg-slate-950" style={{ touchAction: "manipulation" }}>
+      <style>{`
+        @keyframes tap-ripple { 0% { transform: scale(0.3); opacity: 1; } 70% { opacity: 0.9; } 100% { transform: scale(1.25); opacity: 0; } }
+        .tap-ripple { animation: tap-ripple ${TAP_FX_MS}ms ease-out forwards; }
+      `}</style>
       {/* 안내 문구 (왼쪽 위에 작게, 8초 뒤 사라짐) */}
       <div
-        className={`safe-top safe-left pointer-events-none absolute z-30 max-w-[calc(100vw-5.5rem)] rounded-xl bg-slate-900/70 px-4 py-2 shadow-lg backdrop-blur transition-opacity duration-1000 sm:max-w-[60vw] ${
+        className={`pointer-events-none absolute left-4 top-4 z-30 max-w-[60vw] rounded-xl bg-slate-900/70 px-4 py-2 shadow-lg backdrop-blur transition-opacity duration-1000 ${
           showWelcome ? "opacity-100" : "opacity-0"
         }`}
       >
         <h1 className="text-base font-bold text-amber-100">{nickname}님, 거실에 오신 걸 환영해요! 🔥</h1>
-        {isTouch ? (
-          <p className="mt-0.5 text-xs text-amber-100/80">왼쪽 패드로 걷고, 물건 가까이에서 ✋ 버튼 · 💬 말풍선 · 😊 표정 · 🥂 건배</p>
-        ) : (
-          <p className="mt-0.5 text-xs text-amber-100/80">방향키·W·A·S·D로 움직이고, 물건·트리 가까이에서 버튼 클릭 또는 E키 · Enter = 말풍선 채팅 · 의자 옆에서 E = 앉기 · 숫자키 1·2·3 = 표정 · T = 건배</p>
-        )}
+        <p className="mt-0.5 text-xs text-amber-100/80">
+          {isTouch
+            ? "가고 싶은 곳을 터치하면 걸어가요 · 물건·의자 가까이에서 뜨는 버튼을 눌러 보세요"
+            : "방향키·W·A·S·D 또는 바닥 클릭으로 이동 · 물건 가까이에서 버튼 클릭 또는 E키 · Enter = 말풍선 채팅 · 의자 옆에서 E = 앉기 · 숫자키 1·2·3 = 표정 · T = 건배"}
+        </p>
       </div>
 
       {/* 배경 그림을 불러오는 동안 로딩 화면 */}
@@ -701,74 +729,44 @@ export default function LivingRoom() {
       {/* 맵: 화면 가운데에 비율을 유지하며 확대/축소 */}
       {mapSize && (
         <div
-          className="absolute left-0 top-0 will-change-transform"
+          ref={mapElRef}
+          onPointerDown={handleMapTap}
+          className="absolute left-1/2 top-1/2 cursor-pointer"
           style={{
             width: mapSize.w,
             height: mapSize.h,
-            transformOrigin: "0 0",
-            transform: `translate3d(${camX}px, ${camY}px, 0) scale(${scale})`,
-            "--ui-boost": uiBoost, // 닉네임·말풍선 크기 배율 (휴대폰에서 키워요)
+            transform: `translate(-50%, -50%) scale(${scale})`,
             imageRendering: "pixelated", // 픽셀아트를 흐리지 않고 또렷하게 확대
             background: hasBackground
               ? `url(${BACKGROUND_SRC}) center / 100% 100%`
               : "repeating-linear-gradient(90deg, #6b4430 0 120px, #5e3b29 120px 240px)",
           }}
         >
-          {/* 휴대폰: 배경 그림 위로 벽을 이어서 (포스터·책꽂이 버튼이 위에 넉넉히 떠요) */}
-          {cameraMode && hasBackground && (
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute left-0"
-              style={{
-                top: -WALL_EXT_H,
-                width: mapSize.w,
-                height: WALL_EXT_H,
-                background: `url(${WALL_EXT_SRC}) 0 0 / 100% 100% no-repeat`,
-                imageRendering: "pixelated",
-              }}
-            />
-          )}
-
-          {/* 휴대폰: 배경 그림 아래로 나무 바닥을 이어서, 조작 버튼 뒤가 까맣게 비지 않게 */}
-          {cameraMode && hasBackground && (
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute left-0"
-              style={{
-                top: mapSize.h,
-                width: mapSize.w,
-                height: mapSize.h * 1.2,
-                background: `url(${FLOOR_EXT_SRC}) 0 0 / 100% auto repeat-y`,
-                imageRendering: "pixelated",
-              }}
-            />
-          )}
-
           {/* 거실 분위기: 창밖 날씨(눈·불꽃) + 조명 오버레이 (클릭을 막지 않아요) */}
-          <StaticRoomAmbience lighting={lighting} weather={weather} mapW={mapSize.w} mapH={mapSize.h} />
+          <RoomAmbience lighting={lighting} weather={weather} mapW={mapSize.w} mapH={mapSize.h} />
 
           {/* 벽에 걸린 영화 포스터 3장 (data.js movies의 poster 그림) */}
-          <StaticWallPosters mapW={mapSize.w} mapH={mapSize.h} />
+          <WallPosters mapW={mapSize.w} mapH={mapSize.h} />
 
           {/* 포스터와 책꽂이 사이: 방명록 액자 + 방명록 창 */}
-          <StaticQuoteWall mapW={mapSize.w} mapH={mapSize.h} open={openId === "quote"} onClose={closeDetail} />
+          <QuoteWall mapW={mapSize.w} mapH={mapSize.h} open={openId === "quote"} onClose={closeDetail} />
 
           {/* 식탁 위 음식 그림 + 김 (음식을 클릭하면 설명 창이 열려요) */}
-          <StaticDiningTable mapW={mapSize.w} mapH={mapSize.h} openFoodId={openId} onOpenFood={openDetail} onClose={closeDetail} />
+          <DiningTable mapW={mapSize.w} mapH={mapSize.h} openFoodId={openId} onOpenFood={openDetail} onClose={closeDetail} />
 
           {/* 식탁 오른쪽 아래 봉투: 그룹 통화 초대장 (가까이 가서 E키 또는 봉투 클릭) */}
-          <StaticCallInvite
+          <CallInvite
             mapW={mapSize.w}
             mapH={mapSize.h}
             open={openId === "invite"}
-            onOpen={openInvite}
+            onOpen={() => openDetail("invite")}
             onClose={closeDetail}
             nickname={nickname}
             hideMarker={nearId === "invite"}
           />
 
           {/* 왼쪽 아래 크리스마스 트리: 소원 쪽지 + 소원 빌기 창 */}
-          <StaticWishTree mapW={mapSize.w} mapH={mapSize.h} open={openId === "tree"} onClose={closeDetail} nickname={nickname} />
+          <WishTree mapW={mapSize.w} mapH={mapSize.h} open={openId === "tree"} onClose={closeDetail} nickname={nickname} />
 
           {/* 위치 맞추기용 표시: 빨강 = 이동 불가, 파랑 = 클릭 영역 */}
           {SHOW_OBSTACLES && (
@@ -814,6 +812,9 @@ export default function LivingRoom() {
             </>
           )}
 
+          {/* 터치(클릭)한 곳의 픽셀 동그라미 파동 */}
+          {tapFx && <TapRipple key={tapFx.id} x={tapFx.x} y={tapFx.y} size={Math.max(64, 44 / scale)} />}
+
           {/* 다른 사람들 아바타 */}
           {Object.entries(others).map(([id, u]) => (
             <Avatar
@@ -846,6 +847,7 @@ export default function LivingRoom() {
             onStart={() => {
               closeDetail();
               setChatOpen(false);
+              targetRef.current = null;
               if (seatIdRef.current) standUpRef.current();
             }}
           />
@@ -853,7 +855,6 @@ export default function LivingRoom() {
           {/* 친구 가까이 가면 친구 머리 위에 [🤝 인사하기] [🔍 프로필] */}
           <UserActions
             user={nearFriend}
-            boost={uiBoost}
             onGreet={() => nearFriend && greet(nearFriend.id)}
             onProfile={() => {
               if (!nearFriend) return;
@@ -866,22 +867,11 @@ export default function LivingRoom() {
           {/*   예: [🔍 올해의 영화] [✍️ 방명록] [🎄 소원 빌기 🙏] */}
           <InteractButton
             target={openId ? null : nearTarget}
-            boost={uiBoost}
-            minTop={cameraMode ? -WALL_EXT_H : 8}
             onClick={interact}
             icon={nearInfo.icon}
             text={nearInfo.title}
           />
         </div>
-      )}
-
-      {/* 휴대폰: 아래쪽을 살짝 어둡게 → 조작 버튼이 바닥 위에서 잘 보여요 */}
-      {cameraMode && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 z-[15] h-56"
-          style={{ background: "linear-gradient(to bottom, rgba(26,17,14,0) 0%, rgba(26,17,14,0.45) 100%)" }}
-        />
       )}
 
       {/* 친구 프로필 창 + 인사 알림 */}
@@ -893,23 +883,13 @@ export default function LivingRoom() {
       <Bookshelf open={openId === "bookshelf"} onClose={closeDetail} />
 
       {/* 왼쪽 아래: 건배하기 버튼 + 모두의 화면에 건배 축하 */}
-      <ToastParty compact={isTouch} nickname={nickname} onToast={() => setEmote({ type: "toast", id: Date.now() })} />
+      <ToastParty nickname={nickname} onToast={() => setEmote({ type: "toast", id: Date.now() })} />
 
       {/* 오른쪽 아래: 채팅 기록 + 💬 말하기 버튼 (미니 플레이어가 뜨면 그 위로 올라가요) */}
-      <ChatBox compact={isTouch} nickname={nickname} onOpenInput={openChat} />
-
-      {/* 휴대폰·태블릿: 왼쪽 아래 방향 패드 + 행동 버튼 (PC에서는 안 보여요) */}
-      {isTouch && (
-        <MobileControls
-          onDirs={handlePadDirs}
-          onAction={interact}
-          actionIcon={!openId && nearTarget ? nearInfo.icon : null}
-          onEmote={(type) => setEmote({ type, id: Date.now() })}
-        />
-      )}
+      <ChatBox nickname={nickname} onOpenInput={() => setChatOpen(true)} />
 
       {/* 하단 가운데: 말풍선 채팅 입력창 (Enter로 열기 → Enter로 보내기) */}
-      <ChatInput ref={chatInputRef} open={chatOpen} onSend={sendChat} onClose={() => setChatOpen(false)} />
+      <ChatInput open={chatOpen} onSend={sendChat} onClose={() => setChatOpen(false)} />
 
       {/* 오른쪽 위 ⚙️: 오디오 설정 (BGM + 장작불 ASMR) / 오른쪽 아래: 유튜브 미니 플레이어 */}
       <AudioSettings
