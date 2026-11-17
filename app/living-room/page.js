@@ -24,7 +24,7 @@ import ProfileModal from "../components/ProfileModal";
 import ToastParty from "../components/ToastParty";
 import SnowGame from "../components/SnowGame";
 import TapRipple, { TAP_FX_MS } from "../components/TapRipple";
-import { ROOMS, rememberFrom, inZone } from "../lib/rooms";
+import { ROOMS, rememberFrom, inZone, isRoomOpen } from "../lib/rooms";
 import { EMOTE_KEYS } from "../components/EmoteBubble";
 import { ref, set, update, remove, push, onValue, onDisconnect, runTransaction, serverTimestamp } from "firebase/database";
 import { db } from "../lib/firebase";
@@ -63,7 +63,7 @@ const CHAT_MS = 5000;         // 채팅 말풍선이 떠 있는 시간 (5초)
 const CHAT_COOLDOWN = 800;    // 도배 방지 (0.8초에 한 번)
 const FRIEND_RADIUS = 60;     // 친구와 이만큼(맵 기준 px) 가까우면 [🤝 인사하기] [🔍 프로필]
 const GREET_EMOTE = "smile";  // 인사할 때 두 캐릭터가 짓는 표정 ("smile" 방긋 / "heart" 하트 / "hurray" 만세)
-const CAFE_DOOR = { x: 0.4, y: 0.965, w: 0.2, h: 0.035 }; // 아래쪽 가운데 문 → ☕ 찻집 (비율 좌표)
+const CAFE_DOOR = { x: 0.4, y: 0.965, w: 0.2, h: 0.035 }; // 아래쪽 가운데 출구 경계 → ☕ 군산 온라인 찻집 (비율 좌표)
 const GREET_COOLDOWN = 3000;  // 인사 도배 방지 (3초에 한 번)
 
 // ===== 휴대폰 카메라 =====
@@ -141,6 +141,7 @@ export default function LivingRoom() {
   const [tapFx, setTapFx] = useState(null); // 터치한 곳 파동 { x, y, id }
   const doorArmedRef = useRef(false);     // 문 밖으로 한 번 나와야 문이 작동 (도착하자마자 되돌아가지 않게)
   const [leaving, setLeaving] = useState(false); // 다른 방으로 가는 중 (화면이 어두워져요)
+  const [arriving, setArriving] = useState(true); // 들어올 때 어두운 화면이 스르륵 밝아져요
 
   const [showWelcome, setShowWelcome] = useState(true); // 환영 문구 (8초 뒤 사라짐)
   const [mapSize, setMapSize] = useState(null); // { w, h }
@@ -201,6 +202,7 @@ export default function LivingRoom() {
       saved = localStorage.getItem("partyNickname");
     } catch {}
     if (!saved) router.replace("/");
+    else if (!isRoomOpen("livingRoom", saved)) router.replace(ROOMS.teaHouse.href); // 오픈 기간이 아니면 찻집으로
     else setNickname(saved);
     setLook(normalizeLook(getLook()));
   }, [router]);
@@ -236,7 +238,11 @@ export default function LivingRoom() {
     };
   }, []);
 
-  // 1-1) 환영 문구는 8초 뒤에 사라지게 (포스터를 가리지 않도록)
+  // 1-1) 환영 문구는 8초 뒤에 사라지게 (포스터를 가리지 않도록) + 들어올 때 화면 밝아지기
+  useEffect(() => {
+    const fade = setTimeout(() => setArriving(false), 60);
+    return () => clearTimeout(fade);
+  }, [mapSize]);
   useEffect(() => {
     const timer = setTimeout(() => setShowWelcome(false), 8000);
     return () => clearTimeout(timer);
@@ -253,7 +259,7 @@ export default function LivingRoom() {
     const myRef = ref(db, `users/${myId}`);
     onDisconnect(myRef).remove();
     // 유저 데이터: { nickname, hair, hairColor, skin, outfit } + 위치
-    set(myRef, { nickname, ...look, room: "living", joinedAt: serverTimestamp(), ...latest.current, emote: null }).catch((err) =>
+    set(myRef, { nickname, ...look, room: "livingRoom", joinedAt: serverTimestamp(), ...latest.current, emote: null }).catch((err) =>
       console.error("접속자 등록 실패:", err)
     );
     return () => {
@@ -289,7 +295,7 @@ export default function LivingRoom() {
       const all = {};
       snap.forEach((child) => {
         const u = child.val();
-        if (child.key !== myId && u && typeof u.x === "number" && (u.room ?? "living") === "living") all[child.key] = u; // 거실에 있는 사람만
+        if (child.key !== myId && u && typeof u.x === "number" && (u.room ?? "livingRoom") === "livingRoom") all[child.key] = u; // 거실에 있는 사람만
       });
       setOthers(all);
       othersRef.current = all;
@@ -688,8 +694,8 @@ export default function LivingRoom() {
     setLeaving(true);
     targetRef.current = null;
     pressedKeys.current.clear();
-    rememberFrom("living");
-    setTimeout(() => router.push(ROOMS.cafe.href), 280);
+    rememberFrom("livingRoom");
+    setTimeout(() => router.push(ROOMS.teaHouse.href), 300);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos, mapSize, leaving]);
 
@@ -765,7 +771,7 @@ export default function LivingRoom() {
       >
         <h1 className="text-base font-bold text-amber-100">{nickname}님, 거실에 오신 걸 환영해요! 🔥</h1>
         {isTouch ? (
-          <p className="mt-0.5 text-xs text-amber-100/80">가고 싶은 곳을 터치하면 걸어가요 · 물건 가까이에서 ✋ 버튼 · 💬 말풍선 · 😊 표정 · 🥂 건배 · 아래쪽 문 = ☕ 찻집</p>
+          <p className="mt-0.5 text-xs text-amber-100/80">가고 싶은 곳을 터치하면 걸어가요 · 물건 가까이에서 ✋ 버튼 · 💬 말풍선 · 😊 표정 · 🥂 건배 · 아래쪽 출구 = ☕ 찻집</p>
         ) : (
           <p className="mt-0.5 text-xs text-amber-100/80">방향키·W·A·S·D 또는 바닥 클릭으로 이동 · 물건·트리 가까이에서 버튼 클릭 또는 E키 · Enter = 말풍선 채팅 · 의자 옆에서 E = 앉기 · 숫자키 1·2·3 = 표정 · T = 건배</p>
         )}
@@ -897,7 +903,7 @@ export default function LivingRoom() {
             className="pointer-events-none absolute z-[4] flex flex-col items-center justify-end"
             style={{ left: CAFE_DOOR.x * mapSize.w, top: (CAFE_DOOR.y - 0.05) * mapSize.h, width: CAFE_DOOR.w * mapSize.w, height: (CAFE_DOOR.h + 0.05) * mapSize.h }}
           >
-            <span className="mb-1 border-4 border-[#1a110e] bg-[#f5e6c8] px-3 py-0.5 text-lg font-black text-[#2b1d1a] shadow-[3px_3px_0_0_rgba(0,0,0,0.35)]">⬇ ☕ 찻집</span>
+            <span className="mb-1 border-4 border-[#1a110e] bg-[#f5e6c8] px-3 py-0.5 text-lg font-black text-[#2b1d1a] shadow-[3px_3px_0_0_rgba(0,0,0,0.35)]">⬇ ☕ 찻집으로</span>
             <span className="h-3 w-full bg-[#1a110e]/40" />
           </div>
 
@@ -1017,7 +1023,7 @@ export default function LivingRoom() {
         setWeather={setWeather}
       />
       {/* 다른 방으로 가는 중: 화면이 스르륵 어두워져요 */}
-      <div className={`pointer-events-none fixed inset-0 z-[90] bg-black transition-opacity duration-300 ${leaving ? "opacity-100" : "opacity-0"}`} />
+      <div className={`pointer-events-none fixed inset-0 z-[90] bg-black transition-opacity duration-300 ${leaving || arriving ? "opacity-100" : "opacity-0"}`} />
     </main>
   );
 }

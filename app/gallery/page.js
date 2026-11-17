@@ -5,9 +5,10 @@ import SimpleRoom from "../components/SimpleRoom";
 import PixelModal from "../components/PixelModal";
 import { galleryData } from "../spaceData";
 
-// 🖼️ 온라인 전시장 (찻집 오른쪽 문)
+// 🖼️ 전시회 (exhibitionRoom) — 찻집의 왼쪽·오른쪽 아래 통로로 와요
 //  - 작품은 app/spaceData.js의 galleryData.artworks (앞 5개 = 벽, 나머지 = 이젤, 최대 8개)
-//  - 왼쪽 문 → ☕ 찻집
+//  - 아래쪽 가운데 출구 경계 → ☕ 찻집 (나갔던 통로 앞으로 돌아가요)
+//  - data.js의 eventSchedule 기간에만 들어올 수 있어요
 //  - 좌표는 모두 0~1 비율
 const MAP_W = 1600;
 const MAP_H = 1200;
@@ -24,16 +25,17 @@ const placed = artworks.map((art, i) => ({ art, ...SLOTS[i] }));
 const BLOCKERS = [
   { x: 0, y: 0, w: 1, h: WALL_H }, // 위쪽 벽
   ...placed.filter((p) => p.easel).map((p) => ({ x: p.rect.x + 0.01, y: 0.62, w: p.rect.w - 0.02, h: 0.06 })), // 이젤 다리
-  { x: 0.42, y: 0.86, w: 0.16, h: 0.05 }, // 가운데 벤치
+  { x: 0.66, y: 0.82, w: 0.14, h: 0.05 }, // 벤치
 ];
 
 const SPOTS = placed.map((p) => ({ id: p.art.id, rect: p.rect, near: p.near, icon: "🖼️", title: p.art.title }));
 
-const EXITS = [{ to: "cafe", zone: { x: 0, y: 0.5, w: 0.035, h: 0.18 } }]; // 왼쪽 문
+// 아래쪽 가운데 출구 → 찻집
+const EXITS = [{ id: "out", to: "teaHouse", zone: { x: 0.42, y: 0.93, w: 0.16, h: 0.07 }, sign: { x: 0.5, y: 0.885 }, label: "⬇ ☕ 찻집으로" }];
 
 const SPAWNS = {
-  default: { x: 0.08, y: 0.6 },
-  cafe: { x: 0.08, y: 0.6 },
+  default: { x: 0.5, y: 0.83 },
+  teaHouse: { x: 0.5, y: 0.83 }, // 찻집에서 오면 → 출구 바로 위
 };
 
 const pct = (r) => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` });
@@ -105,17 +107,14 @@ function GalleryScene() {
         </div>
       ))}
 
-      {/* 가운데 벤치 */}
-      <div className="absolute border-[5px]" style={{ ...pct({ x: 0.42, y: 0.84, w: 0.16, h: 0.06 }), borderColor: OUTLINE, background: "#9c6a3c", boxShadow: "inset 0 -10px 0 #7b5236" }} />
+      {/* 벤치 */}
+      <div className="absolute border-[5px]" style={{ ...pct({ x: 0.66, y: 0.8, w: 0.14, h: 0.06 }), borderColor: OUTLINE, background: "#9c6a3c", boxShadow: "inset 0 -10px 0 #7b5236" }} />
 
       {/* 화분 */}
       <div className="absolute -translate-x-1/2 text-[72px] leading-none" style={{ left: "96%", top: "86%" }}>🪴</div>
 
-      {/* 왼쪽 문 → 찻집 */}
-      <div className="absolute border-[6px]" style={{ ...pct({ x: 0, y: 0.5, w: 0.025, h: 0.18 }), borderColor: OUTLINE, background: "#6e4530" }} />
-      <div className="absolute whitespace-nowrap border-4 bg-[#f5e6c8] px-3 py-0.5 text-xl font-black text-[#2b1d1a] shadow-[3px_3px_0_0_rgba(0,0,0,0.35)]" style={{ left: "3.5%", top: "40%", borderColor: OUTLINE }}>
-        ⬅ ☕ 찻집
-      </div>
+      {/* 아래쪽 가운데 출구 (바닥이 어둡게 이어져요) */}
+      <div className="absolute" style={{ ...pct({ x: 0.42, y: 0.93, w: 0.16, h: 0.07 }), background: "linear-gradient(transparent, rgba(0,0,0,0.35))" }} />
     </div>
   );
 }
@@ -123,9 +122,9 @@ function GalleryScene() {
 export default function GalleryPage() {
   return (
     <SimpleRoom
-      roomId="gallery"
-      roomName="🖼️ 전시장"
-      welcome={`${galleryData?.intro ?? ""} · 왼쪽 문 = ☕ 찻집`}
+      roomId="exhibitionRoom"
+      roomName="🖼️ 전시회"
+      welcome={`${galleryData?.intro ?? ""} · 아래쪽 출구 = ☕ 찻집`}
       mapW={MAP_W}
       mapH={MAP_H}
       outside="#4a4038"
@@ -135,7 +134,7 @@ export default function GalleryPage() {
       spawns={SPAWNS}
       renderModals={(openId, close) =>
         placed.map((p, i) => (
-          <PixelModal key={p.art.id} open={openId === p.art.id} onClose={close} label="🖼️ 전시장" title={p.art.title} width={560}>
+          <PixelModal key={p.art.id} open={openId === p.art.id} onClose={close} label="🖼️ 전시회" title={p.art.title} width={560}>
             <div className="mx-auto aspect-[4/3] w-full max-w-[460px] border-[6px] border-[#1a110e] bg-white p-2">
               <ArtImage art={p.art} index={i} big />
             </div>

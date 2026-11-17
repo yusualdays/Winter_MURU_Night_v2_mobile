@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 
 // 화면 위쪽 가운데에 뜨는 귀여운 픽셀 토스트 알림 (3초)
-//  - toast: { id, text } 또는 null
+//  - toast: { id, text, icon? } 또는 null (icon을 안 주면 손 흔드는 👋)
 export default function GreetToast({ toast }) {
   return (
     <div className="pointer-events-none fixed inset-x-0 top-[calc(var(--sat,0px)+4.5rem)] z-[70] flex justify-center px-4">
@@ -17,7 +17,7 @@ export default function GreetToast({ toast }) {
             transition={{ type: "spring", stiffness: 420, damping: 26 }}
             className="flex items-center gap-2 border-4 border-[#1a110e] bg-[#f5e6c8] px-4 py-2.5 text-base font-black text-[#2b1d1a] shadow-[6px_6px_0_0_rgba(0,0,0,0.35)]"
           >
-            <span className="wave-hand text-2xl">👋</span>
+            <span className={`text-2xl ${toast.icon ? "" : "wave-hand"}`}>{toast.icon ?? "👋"}</span>
             {toast.text}
             <style>{`
               @keyframes wave-hand { 0%,100% { transform: rotate(0) } 25% { transform: rotate(-18deg) } 75% { transform: rotate(18deg) } }

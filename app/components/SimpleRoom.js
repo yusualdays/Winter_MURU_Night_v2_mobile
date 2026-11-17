@@ -6,7 +6,8 @@ import { ref, set, update, remove, push, onValue, onDisconnect, serverTimestamp 
 import { db } from "../lib/firebase";
 import { getMyId, getLook } from "../lib/session";
 import { DEFAULT_LOOK, normalizeLook } from "../lib/pixelCharacter";
-import { ROOMS, rememberFrom, takeArrival, inZone } from "../lib/rooms";
+import { ROOMS, rememberFrom, takeArrival, lastExitOf, inZone, isRoomOpen, isHost, getForceOpen, setForceOpen, inSchedule, scheduleText } from "../lib/rooms";
+import GreetToast from "./GreetToast";
 import Avatar, { AVATAR_WIDTH, AVATAR_HEIGHT } from "./Avatar";
 import InteractButton from "./InteractButton";
 import ChatBox from "./ChatBox";
@@ -20,13 +21,15 @@ import { EMOTE_KEYS } from "./EmoteBubble";
 //  - 걷기(방향키 + 터치 이동), 다른 사람 보기, 말풍선 채팅, 표정, 문으로 다른 방 가기
 //  - 각 방(cafe/page.js, gallery/page.js)은 지도 정보와 그림(Scene)만 넘겨주면 돼요
 //
-//  roomId   : "cafe" | "gallery" (Firebase users/{ID}.room 에 저장 → 같은 방 사람만 보여요)
+//  roomId   : "teaHouse" | "exhibitionRoom" (Firebase users/{ID}.room 에 저장 → 같은 방 사람만 보여요)
 //  mapW/H   : 지도 크기 (맵 기준 px)
 //  outside  : 지도 바깥(휴대폰 빈 곳) 색
 //  blockers : 못 지나가는 곳 [{ x, y, w, h }] (0~1 비율)
 //  spots    : 가까이 가면 버튼이 뜨는 물건 [{ id, rect, near: {x,y}, icon, title }]
-//  exits    : 문 [{ to: "living", zone: {x,y,w,h} }] — 발이 닿으면 그 방으로 이동
-//  spawns   : 시작 위치 (발 가운데) { default: {x,y}, living: {x,y}, ... } — 어느 방에서 왔는지에 따라
+//  exits    : 통로 [{ id, to: "livingRoom", zone: {x,y,w,h}, sign: {x,y}, label }] — 발이 닿으면 그 방으로 이동
+//             (거실·전시회가 오픈 기간이 아니면 sign 자리에 "준비중" 팻말이 뜨고 막혀요)
+//  spawns   : 시작 위치 (발 가운데) { default, livingRoom, "exhibitionRoom:exitLeft", ... }
+//             "온 방:이 방에서 나갔던 통로" 로 적으면, 나갔던 그 통로 앞에서 다시 시작해요
 //  children : 지도 그림 (바닥·벽·가구) / renderModals(openId, close): 상세 창들
 const SPEED = 320;
 const SYNC_INTERVAL = 100;
@@ -83,6 +86,12 @@ export default function SimpleRoom({
   const [isTouch, setIsTouch] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
   const [leaving, setLeaving] = useState(false);
+  const [arriving, setArriving] = useState(true); // 들어올 때 어두운 화면이 스르륵 밝아져요
+  const [toast, setToast] = useState(null);       // 화면 위 알림 { id, text }
+  const [forceOpen, setForceOpenState] = useState(false); // 호스트 테스트용 강제 오픈
+  const [hostPanel, setHostPanel] = useState(false);
+  const [clock, setClock] = useState(0);          // 1분마다 오픈 기간 다시 확인
+  const lockedNoticeRef = useRef(null);           // 이미 "준비중" 안내를 띄운 통로
 
   const pressedKeys = useRef(new Set());
   const posRef = useRef(null);
@@ -110,11 +119,17 @@ export default function SimpleRoom({
       router.replace("/");
       return;
     }
+    // 기간이 아닌데 주소로 바로 들어오면 → 찻집으로
+    if (!isRoomOpen(roomId, saved)) {
+      router.replace(ROOMS.teaHouse.href);
+      return;
+    }
     setNickname(saved);
     setLook(normalizeLook(getLook()));
     setMyId(getMyId());
+    setForceOpenState(getForceOpen());
     const from = takeArrival();
-    const s = spawns[from] ?? spawns.default;
+    const s = (from && spawns[`${from}:${lastExitOf(roomId)}`]) ?? spawns[from] ?? spawns.default;
     const p = posFromFeet(s.x * mapW, s.y * mapH);
     const start = { x: clamp(p.x, 0, mapW - AVATAR_WIDTH), y: clamp(p.y, 0, mapH - AVATAR_HEIGHT) };
     posRef.current = start;
@@ -132,7 +147,11 @@ export default function SimpleRoom({
     window.addEventListener("resize", check);
     window.visualViewport?.addEventListener("resize", check);
     const timer = setTimeout(() => setShowWelcome(false), 8000);
+    const fade = setTimeout(() => setArriving(false), 60);
+    const tick = setInterval(() => setClock((c) => c + 1), 60000);
     return () => {
+      clearTimeout(fade);
+      clearInterval(tick);
       window.removeEventListener("resize", check);
       window.visualViewport?.removeEventListener("resize", check);
       clearTimeout(timer);
@@ -357,23 +376,47 @@ export default function SimpleRoom({
     return () => cancelAnimationFrame(frameId);
   }, [blocked, mapW, mapH]);
 
-  // 10) 문에 닿으면 다른 방으로 (들어온 문 위에서 시작했다면, 한 번 벗어난 뒤부터)
+  // 10) 통로에 닿으면 다른 방으로 (들어온 통로 위에서 시작했다면, 한 번 벗어난 뒤부터)
+  //     오픈 기간이 아니면: 이동하지 않고 "현재 준비중입니다" 안내만
+  const exitOpen = useMemo(() => {
+    const o = {};
+    for (const ex of exits) o[ex.id ?? ex.to] = isRoomOpen(ex.to, nickname);
+    return o;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exits, nickname, forceOpen, clock]);
+
+  const showToast = (text, icon) => {
+    const id = Date.now();
+    setToast({ id, text, icon });
+    setTimeout(() => setToast((t) => (t?.id === id ? null : t)), 2500);
+  };
+
   useEffect(() => {
     if (!pos || leaving) return;
     const feet = feetRect(pos.x, pos.y);
     const exit = exits.find((ex) => inZone(feet, ex.zone, mapW, mapH));
     if (!exit) {
       armedRef.current = true;
+      lockedNoticeRef.current = null;
       return;
     }
     if (!armedRef.current) return;
+    const exitId = exit.id ?? exit.to;
+    if (!exitOpen[exitId]) {
+      if (lockedNoticeRef.current !== exitId) {
+        lockedNoticeRef.current = exitId;
+        targetRef.current = null;
+        showToast(`현재 준비중입니다${scheduleText() ? ` (${scheduleText()} 오픈)` : ""}`, "🚧");
+      }
+      return;
+    }
     setLeaving(true);
     targetRef.current = null;
     pressedKeys.current.clear();
-    rememberFrom(roomId);
-    setTimeout(() => router.push(ROOMS[exit.to].href), 280);
+    rememberFrom(roomId, exitId);
+    setTimeout(() => router.push(ROOMS[exit.to].href), 300);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pos, leaving]);
+  }, [pos, leaving, exitOpen]);
 
   // 11) 화면 배율 + 카메라 (휴대폰은 내 캐릭터를 따라가요)
   const fitScale = Math.min(vp.w / mapW, vp.h / mapH);
@@ -455,6 +498,24 @@ export default function SimpleRoom({
       >
         {children}
 
+        {/* 통로 팻말: 열려 있으면 가는 곳 이름, 기간이 아니면 "준비중" */}
+        {exits
+          .filter((ex) => ex.sign)
+          .map((ex) => {
+            const open = exitOpen[ex.id ?? ex.to];
+            return (
+              <div key={ex.id ?? ex.to} className="pointer-events-none absolute z-[6] flex w-0 flex-col items-center" style={{ left: ex.sign.x * mapW, top: ex.sign.y * mapH }}>
+                <span
+                  className={`shrink-0 whitespace-nowrap border-4 border-[#2b1d1a] px-3 py-1 text-xl font-black shadow-[3px_3px_0_0_rgba(0,0,0,0.35)] ${open ? "bg-[#f5e6c8] text-[#2b1d1a]" : "bg-[#fde68a] text-[#7c2d12]"}`}
+                >
+                  {open ? ex.label ?? ROOMS[ex.to]?.name : "🚧 준비중"}
+                </span>
+                {/* 팻말 기둥 */}
+                <span className="h-6 w-2.5 shrink-0 bg-[#6e4530]" />
+              </div>
+            );
+          })}
+
         {tapFx && <TapRipple key={tapFx.id} x={tapFx.x} y={tapFx.y} size={Math.max(64, 44 / scale)} />}
 
         {Object.entries(others).map(([id, u]) => (
@@ -471,8 +532,47 @@ export default function SimpleRoom({
       {isTouch && <MobileControls onAction={interact} actionIcon={nearTarget ? near.icon : null} onEmote={(type) => setEmote({ type, id: Date.now() })} />}
       <ChatInput ref={chatInputRef} open={chatOpen} onSend={sendChat} onClose={() => setChatOpen(false)} />
 
-      {/* 다른 방으로 가는 중: 화면이 스르륵 어두워져요 */}
-      <div className={`pointer-events-none fixed inset-0 z-[90] bg-black transition-opacity duration-300 ${leaving ? "opacity-100" : "opacity-0"}`} />
+      {/* 화면 위 알림 ("현재 준비중입니다") */}
+      <GreetToast toast={toast} />
+
+      {/* 🔧 호스트 설정 (data.js의 hostNickname과 닉네임이 같을 때만 보여요) */}
+      {isHost(nickname) && (
+        <div className="safe-top safe-right fixed z-40 flex flex-col items-end gap-2">
+          <button
+            type="button"
+            onClick={() => setHostPanel((o) => !o)}
+            aria-label="호스트 설정"
+            className="flex h-12 w-12 items-center justify-center border-4 border-[#1a110e] bg-[#f5e6c8] text-2xl shadow-[3px_3px_0_0_rgba(0,0,0,0.4)] active:translate-y-0.5 active:shadow-none"
+          >
+            🔧
+          </button>
+          {hostPanel && (
+            <div className="w-72 max-w-[calc(100vw-1.5rem)] border-4 border-[#1a110e] bg-[#2b1d1a] p-3 text-white shadow-[6px_6px_0_0_rgba(0,0,0,0.35)]">
+              <p className="text-sm font-black text-amber-300">🔧 호스트 설정</p>
+              <p className="mt-1 text-xs text-white/70">
+                거실·전시회 오픈 기간: {scheduleText() || "제한 없음"} · 지금은 {inSchedule() ? "✅ 오픈 중" : "🚧 준비중"}
+              </p>
+              <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 border-2 border-white/20 bg-black/20 px-3 py-2">
+                <span className="text-sm font-bold">🔓 기간 외에도 열기 (테스트용)</span>
+                <input
+                  type="checkbox"
+                  checked={forceOpen}
+                  onChange={(e) => {
+                    setForceOpen(e.target.checked);
+                    setForceOpenState(e.target.checked);
+                    lockedNoticeRef.current = null;
+                  }}
+                  className="h-5 w-5 accent-amber-400"
+                />
+              </label>
+              <p className="mt-2 text-[11px] leading-snug text-white/50">이 브라우저의 호스트에게만 열려요. 친구들 화면은 기간이 될 때까지 계속 "준비중"이에요.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 방을 옮길 때: 화면이 스르륵 어두워졌다가 밝아져요 */}
+      <div className={`pointer-events-none fixed inset-0 z-[90] bg-black transition-opacity duration-300 ${leaving || arriving ? "opacity-100" : "opacity-0"}`} />
     </main>
   );
 }

@@ -4,57 +4,55 @@ import SimpleRoom from "../components/SimpleRoom";
 import PixelModal from "../components/PixelModal";
 import { cafeData } from "../spaceData";
 
-// ☕ 온라인 찻집 (처음 들어오는 곳)
-//  - 위쪽 가운데 문 → 🛋️ 거실 / 오른쪽 문 → 🖼️ 전시장
-//  - 그림은 아직 코드로 그린 임시 그림이에요. 배경 그림이 생기면 CafeScene을 그림 한 장으로 바꾸면 돼요
+// ☕ 군산 온라인 찻집 (teaHouse) — 입장하면 가장 먼저 오는 곳
+//  - 위쪽 가운데 통로 → 🛋️ 거실 / 왼쪽 아래·오른쪽 아래 구석 통로 → 🖼️ 전시회
+//    (문 그림 없이, 통로 끝 경계에 닿으면 화면이 어두워지며 이동해요)
+//  - 거실·전시회는 data.js의 eventSchedule 기간에만 열려요 (기간 밖에는 "준비중" 팻말)
+//  - 그림은 아직 코드로 그린 임시 그림이에요. 배경 그림이 생기면 CafeScene을 그림 한 장으로 바꾸고 좌표만 맞추면 돼요
 //  - 좌표는 모두 0~1 비율 (x: 왼쪽→오른쪽, y: 위→아래)
 const MAP_W = 1600;
 const MAP_H = 1200;
 const WALL_H = 0.24; // 위쪽 벽 높이
+const PASSAGE = { x: 0.44, w: 0.12 }; // 위쪽 가운데 통로 (벽이 뚫린 곳)
 
 // 테이블 (가운데 좌표) — 의자는 테이블 양옆에 그려져요
 const TABLES = [
-  { x: 0.2, y: 0.62 },
-  { x: 0.2, y: 0.86 },
-  { x: 0.8, y: 0.86 },
+  { x: 0.2, y: 0.6 },
+  { x: 0.8, y: 0.6 },
   { x: 0.78, y: 0.36 },
+  { x: 0.25, y: 0.8 },
+  { x: 0.75, y: 0.8 },
 ];
 
 const BLOCKERS = [
-  { x: 0, y: 0, w: 1, h: WALL_H }, // 위쪽 벽
+  { x: 0, y: 0, w: PASSAGE.x, h: WALL_H }, // 위쪽 벽 (통로 왼쪽)
+  { x: PASSAGE.x + PASSAGE.w, y: 0, w: 1 - PASSAGE.x - PASSAGE.w, h: WALL_H }, // 위쪽 벽 (통로 오른쪽)
   { x: 0.04, y: WALL_H, w: 0.3, h: 0.14 }, // 카운터
   ...TABLES.map((t) => ({ x: t.x - 0.085, y: t.y - 0.035, w: 0.17, h: 0.06 })), // 테이블 + 의자
-  { x: 0, y: 0.9, w: 0.06, h: 0.1 }, // 왼쪽 아래 화분
-  { x: 0.94, y: 0.9, w: 0.06, h: 0.1 }, // 오른쪽 아래 화분
 ];
 
 const SPOTS = [
   { id: "menu", rect: { x: 0.26, y: 0.05, w: 0.13, h: 0.13 }, near: { x: 0.24, y: 0.44 }, icon: "☕", title: "오늘의 메뉴" },
 ];
 
+// 통로 (zone = 발이 닿으면 이동하는 경계, sign = 팻말 위치)
 const EXITS = [
-  { to: "living", zone: { x: 0.43, y: 0.22, w: 0.14, h: 0.04 } }, // 위쪽 문
-  { to: "gallery", zone: { x: 0.965, y: 0.5, w: 0.035, h: 0.18 } }, // 오른쪽 문
+  { id: "up", to: "livingRoom", zone: { x: PASSAGE.x, y: 0.1, w: PASSAGE.w, h: 0.05 }, sign: { x: 0.5, y: 0.012 }, label: "⬆ 🛋️ 거실" },
+  { id: "exLeft", to: "exhibitionRoom", zone: { x: 0, y: 0.9, w: 0.08, h: 0.1 }, sign: { x: 0.075, y: 0.78 }, label: "↙ 🖼️ 전시회" },
+  { id: "exRight", to: "exhibitionRoom", zone: { x: 0.92, y: 0.9, w: 0.08, h: 0.1 }, sign: { x: 0.925, y: 0.78 }, label: "🖼️ 전시회 ↘" },
 ];
 
-// 시작 위치 (발 가운데) — 어느 문으로 들어왔는지에 따라
+// 시작 위치 (발 가운데) — 어디서 왔는지에 따라
 const SPAWNS = {
-  default: { x: 0.5, y: 0.92 }, // 입장 (아래쪽 현관)
-  living: { x: 0.5, y: 0.3 }, // 거실에서 내려옴 → 위쪽 문 앞
-  gallery: { x: 0.92, y: 0.6 }, // 전시장에서 돌아옴 → 오른쪽 문 앞
+  default: { x: 0.5, y: 0.9 }, // 입장 (아래쪽 현관)
+  livingRoom: { x: 0.5, y: 0.3 }, // 거실에서 내려옴 → 위쪽 통로 앞
+  "exhibitionRoom:exLeft": { x: 0.12, y: 0.85 }, // 전시회에서 돌아옴 → 나갔던 왼쪽 통로 앞
+  "exhibitionRoom:exRight": { x: 0.88, y: 0.85 }, // → 나갔던 오른쪽 통로 앞
+  exhibitionRoom: { x: 0.12, y: 0.85 },
 };
 
 const pct = (r) => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` });
 const OUTLINE = "#2b1d1a";
-
-// 문 위 나무 표지판
-function Sign({ children, style }) {
-  return (
-    <div className="absolute flex items-center justify-center whitespace-nowrap border-4 px-3 py-0.5 text-xl font-black text-[#2b1d1a] shadow-[3px_3px_0_0_rgba(0,0,0,0.35)]" style={{ borderColor: OUTLINE, background: "#f5e6c8", ...style }}>
-      {children}
-    </div>
-  );
-}
 
 // 둥근 테이블 + 양옆 의자
 function Table({ x, y }) {
@@ -106,12 +104,11 @@ function CafeScene() {
         ))}
       </div>
 
-      {/* 위쪽 가운데 문 → 거실 */}
-      <div className="absolute border-[6px]" style={{ ...pct({ x: 0.44, y: 0.05, w: 0.12, h: WALL_H - 0.05 }), borderColor: OUTLINE, background: "#6e4530", boxShadow: "inset 0 0 0 8px #85563b" }}>
-        <div className="absolute left-1/2 top-[14%] h-[30%] w-[56%] -translate-x-1/2 border-4" style={{ borderColor: OUTLINE, background: "#f9d58a" }} />
-        <div className="absolute right-[14%] top-[58%] h-3 w-3 rounded-full bg-amber-300" />
-      </div>
-      <Sign style={{ left: "50%", top: "1%", transform: "translateX(-50%)" }}>⬆ 🛋️ 거실</Sign>
+      {/* 위쪽 가운데 통로 (벽이 뚫려 있고 바닥이 위로 이어져요) */}
+      <div className="absolute" style={{ ...pct({ x: PASSAGE.x, y: 0, w: PASSAGE.w, h: WALL_H }), background: "repeating-linear-gradient(0deg, #b37c4a 0 56px, #a8723f 56px 60px)", boxShadow: `inset 10px 0 0 #5e3d28, inset -10px 0 0 #5e3d28, inset 0 40px 30px -20px rgba(0,0,0,0.45)` }} />
+      {[PASSAGE.x - 0.035, PASSAGE.x + PASSAGE.w + 0.005].map((x) => (
+        <div key={x} className="absolute text-[56px] leading-none" style={{ left: `${x * 100}%`, top: `${(WALL_H - 0.08) * 100}%` }}>🪴</div>
+      ))}
 
       {/* 카운터 + 커피 머신 */}
       <div className="absolute border-[6px]" style={{ ...pct({ x: 0.04, y: WALL_H, w: 0.3, h: 0.14 }), borderColor: OUTLINE, background: "#8a5a3b", boxShadow: "inset 0 22px 0 #d9a066, inset 0 28px 0 #b97d48" }}>
@@ -125,14 +122,17 @@ function CafeScene() {
         <Table key={i} {...t} />
       ))}
 
-      {/* 화분 */}
-      {[0.03, 0.97].map((x) => (
-        <div key={x} className="absolute -translate-x-1/2 text-[72px] leading-none" style={{ left: `${x * 100}%`, top: "88%" }}>🪴</div>
+      {/* 왼쪽 아래 · 오른쪽 아래 구석 통로 (돌길이 바깥으로 이어져요) */}
+      {[
+        { x: 0, flip: false },
+        { x: 0.86, flip: true },
+      ].map(({ x, flip }) => (
+        <div key={x} className="absolute" style={{ ...pct({ x, y: 0.86, w: 0.14, h: 0.14 }), background: `linear-gradient(${flip ? "135deg" : "225deg"}, transparent 30%, rgba(0,0,0,0.35))` }}>
+          {[0, 1, 2].map((i) => (
+            <span key={i} className="absolute h-8 w-12 rounded-sm border-4 border-[#5b5148] bg-[#bdb5a6]" style={{ [flip ? "right" : "left"]: 14 + i * 50, bottom: 14 + i * 34 }} />
+          ))}
+        </div>
       ))}
-
-      {/* 오른쪽 문 → 전시장 */}
-      <div className="absolute border-[6px]" style={{ ...pct({ x: 0.975, y: 0.5, w: 0.025, h: 0.18 }), borderColor: OUTLINE, background: "#6e4530" }} />
-      <Sign style={{ right: "3.5%", top: "44%" }}>🖼️ 전시장 ➡</Sign>
 
       {/* 아래쪽 현관 매트 */}
       <div className="absolute flex items-center justify-center border-4 text-sm font-black tracking-[0.3em] text-[#f5e6c8]" style={{ ...pct({ x: 0.43, y: 0.955, w: 0.14, h: 0.045 }), borderColor: OUTLINE, background: "#7a2e2e" }}>
@@ -145,9 +145,9 @@ function CafeScene() {
 export default function CafePage() {
   return (
     <SimpleRoom
-      roomId="cafe"
-      roomName="☕ 찻집"
-      welcome="위쪽 문 = 🛋️ 거실 · 오른쪽 문 = 🖼️ 전시장"
+      roomId="teaHouse"
+      roomName="☕ 군산 온라인 찻집"
+      welcome="위쪽 통로 = 🛋️ 거실 · 왼쪽·오른쪽 아래 통로 = 🖼️ 전시회"
       mapW={MAP_W}
       mapH={MAP_H}
       outside="#3b2a20"
@@ -156,7 +156,7 @@ export default function CafePage() {
       exits={EXITS}
       spawns={SPAWNS}
       renderModals={(openId, close) => (
-        <PixelModal open={openId === "menu"} onClose={close} label="☕ 찻집" title="오늘의 메뉴" width={460}>
+        <PixelModal open={openId === "menu"} onClose={close} label="☕ 군산 온라인 찻집" title="오늘의 메뉴" width={460}>
           <ul className="flex flex-col gap-3">
             {cafeData.menu.map((m) => (
               <li key={m.name} className="flex gap-3 border-4 border-[#1a110e] bg-[#f5e6c8] p-3 text-[#2b1d1a]">
