@@ -41,6 +41,7 @@ import { EMOTE_KEYS } from "./EmoteBubble";
 //  🍵 다른 사람 캐릭터를 누르면 [🍵 대화 신청하기] → 상대가 수락하면 둘만의 1:1 찻자리 채팅 (TeaChat.js)
 //  onSeatLeave(seatId): 자리에서 일어나거나 방을 나갈 때 (예: 테이블 위 주문 치우기)
 //  playAction("drinking" | "eating" | "pouring"): 내 아바타 모션 (Firebase users/{ID}.action 으로 모두에게)
+//  exits의 paintedSign: true면 열려 있을 땐 코드 팻말을 숨기고(배경 그림 팻말 사용), 준비중일 때만 "🚧 준비중" 팻말
 //  spots의 radius: 버튼이 뜨는 거리 (맵 기준 px, 기본 90)
 const SPEED = 320;
 const SYNC_INTERVAL = 100;
@@ -672,6 +673,7 @@ export default function SimpleRoom({
           .filter((ex) => ex.sign)
           .map((ex) => {
             const open = exitOpen[ex.id ?? ex.to];
+            if (open && ex.paintedSign) return null; // 배경 그림에 팻말이 그려져 있으면, 열려 있을 땐 그림 팻말만
             return (
               <div key={ex.id ?? ex.to} className="pointer-events-none absolute z-[6] flex w-0 flex-col items-center" style={{ left: ex.sign.x * mapW, top: ex.sign.y * mapH }}>
                 <span

@@ -8,42 +8,33 @@ import SeasonWindow from "../components/SeasonWindow";
 import TeaHouseHud, { useTeaHouse } from "../components/TeaHouseHud";
 import TeaMenuBoard from "../components/TeaMenuBoard";
 import TeaCraftModal from "../components/TeaCraft";
+import { CounterModal, SpeakerModal, BookmarkModal, ShowroomModal } from "../components/TeaRoomModals";
 import { TableItems, clearOrder } from "../components/TeaTable";
 import { cafeData } from "../spaceData";
 
 // ☕ 군산 온라인 찻집 (teaHouse) — 입장하면 가장 먼저 오는 곳
-//  - 위쪽 가운데 통로 → 🛋️ 거실 / 왼쪽 아래·오른쪽 아래 구석 통로 → 🖼️ 전시회
-//    (문 그림 없이, 통로 끝 경계에 닿으면 화면이 어두워지며 이동해요)
-//  - 거실·전시회는 data.js의 eventSchedule 기간에만 열려요 (기간 밖에는 "준비중" 팻말)
-//  - 그림은 아직 코드로 그린 임시 그림이에요. 배경 그림이 생기면 CafeScene을 그림 한 장으로 바꾸고 좌표만 맞추면 돼요
-//  - 좌표는 모두 0~1 비율 (x: 왼쪽→오른쪽, y: 위→아래)
+//  - 배경 그림: public/teahouse_bg.png (4:3, 모던·미니멀 찻집) — 아래 좌표는 모두 이 그림 기준 0~1 비율
+//    (x: 왼쪽→오른쪽, y: 위→아래). 주소 끝에 ?debug=1 을 붙이면 장애물·자리·버튼 위치가 색칠돼 보여요 → 그림에 맞춰 숫자만 고치면 돼요
+//  - 위쪽 가운데 통로 → 🛋️ 거실 / 오른쪽 아래 통로 → 🖼️ 전시회 (data.js eventSchedule 기간에만, 기간 밖에는 "🚧 준비중")
 const MAP_W = 1600;
 const MAP_H = 1200;
-const WALL_H = 0.24; // 위쪽 벽 높이
-const PASSAGE = { x: 0.44, w: 0.12 }; // 위쪽 가운데 통로 (벽이 뚫린 곳)
+const BG_IMAGE = "/teahouse_bg.png";
 
-// 🪟 통창 자리 (0~1 비율) — 계절 풍경은 이 네모 안에서만 보여요. 배경 그림이 생기면 그림 속 통창에 맞춰 고쳐 주세요
-const WINDOW_AREA = { x: 0.6, y: 0.03, w: 0.37, h: 0.15 };
+// 벽 아래 끝 (바닥이 시작되는 높이)
+const WALL_BOTTOM = 0.33;
+// 위쪽 가운데 통로 (거실로 가는 문)
+const PASSAGE = { x: 0.465, w: 0.09, top: 0.16 };
 
-// 📚 가운데 단체석(쉐어 테이블) — 모임이 열리면 여기 앉은 손님에게 발제문·미트 링크가 보여요
-const SHARE_TABLE = { x: 0.43, y: 0.56, w: 0.14, h: 0.17 };
-const SHARE_SEATS = [
-  // x,y = 앉았을 때 엉덩이 자리 / stand = 의자 옆 서는 자리 (일어나면 여기로)
-  { id: "share1", group: "share", x: 0.405, y: 0.64, dir: "right", stand: { x: 0.34, y: 0.64 }, place: { x: 0.45, y: 0.61 }, label: "단체석에 앉기" },
-  { id: "share2", group: "share", x: 0.405, y: 0.72, dir: "right", stand: { x: 0.34, y: 0.72 }, place: { x: 0.45, y: 0.69 }, label: "단체석에 앉기" },
-  { id: "share3", group: "share", x: 0.595, y: 0.64, dir: "left", stand: { x: 0.66, y: 0.64 }, place: { x: 0.55, y: 0.61 }, label: "단체석에 앉기" },
-  { id: "share4", group: "share", x: 0.595, y: 0.72, dir: "left", stand: { x: 0.66, y: 0.72 }, place: { x: 0.55, y: 0.69 }, label: "단체석에 앉기" },
-];
+// 🪟 통창 유리 부분 — 계절 풍경은 이 네모 안에서만 보여요 (overflow-hidden)
+const WINDOW_AREA = { x: 0.095, y: 0.145, w: 0.225, h: 0.17 };
 
-// 🍵 테이블 자리마다 차·다식이 놓이는 곳: place (0~1 비율)
-
-// 카운터 (벽 바로 앞) — 안쪽(벽과 카운터 사이)에 알바생 다연이 서 있어요
-const COUNTER = { x: 0.04, y: 0.3, w: 0.3, h: 0.13 };
-// 🍵 다연이 서 있는 자리 (발 가운데, 0~1 비율) — 사장님 접속과 상관없이 24시간 여기에 있어요
-const COUNTER_NPC_POS = { x: 0.19, y: 0.335 };
+// 🍵 카운터 + 주방 (오른쪽 위) — 통째로 못 지나가요
+const COUNTER = { x: 0.615, y: 0.27, w: 0.34, h: 0.27 };
+// 🍵 다연이 서 있는 자리 (발 가운데) — 그림 속 다연 위치. 그림에 다연이 그려져 있어서 코드 캐릭터는 숨기고 이름표·말풍선만 띄워요
+const COUNTER_NPC_POS = { x: 0.78, y: 0.43 };
+const NPC_IN_BG = true; // 배경 그림에 다연이 없으면 false 로 바꾸면 코드로 그린 다연이 나와요
 const NPC_X = COUNTER_NPC_POS.x * MAP_W - NPC_W / 2; // 그림 왼쪽 위 (맵 좌표)
 const NPC_Y = COUNTER_NPC_POS.y * MAP_H - NPC_H;
-const NPC_TALK_RADIUS = 70; // 이만큼(맵 기준 px) 가까이 오면 [💬 말 걸기 / 이용 안내]
 
 // 다연의 말
 const NPC_LINES = {
@@ -53,172 +44,135 @@ const NPC_LINES = {
 
 // 찻집 이용 가이드 (다연이 알려줘요)
 const GUIDE = [
-  { icon: "👆", title: "자리 이동", text: "바닥을 터치(클릭)하면 그곳으로 걸어가요. 빈 좌석이나 책장 앞으로 가 보세요. PC에서는 방향키·W·A·S·D도 돼요." },
-  { icon: "📜", title: "차림표 & 체험", text: "벽의 차림표에서 오늘의 차를 구경하고, 다식·말차 만들기 체험도 해 보세요." },
-  { icon: "🎧", title: "공부 집중 모드 & 백색소음", text: "오른쪽 위 [공부 집중 모드]를 켜면 조용히 집중할 수 있어요. 빗소리·장작불 같은 백색소음도 섞어 들을 수 있어요." },
-  { icon: "🚪", title: "통로 안내", text: "위쪽 가운데 통로는 🛋️ 거실, 왼쪽·오른쪽 아래 구석 통로는 🖼️ 전시회로 이어져요. (오픈 기간에만 열려요)" },
+  { icon: "👆", title: "자리 이동 & 대화", text: "바닥을 터치(클릭)하면 걸어가요. 빈 의자 옆에서 앉을 수 있고, 다른 손님 캐릭터를 누르면 1:1 찻자리 대화를 청할 수 있어요." },
+  { icon: "🍵", title: "카운터", text: "카운터 앞에서 차림표를 보거나, 다식·말차 만들기 체험을 해 보세요. 만든 건 내 테이블로 가져가 먹을 수 있어요." },
+  { icon: "📖", title: "공부 집중 모드 & 소리", text: "오른쪽 위 [📖 공부 집중 모드]로 뽀모도로 타이머를 켜요. 창가 옆 스피커에서 BGM과 백색소음을 고를 수 있어요." },
+  { icon: "🔖", title: "책장 & 다구 판매존", text: "왼쪽 아래 책장엔 손님들이 남긴 독서 책갈피가, 오른쪽 선반엔 다구 쇼룸이 있어요." },
+  { icon: "🚪", title: "통로 안내", text: "위쪽 가운데 문은 🛋️ 거실, 오른쪽 아래 통로는 🖼️ 전시실로 이어져요. (오픈 기간에만 열려요)" },
 ];
 
-// 🍡🍵 다도 체험존 (위쪽 통로 오른쪽 벽 앞 작은 체험대) — 가까이 가면 [🍵 다도 체험존]
-const CRAFT_ZONE = { x: 0.585, y: 0.25, w: 0.09, h: 0.07 };
+// ---------------- 🪑 좌석 (총 13석) ----------------
+//  x,y = 앉았을 때 엉덩이 자리 / dir = 앉아서 보는 방향 / stand = 의자 옆 서는 자리 (가까이 오면 [🪑 앉기], 일어나면 여기로)
+//  place = 테이블 위 차·다식이 놓이는 곳
 
-// 테이블 (가운데 좌표) — 의자는 테이블 양옆에 그려져요
-const TABLES = [
-  { x: 0.2, y: 0.6 },
-  { x: 0.8, y: 0.6 },
-  { x: 0.78, y: 0.36 },
-  { x: 0.2, y: 0.8 },
-  { x: 0.8, y: 0.8 },
+// 왼쪽 2인 테이블 4개 (테이블마다 위·아래 의자)
+const DUO_TABLES = [
+  { id: "t1", x: 0.115, top: 0.32, bottom: 0.4, standX: 0.2 },
+  { id: "t2", x: 0.302, top: 0.32, bottom: 0.4, standX: 0.375 },
+  { id: "t3", x: 0.115, top: 0.5, bottom: 0.58, standX: 0.2 },
+  { id: "t4", x: 0.302, top: 0.5, bottom: 0.58, standX: 0.375 },
 ];
-
-// 2인석: 작은 테이블마다 왼쪽·오른쪽 의자 (x,y = 엉덩이 자리, stand = 의자 옆 서는 자리, place = 차·다식 놓는 곳)
-const TABLE_SEATS = TABLES.flatMap((t, i) => [
-  { id: `t${i + 1}L`, group: `t${i + 1}`, x: t.x - 0.061, y: t.y + 0.028, dir: "right", stand: { x: t.x - 0.11, y: t.y + 0.01 }, place: { x: t.x - 0.026, y: t.y - 0.008 }, label: "2인석에 앉기" },
-  { id: `t${i + 1}R`, group: `t${i + 1}`, x: t.x + 0.061, y: t.y + 0.028, dir: "left", stand: { x: t.x + 0.11, y: t.y + 0.01 }, place: { x: t.x + 0.026, y: t.y - 0.008 }, label: "2인석에 앉기" },
+const TABLE_W = 0.075;
+const TABLE_SEATS = DUO_TABLES.flatMap((t) => [
+  { id: `${t.id}U`, group: t.id, x: t.x, y: t.top - 0.01, dir: "down", stand: { x: t.standX, y: t.top - 0.005 }, place: { x: t.x, y: t.top + 0.02 }, label: "2인석에 앉기" },
+  { id: `${t.id}D`, group: t.id, x: t.x, y: t.bottom + 0.035, dir: "up", stand: { x: t.standX, y: t.bottom + 0.04 }, place: { x: t.x, y: t.bottom - 0.02 }, label: "2인석에 앉기" },
 ]);
+
+// 📚 가운데 아래 단체석 (긴 쉐어 테이블) — 앉으면 독서모임 발제문·구글 미트 링크가 보여요
+//   좌측 2석(왼쪽 위·왼쪽 아래) · 우측 2석(오른쪽 위·오른쪽 아래) · 하단 1석(아래 가운데)
+const SHARE_TABLE = { x: 0.395, y: 0.725, w: 0.245, h: 0.16 };
+const SHARE_SEATS = [
+  { id: "share1", group: "share", x: 0.44, y: 0.73, dir: "down", stand: { x: 0.44, y: 0.665 }, place: { x: 0.44, y: 0.765 }, label: "단체석에 앉기" },
+  { id: "share2", group: "share", x: 0.44, y: 0.92, dir: "up", stand: { x: 0.365, y: 0.92 }, place: { x: 0.44, y: 0.83 }, label: "단체석에 앉기" },
+  { id: "share3", group: "share", x: 0.59, y: 0.73, dir: "down", stand: { x: 0.59, y: 0.665 }, place: { x: 0.59, y: 0.765 }, label: "단체석에 앉기" },
+  { id: "share4", group: "share", x: 0.59, y: 0.92, dir: "up", stand: { x: 0.67, y: 0.92 }, place: { x: 0.59, y: 0.83 }, label: "단체석에 앉기" },
+  { id: "share5", group: "share", x: 0.515, y: 0.92, dir: "up", stand: { x: 0.515, y: 0.975 }, place: { x: 0.515, y: 0.83 }, label: "단체석에 앉기" },
+];
 const ALL_SEATS = [...TABLE_SEATS, ...SHARE_SEATS];
 
+// ---------------- 벽면 오브젝트 ----------------
+const SPEAKER = { x: 0.405, y: 0.25, w: 0.05, h: 0.11 };
+const BOOKSHELF = { x: 0.05, y: 0.75, w: 0.19, h: 0.23 };
+const TEAWARE_SHELF = { x: 0.775, y: 0.58, w: 0.175, h: 0.18 };
+
+// ---------------- 🚧 장애물 (발이 못 들어가는 네모) ----------------
 const BLOCKERS = [
-  { x: 0, y: 0, w: PASSAGE.x, h: WALL_H }, // 위쪽 벽 (통로 왼쪽)
-  { x: PASSAGE.x + PASSAGE.w, y: 0, w: 1 - PASSAGE.x - PASSAGE.w, h: WALL_H }, // 위쪽 벽 (통로 오른쪽)
-  { x: COUNTER.x, y: WALL_H, w: COUNTER.w, h: COUNTER.y + COUNTER.h - WALL_H }, // 카운터 + 안쪽 (손님은 못 들어가요)
-  ...TABLES.map((t) => ({ x: t.x - 0.085, y: t.y - 0.035, w: 0.17, h: 0.06 })), // 테이블 + 의자
-  { x: 0.37, y: SHARE_TABLE.y + 0.01, w: 0.26, h: SHARE_TABLE.h }, // 단체석 + 의자
-  { x: CRAFT_ZONE.x, y: CRAFT_ZONE.y, w: CRAFT_ZONE.w, h: CRAFT_ZONE.h * 0.8 }, // 다도 체험대
+  { x: 0, y: 0, w: PASSAGE.x, h: WALL_BOTTOM }, // 위쪽 벽 (통로 왼쪽)
+  { x: PASSAGE.x + PASSAGE.w, y: 0, w: 1 - PASSAGE.x - PASSAGE.w, h: WALL_BOTTOM }, // 위쪽 벽 (통로 오른쪽)
+  { x: 0, y: 0, w: 0.05, h: 1 }, // 왼쪽 벽
+  { x: 0.95, y: 0, w: 0.05, h: 0.84 }, // 오른쪽 벽 (전시실 통로 위까지)
+  { x: 0, y: 0.985, w: 0.84, h: 0.015 }, // 아래쪽 벽 (전시실 통로 왼쪽까지)
+  { ...COUNTER }, // 카운터 + 주방
+  ...DUO_TABLES.map((t) => ({ x: t.x - TABLE_W / 2, y: t.top + 0.005, w: TABLE_W, h: t.bottom - t.top - 0.01 })), // 2인 테이블 본체
+  { x: SHARE_TABLE.x, y: SHARE_TABLE.y + 0.025, w: SHARE_TABLE.w, h: SHARE_TABLE.h - 0.045 }, // 단체석 테이블 본체
+  { x: SPEAKER.x, y: 0.3, w: SPEAKER.w, h: 0.06 }, // 스피커
+  { x: BOOKSHELF.x, y: 0.8, w: BOOKSHELF.w, h: 0.2 }, // 책장
+  { x: 0.25, y: 0.9, w: 0.045, h: 0.1 }, // 책장 옆 잡지꽂이
+  { x: TEAWARE_SHELF.x, y: 0.63, w: TEAWARE_SHELF.w, h: 0.13 }, // 다구 판매존 선반
+  { x: 0.785, y: 0.88, w: 0.05, h: 0.1 }, // 전시실 앞 입간판
 ];
 
+// ---------------- 💬 상호작용 포인트 ----------------
+//  rect = 버튼이 뜨는 곳(그림 위) / near = 이 근처에 서면 버튼이 떠요 / radius = 거리 (맵 px)
 const SPOTS = [
-  { id: "menu", rect: { x: 0.26, y: 0.05, w: 0.13, h: 0.13 }, near: { x: 0.39, y: 0.33 }, icon: "🍵", title: "차림표 보기" },
-  { id: "craft", rect: { x: CRAFT_ZONE.x, y: CRAFT_ZONE.y - 0.04, w: CRAFT_ZONE.w, h: 0.04 }, near: { x: CRAFT_ZONE.x + CRAFT_ZONE.w / 2, y: CRAFT_ZONE.y + CRAFT_ZONE.h + 0.03 }, icon: "🍵", title: "다도 체험존" },
-  // 다연에게 말 걸기 (버튼은 다연 머리 위에 떠요)
-  {
-    id: "guide",
-    rect: { x: NPC_X / MAP_W, y: (NPC_Y - 56) / MAP_H, w: NPC_W / MAP_W, h: 0.04 },
-    near: { x: COUNTER_NPC_POS.x, y: COUNTER.y + COUNTER.h + 0.03 }, // 카운터 앞 손님 자리
-    radius: NPC_TALK_RADIUS,
-    icon: "💬",
-    title: "말 걸기 / 이용 안내",
-  },
+  { id: "counter", rect: { x: 0.66, y: 0.5, w: 0.24, h: 0.04 }, near: { x: 0.77, y: 0.575 }, radius: 140, icon: "🍵", title: "차림표 보기 · 다식·말차 만들기" },
+  { id: "speaker", rect: { x: SPEAKER.x - 0.02, y: SPEAKER.y - 0.04, w: SPEAKER.w + 0.04, h: 0.04 }, near: { x: 0.43, y: 0.4 }, radius: 110, icon: "🎵", title: "BGM & 백색소음 설정" },
+  { id: "bookshelf", rect: { x: BOOKSHELF.x, y: BOOKSHELF.y - 0.04, w: BOOKSHELF.w, h: 0.04 }, near: { x: 0.15, y: 0.72 }, radius: 140, icon: "🔖", title: "교환 독서 책갈피" },
+  { id: "showroom", rect: { x: TEAWARE_SHELF.x, y: TEAWARE_SHELF.y - 0.04, w: TEAWARE_SHELF.w, h: 0.04 }, near: { x: 0.72, y: 0.74 }, radius: 110, icon: "🫖", title: "다구 쇼룸 / 스마트스토어 구경하기" },
 ];
 
-// 통로 (zone = 발이 닿으면 이동하는 경계, sign = 팻말 위치)
+// ---------------- 🚪 통로 (zone = 발이 닿으면 이동하는 경계) ----------------
+//  paintedSign: 배경 그림에 팻말이 있어서, 열려 있을 땐 그림 팻말만 / 준비중일 때만 코드 팻말 "🚧 준비중"
 const EXITS = [
-  { id: "up", to: "livingRoom", zone: { x: PASSAGE.x, y: 0.1, w: PASSAGE.w, h: 0.05 }, sign: { x: 0.5, y: 0.012 }, label: "⬆ 🛋️ 거실" },
-  { id: "exLeft", to: "exhibitionRoom", zone: { x: 0, y: 0.9, w: 0.08, h: 0.1 }, sign: { x: 0.075, y: 0.78 }, label: "↙ 🖼️ 전시회" },
-  { id: "exRight", to: "exhibitionRoom", zone: { x: 0.92, y: 0.9, w: 0.08, h: 0.1 }, sign: { x: 0.925, y: 0.78 }, label: "🖼️ 전시회 ↘" },
+  { id: "up", to: "livingRoom", zone: { x: PASSAGE.x + 0.01, y: PASSAGE.top, w: PASSAGE.w - 0.02, h: 0.05 }, sign: { x: 0.51, y: 0.1 }, paintedSign: true, label: "⬆ 🛋️ 거실" },
+  { id: "exRight", to: "exhibitionRoom", zone: { x: 0.85, y: 0.95, w: 0.1, h: 0.05 }, sign: { x: 0.9, y: 0.76 }, paintedSign: true, label: "🖼️ 전시실 ➜" },
 ];
 
 // 시작 위치 (발 가운데) — 어디서 왔는지에 따라
 const SPAWNS = {
-  default: { x: 0.5, y: 0.9 }, // 입장 (아래쪽 현관)
-  livingRoom: { x: 0.5, y: 0.3 }, // 거실에서 내려옴 → 위쪽 통로 앞
-  "exhibitionRoom:exLeft": { x: 0.12, y: 0.85 }, // 전시회에서 돌아옴 → 나갔던 왼쪽 통로 앞
-  "exhibitionRoom:exRight": { x: 0.88, y: 0.85 }, // → 나갔던 오른쪽 통로 앞
-  exhibitionRoom: { x: 0.12, y: 0.85 },
+  default: { x: 0.52, y: 0.6 }, // 처음 입장 (가운데)
+  livingRoom: { x: 0.51, y: 0.4 }, // 거실에서 내려옴 → 위쪽 통로 앞
+  "exhibitionRoom:exRight": { x: 0.72, y: 0.86 }, // 전시회에서 돌아옴 → 오른쪽 아래 통로 앞
+  exhibitionRoom: { x: 0.72, y: 0.86 },
 };
 
 const pct = (r) => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` });
-const OUTLINE = "#2b1d1a";
 
-// 둥근 테이블 + 양옆 의자
-function Table({ x, y }) {
+// 🔧 ?debug=1 — 장애물(빨강) · 앉는 자리(초록) · 서는 자리(파랑) · 버튼 자리(노랑) · 통로(보라)
+function DebugOverlay() {
   return (
-    <div className="absolute" style={{ left: `${x * 100}%`, top: `${y * 100}%` }}>
-      {/* 의자 */}
-      {[-1, 1].map((side) => (
-        <div key={side} className="absolute border-4" style={{ left: side * 98 - 26, top: -30, width: 52, height: 64, borderColor: OUTLINE, background: "#8a5a3b", boxShadow: "inset 0 -10px 0 #6e4530" }} />
+    <div className="pointer-events-none absolute inset-0 z-[20]">
+      {BLOCKERS.map((b, i) => <div key={i} className="absolute border-2 border-red-600 bg-red-500/25" style={pct(b)} />)}
+      <div className="absolute border-2 border-sky-400" style={pct(WINDOW_AREA)} />
+      {SPOTS.map((s) => (
+        <div key={s.id}>
+          <div className="absolute border-2 border-yellow-400 bg-yellow-300/30 text-[10px] font-black" style={pct(s.rect)}>{s.id}</div>
+          <div className="absolute rounded-full border-2 border-yellow-400" style={{ left: s.near.x * MAP_W - (s.radius ?? 90), top: s.near.y * MAP_H - (s.radius ?? 90), width: (s.radius ?? 90) * 2, height: (s.radius ?? 90) * 2 }} />
+        </div>
       ))}
-      {/* 테이블 */}
-      <div className="absolute rounded-full border-[5px]" style={{ left: -72, top: -50, width: 144, height: 96, borderColor: OUTLINE, background: "#d9a066", boxShadow: "inset 0 -12px 0 #b97d48, 0 10px 0 rgba(0,0,0,0.18)" }} />
+      {EXITS.map((e) => <div key={e.id} className="absolute border-2 border-purple-500 bg-purple-500/30" style={pct(e.zone)} />)}
+      {ALL_SEATS.map((st) => (
+        <div key={st.id}>
+          <span className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-500" style={{ left: st.x * MAP_W, top: st.y * MAP_H }} />
+          <span className="absolute -translate-x-1/2 text-[10px] font-black text-green-900" style={{ left: st.x * MAP_W, top: st.y * MAP_H + 6 }}>{st.id}</span>
+          <span className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 bg-blue-500" style={{ left: st.stand.x * MAP_W, top: st.stand.y * MAP_H }} />
+        </div>
+      ))}
+      <span className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 bg-pink-500" style={{ left: COUNTER_NPC_POS.x * MAP_W, top: COUNTER_NPC_POS.y * MAP_H }} />
     </div>
   );
 }
 
-// 코드로 그린 임시 찻집 (npcBubble: 다연의 말풍선)
-function CafeScene({ npcBubble, season, orders }) {
+// 배경 그림 + 그 위에 올리는 것들 (npcBubble: 다연의 말풍선)
+function CafeScene({ npcBubble, season, orders, debug }) {
   return (
     <div className="absolute inset-0">
-      {/* 나무 바닥 */}
-      <div className="absolute inset-0" style={{ background: "repeating-linear-gradient(0deg, #c08a57 0 56px, #b37c4a 56px 60px), #c08a57" }} />
-      <div className="absolute inset-0 opacity-40" style={{ background: "repeating-linear-gradient(90deg, transparent 0 236px, #9c6a3c 236px 240px)" }} />
+      {/* 배경 그림 (그림이 없을 때를 대비해 나무 바닥색) */}
+      <div className="absolute inset-0" style={{ background: `url(${BG_IMAGE}) center / 100% 100% no-repeat, #c08a57`, imageRendering: "pixelated" }} />
 
-      {/* 러그 */}
-      <div className="absolute border-[6px]" style={{ ...pct({ x: 0.38, y: 0.5, w: 0.24, h: 0.32 }), borderColor: "#7a2e2e", background: "repeating-linear-gradient(45deg, #b0484a 0 16px, #a03e40 16px 32px)", boxShadow: "inset 0 0 0 10px #d9a066" }} />
-
-      {/* 위쪽 벽 (세로 줄무늬 벽지 + 아래 나무 판넬) */}
-      <div className="absolute left-0 top-0 w-full" style={{ height: `${WALL_H * 100}%`, background: "repeating-linear-gradient(90deg, #8fa98a 0 40px, #86a081 40px 80px)" }} />
-      <div className="absolute left-0 w-full" style={{ top: `${(WALL_H - 0.06) * 100}%`, height: "6%", background: "#7b5236", boxShadow: "inset 0 6px 0 #946545, inset 0 -8px 0 #5e3d28" }} />
-
-      {/* 🪟 사계절 통창 (설정에서 고른 계절 풍경 — 모두에게 같이 보여요) */}
+      {/* 🪟 사계절 통창 (유리 안쪽만, 가운데 창살은 다시 그려요) */}
       <SeasonWindow rect={{ x: WINDOW_AREA.x * MAP_W, y: WINDOW_AREA.y * MAP_H, w: WINDOW_AREA.w * MAP_W, h: WINDOW_AREA.h * MAP_H }} season={season} />
+      <div className="pointer-events-none absolute bg-[#4b4b4b]" style={{ left: (WINDOW_AREA.x + WINDOW_AREA.w / 2) * MAP_W - 5, top: WINDOW_AREA.y * MAP_H, width: 10, height: WINDOW_AREA.h * MAP_H }} />
+      <div className="pointer-events-none absolute bg-gradient-to-br from-white/25 via-transparent to-transparent" style={pct(WINDOW_AREA)} />
 
-      {/* 메뉴판 (칠판) */}
-      <div className="absolute flex flex-col items-center gap-2 border-[6px] pt-2" style={{ ...pct(SPOTS[0].rect), borderColor: "#7b5236", background: "#2f4a3a", boxShadow: `0 0 0 4px ${OUTLINE}` }}>
-        <span className="text-lg font-black tracking-widest text-[#f5e6c8]">MENU</span>
-        {[80, 60, 70, 50].map((w, i) => (
-          <span key={i} className="h-1.5 bg-[#f5e6c8]/70" style={{ width: `${w}%` }} />
-        ))}
-      </div>
-
-      {/* 위쪽 가운데 통로 (벽이 뚫려 있고 바닥이 위로 이어져요) */}
-      <div className="absolute" style={{ ...pct({ x: PASSAGE.x, y: 0, w: PASSAGE.w, h: WALL_H }), background: "repeating-linear-gradient(0deg, #b37c4a 0 56px, #a8723f 56px 60px)", boxShadow: `inset 10px 0 0 #5e3d28, inset -10px 0 0 #5e3d28, inset 0 40px 30px -20px rgba(0,0,0,0.45)` }} />
-      {[PASSAGE.x - 0.035, PASSAGE.x + PASSAGE.w + 0.005].map((x) => (
-        <div key={x} className="absolute text-[56px] leading-none" style={{ left: `${x * 100}%`, top: `${(WALL_H - 0.08) * 100}%` }}>🪴</div>
-      ))}
-
-      {/* 🍵 알바생 다연 (카운터 안쪽 — 카운터가 다리를 가려요) */}
-      <TeaNpc x={NPC_X} y={NPC_Y} />
-
-      {/* 카운터 + 커피 머신 */}
-      <div className="absolute border-[6px]" style={{ ...pct(COUNTER), borderColor: OUTLINE, background: "#8a5a3b", boxShadow: "inset 0 22px 0 #d9a066, inset 0 28px 0 #b97d48" }}>
-        <div className="absolute border-4" style={{ left: "8%", top: -46, width: 80, height: 70, borderColor: OUTLINE, background: "#9ca3af", boxShadow: "inset 0 -14px 0 #6b7280" }} />
-        <div className="absolute text-4xl" style={{ left: "70%", top: -34 }}>🍰</div>
-        <div className="absolute text-4xl" style={{ left: "85%", top: -34 }}>🧁</div>
-      </div>
-
-      {/* 다연 이름표 + 말풍선 (카운터 위로 보이게) */}
-      <TeaNpcLabel x={NPC_X} y={NPC_Y} bubble={npcBubble} />
-
-      {/* 🍡🍵 다도 체험대 */}
-      <div className="absolute border-[5px]" style={{ ...pct(CRAFT_ZONE), borderColor: OUTLINE, background: "#5e3d28", boxShadow: "inset 0 14px 0 #8a5a3b" }}>
-        <div className="absolute left-1/2 -top-7 -translate-x-1/2 whitespace-nowrap border-2 border-[#2b1d1a] bg-[#f5e6c8] px-2 text-xs font-black text-[#2b1d1a]">🍵 다도 체험존</div>
-        <div className="absolute left-[12%] top-[-18px] text-3xl">🍵</div>
-        <div className="absolute right-[12%] top-[-16px] text-3xl">🍡</div>
-      </div>
-
-      {/* 테이블 */}
-      {TABLES.map((t, i) => (
-        <Table key={i} {...t} />
-      ))}
-
-      {/* 📚 가운데 단체석 (긴 테이블 + 의자 4개) */}
-      {SHARE_SEATS.map((st) => (
-        <div key={st.id} className="absolute border-4" style={{ left: st.x * MAP_W - 30, top: st.y * MAP_H - 58, width: 60, height: 66, borderColor: OUTLINE, background: "#8a5a3b", boxShadow: "inset 0 -12px 0 #6e4530" }} />
-      ))}
-      <div className="absolute border-[6px]" style={{ ...pct(SHARE_TABLE), borderColor: OUTLINE, background: "#c08a57", boxShadow: "inset 0 -14px 0 #9c6a3c, 0 10px 0 rgba(0,0,0,0.18)" }}>
-        <div className="absolute left-1/2 top-2 -translate-x-1/2 whitespace-nowrap border-2 border-[#2b1d1a] bg-[#f5e6c8] px-2 text-xs font-black text-[#2b1d1a]">📚 단체석</div>
-        <div className="absolute left-1/2 top-[40%] -translate-x-1/2 text-3xl">📖</div>
-      </div>
-
-      {/* 왼쪽 아래 · 오른쪽 아래 구석 통로 (돌길이 바깥으로 이어져요) */}
-      {[
-        { x: 0, flip: false },
-        { x: 0.86, flip: true },
-      ].map(({ x, flip }) => (
-        <div key={x} className="absolute" style={{ ...pct({ x, y: 0.86, w: 0.14, h: 0.14 }), background: `linear-gradient(${flip ? "135deg" : "225deg"}, transparent 30%, rgba(0,0,0,0.35))` }}>
-          {[0, 1, 2].map((i) => (
-            <span key={i} className="absolute h-8 w-12 rounded-sm border-4 border-[#5b5148] bg-[#bdb5a6]" style={{ [flip ? "right" : "left"]: 14 + i * 50, bottom: 14 + i * 34 }} />
-          ))}
-        </div>
-      ))}
-
-      {/* 아래쪽 현관 매트 */}
-      <div className="absolute flex items-center justify-center border-4 text-sm font-black tracking-[0.3em] text-[#f5e6c8]" style={{ ...pct({ x: 0.43, y: 0.955, w: 0.14, h: 0.045 }), borderColor: OUTLINE, background: "#7a2e2e" }}>
-        WELCOME
-      </div>
+      {/* 🍵 알바생 다연 (그림에 있으면 코드 캐릭터는 숨기고 이름표·말풍선만) */}
+      {!NPC_IN_BG && <TeaNpc x={NPC_X} y={NPC_Y} />}
+      <TeaNpcLabel x={NPC_X} y={NPC_Y + (NPC_IN_BG ? 40 : 0)} bubble={npcBubble} />
 
       {/* 🍵 테이블 위 차·다식 (손님이 주문하면 모두에게 보여요) */}
       <TableItems orders={orders} seats={ALL_SEATS} mapW={MAP_W} mapH={MAP_H} />
+
+      {debug && <DebugOverlay />}
     </div>
   );
 }
@@ -227,6 +181,14 @@ export default function CafePage() {
   // 찻집 공용 상태 (계절 · 모임 · 라이브 · 메뉴 상태) — Firebase "teaHouse"
   const tea = useTeaHouse();
   const nicknameRef = useRef("");
+  const [debug, setDebug] = useState(false);
+  useEffect(() => {
+    try {
+      setDebug(new URLSearchParams(window.location.search).has("debug"));
+    } catch {}
+  }, []);
+  // 카운터 창에서 고른 것 (menu | craft | guide) — 카운터 창 대신 그 창을 열어요
+  const [counterPick, setCounterPick] = useState(null);
 
   // 다연의 말풍선 { text, key }
   const [npcBubble, setNpcBubble] = useState(null);
@@ -273,7 +235,7 @@ export default function CafePage() {
     <SimpleRoom
       roomId="teaHouse"
       roomName="☕ 군산 온라인 찻집"
-      welcome="위쪽 통로 = 🛋️ 거실 · 왼쪽·오른쪽 아래 통로 = 🖼️ 전시회"
+      welcome="위쪽 문 = 🛋️ 거실 · 오른쪽 아래 통로 = 🖼️ 전시실"
       mapW={MAP_W}
       mapH={MAP_H}
       outside="#3b2a20"
@@ -285,10 +247,16 @@ export default function CafePage() {
       onSeatLeave={clearOrder}
       hud={(api) => <TeaHouseHud tea={tea} api={api} />}
       onEnter={handleEnter}
-      renderModals={(openId, close) => (
+      renderModals={(openId, close) => {
+        const closeAll = () => {
+          setCounterPick(null);
+          close();
+        };
+        const view = openId === "counter" ? counterPick ?? "counter" : openId;
+        return (
         <>
         {/* 찻집 이용 가이드 (다연) */}
-        <PixelModal open={openId === "guide"} onClose={() => closeGuide(close)} label="🍵 다연의 찻집 이용 가이드" title="군산 온라인 찻집에 오신 걸 환영해요" width={520}>
+        <PixelModal open={view === "guide"} onClose={() => closeGuide(closeAll)} label="🍵 다연의 찻집 이용 가이드" title="군산 온라인 찻집에 오신 걸 환영해요" width={520}>
           <div className="mb-4 flex items-center gap-3 border-4 border-[#1a110e] bg-[#f5e6c8] p-3 text-[#2b1d1a]">
             <div className="shrink-0 bg-[#d9c7a6] px-1 pt-1">
               <DayeonSprite scale={3} />
@@ -310,7 +278,7 @@ export default function CafePage() {
           </ol>
           <button
             type="button"
-            onClick={() => closeGuide(close)}
+            onClick={() => closeGuide(closeAll)}
             className="mt-4 w-full border-4 border-[#1a110e] bg-amber-400 py-2 font-black text-[#2b1d1a] shadow-[4px_4px_0_0_rgba(0,0,0,0.4)] hover:bg-amber-300 active:translate-y-0.5 active:shadow-none"
           >
             알겠어요, 둘러볼게요! 🍵
@@ -318,13 +286,20 @@ export default function CafePage() {
         </PixelModal>
 
         {/* 🍵 세로형 차림표 + 메뉴 투표·피드백 */}
-        <TeaCraftModal open={openId === "craft"} onClose={close} />
+        {/* 🍵 카운터: [차림표 보기] [다식·말차 만들기] [다연에게 말 걸기] */}
+        <CounterModal open={view === "counter"} onClose={closeAll} onPick={setCounterPick} />
+        <TeaCraftModal open={view === "craft"} onClose={closeAll} />
+        {/* 🍵 세로형 차림표 + 메뉴 투표·피드백 */}
+        <TeaMenuBoard open={view === "menu"} onClose={closeAll} items={cafeData.menu} menuStatus={tea.menuStatus} nickname={nicknameRef.current} />
 
-        <TeaMenuBoard open={openId === "menu"} onClose={close} items={cafeData.menu} menuStatus={tea.menuStatus} nickname={nicknameRef.current} />
+        <SpeakerModal open={view === "speaker"} onClose={closeAll} />
+        <BookmarkModal open={view === "bookshelf"} onClose={closeAll} nickname={nicknameRef.current} />
+        <ShowroomModal open={view === "showroom"} onClose={closeAll} />
         </>
-      )}
+        );
+      }}
     >
-      <CafeScene npcBubble={npcBubble} season={tea.season} orders={tea.orders} />
+      <CafeScene npcBubble={npcBubble} season={tea.season} orders={tea.orders} debug={debug} />
     </SimpleRoom>
   );
 }

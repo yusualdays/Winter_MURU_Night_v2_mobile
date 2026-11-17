@@ -23,6 +23,20 @@ export const partyData = {
       { id: "dasik", emoji: "🍡", category: "다식", name: "오색 다식", price: "4,000원", description: "송화·흑임자·콩가루 다식", story: "다식판에 꾹꾹 눌러 찍은 다섯 가지 색 다식이에요. 입에서 사르르 녹아요." },
     ],
   },
+  // 🫖 다구 판매존 쇼룸 (찻집 오른쪽 선반) — url을 비우면 storeUrl(스마트스토어)로 연결돼요
+  teaShowroom: {
+    title: "다구 쇼룸",
+    subtitle: "찻집에서 쓰는 다구를 집에서도 만나 보세요",
+    storeUrl: "https://smartstore.naver.com/",
+    items: [
+      { emoji: "🫖", name: "백자 다관", price: "38,000원", description: "손에 감기는 작은 다관", url: "" },
+      { emoji: "🍵", name: "분청 다완", price: "45,000원", description: "말차 격불용 넉넉한 다완", url: "" },
+      { emoji: "🎋", name: "대나무 차선", price: "18,000원", description: "100본 차선 · 말차 거품용", url: "" },
+      { emoji: "🍶", name: "숙우 & 찻잔 세트", price: "32,000원", description: "2인 찻잔 + 숙우", url: "" },
+    ],
+  },
+  // (선택) 찻집 BGM — 비워 두면 bgmFile 을 써요
+  teaHouseBgm: "",
   // 🍡🍵 다도 체험존 (찻집 미니게임) — 완성 화면의 [🛍️ ...] 버튼이 여기 주소로 연결돼요 (스마트스토어 상품 주소로 바꿔 주세요)
   teaCraft: {
     dasikKits: {
