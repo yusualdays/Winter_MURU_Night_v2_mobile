@@ -23,6 +23,15 @@ export const partyData = {
       { id: "dasik", emoji: "🍡", category: "다식", name: "오색 다식", price: "4,000원", description: "송화·흑임자·콩가루 다식", story: "다식판에 꾹꾹 눌러 찍은 다섯 가지 색 다식이에요. 입에서 사르르 녹아요." },
     ],
   },
+  // 🍡🍵 다도 체험존 (찻집 미니게임) — 완성 화면의 [🛍️ ...] 버튼이 여기 주소로 연결돼요 (스마트스토어 상품 주소로 바꿔 주세요)
+  teaCraft: {
+    dasikKits: {
+      bonibam: { label: "보늬밤 DIY 키트 / 제철 군산 밤 공구 보러가기", url: "https://smartstore.naver.com/" },
+      gotgam: { label: "곶감 호두말이 DIY 키트 / 상주 곶감 공구 보러가기", url: "https://smartstore.naver.com/" },
+      maesil: { label: "매실청 DIY 키트 / 청매실 공구 보러가기", url: "https://smartstore.naver.com/" },
+    },
+    matchaKit: { label: "말차 · 차선 · 다완 세트 보러가기", url: "https://smartstore.naver.com/" },
+  },
     // 파티 BGM (내 음악 파일) — public 폴더에 넣고 "/파일이름.mp3" 로 적어요
   bgmFile: "/bgm.mp3",
   // (선택) 트리 그림 — 배경에 트리가 없으면 "/tree.png" 처럼 넣어 주세요. 비워 두면 배경의 트리를 그대로 써요

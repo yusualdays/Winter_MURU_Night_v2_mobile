@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { ref, set, update, remove, onDisconnect } from "firebase/database";
 import { db } from "../lib/firebase";
+import { CRAFT_PENDING_KEY, CRAFT_EVENT, CRAFT_INFO } from "./TeaCraft";
 
 // 🍵 찻집 테이블 주문 (자리에 앉으면 아래쪽 미니 주문 바)
 //  - [🍵 차 주문] → 테이블에 다관·찻잔 + 2초 차 따르기(pouring) + 김 → [🍵 한 모금 마시기] (drinking + 🎵/❤️)
 //  - [🍡 다식 주문] → 접시에 다식 3개 → [🍡 한 입 먹기] (eating) — 3번 먹으면 빈 접시
 //  - Firebase "teaHouse/orders/{자리id}" = { by, tea: { at }, sweets: { left, at } } → 모두의 화면에 같이 보여요
+//  - 🍵 다도 체험존에서 만든 다식·말차 → crafted: { kind, stars, left, by } (내가 만든 걸로 먹기·마시기)
 //    (자리에서 일어나거나 창을 닫으면 치워져요)
 export const POUR_MS = 2000;
 const SWEETS = 3;
@@ -82,6 +84,30 @@ function SweetsPlate({ sweets }) {
   );
 }
 
+// 체험존에서 만든 다식·말차 (테이블 위)
+function CraftedDish({ crafted }) {
+  const info = CRAFT_INFO[crafted.kind];
+  if (!info) return null;
+  const left = Math.max(0, crafted.left ?? 0);
+  const matcha = crafted.kind === "matcha";
+  return (
+    <div className="absolute" style={{ left: matcha ? -46 : 8, top: matcha ? -4 : -14, width: 40, height: 34 }}>
+      {matcha ? (
+        <>
+          <span className="absolute inset-x-0 bottom-0 h-6 rounded-b-full border-[3px] border-[#1a110e] bg-[#3d3a36]" />
+          <span className="absolute inset-x-1 bottom-4 h-2.5 rounded-[50%]" style={{ background: left ? "#9fd8a8" : "#3d3a36", boxShadow: left ? "inset 0 0 0 2px #e9f8e4" : "none" }} />
+        </>
+      ) : (
+        <>
+          <span className="absolute inset-x-0 bottom-0 h-4 rounded-[50%] border-[3px] border-[#2b1d1a] bg-white" />
+          <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-lg leading-none">{left ? info.emoji.repeat(Math.min(2, left)) : "·"}</span>
+        </>
+      )}
+      <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-black text-amber-200 [text-shadow:1px_1px_0_#000]">{"⭐".repeat(crafted.stars || 1)}</span>
+    </div>
+  );
+}
+
 // 지도 위: 주문이 있는 자리마다 테이블에 놓기 (seats의 place 좌표, 0~1 비율)
 export function TableItems({ orders = {}, seats = [], mapW, mapH }) {
   return (
@@ -94,11 +120,12 @@ export function TableItems({ orders = {}, seats = [], mapW, mapH }) {
       `}</style>
       {seats.map((st) => {
         const o = orders[st.id];
-        if (!o || !st.place || (!o.tea && !o.sweets)) return null;
+        if (!o || !st.place || (!o.tea && !o.sweets && !o.crafted)) return null;
         return (
           <div key={st.id} className="pointer-events-none absolute z-[11]" style={{ left: st.place.x * mapW, top: st.place.y * mapH }}>
             {o.tea && <TeaSet tea={o.tea} />}
             {o.sweets && <SweetsPlate sweets={o.sweets} />}
+            {o.crafted && <CraftedDish crafted={o.crafted} />}
           </div>
         );
       })}
@@ -112,6 +139,30 @@ const BTN =
 
 export function OrderBar({ seat, order, api }) {
   const now = useNow(order?.tea?.at);
+  const seatId = seat?.id;
+  const nickname = api.nickname;
+
+  // 🍵 체험존에서 만든 다식·말차가 기다리고 있으면 내 테이블에 놓기 (지금 앉아 있거나, 다음에 앉을 때)
+  useEffect(() => {
+    if (!seatId || !db) return;
+    const bring = () => {
+      let item = null;
+      try {
+        item = JSON.parse(localStorage.getItem(CRAFT_PENDING_KEY) || "null");
+        localStorage.removeItem(CRAFT_PENDING_KEY);
+      } catch {}
+      if (!item?.kind || !CRAFT_INFO[item.kind]) return;
+      const r = orderRef(seatId);
+      update(r, { by: nickname, crafted: { kind: item.kind, stars: item.stars || 1, left: 3, at: Date.now() } }).catch(() => {});
+      onDisconnect(r).remove();
+      api.showToast?.(`내가 만든 ${CRAFT_INFO[item.kind].name}를 테이블에 놓았어요`, CRAFT_INFO[item.kind].emoji);
+    };
+    bring();
+    window.addEventListener(CRAFT_EVENT, bring);
+    return () => window.removeEventListener(CRAFT_EVENT, bring);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seatId, nickname]);
+
   if (!seat) return null;
   const tea = order?.tea;
   const sweets = order?.sweets;
@@ -135,6 +186,14 @@ export function OrderBar({ seat, order, api }) {
     api.playAction("eating");
   };
 
+  const crafted = order?.crafted;
+  const craftInfo = crafted && CRAFT_INFO[crafted.kind];
+  const useCrafted = () => {
+    if (!crafted || crafted.left <= 0 || !db) return;
+    set(ref(db, `teaHouse/orders/${seat.id}/crafted/left`), crafted.left - 1).catch(() => {});
+    api.playAction(crafted.kind === "matcha" ? "drinking" : "eating");
+  };
+
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-[calc(var(--sab,0px)+1rem)] z-[37] flex justify-center px-20">
       <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2 border-4 border-[#1a110e] bg-[#2b1d1a]/95 px-3 py-2 shadow-[5px_5px_0_0_rgba(0,0,0,0.35)]">
@@ -155,6 +214,11 @@ export function OrderBar({ seat, order, api }) {
         ) : (
           <button type="button" onClick={eat} className={`${BTN} bg-[#fbcfe8] text-[#831843]`}>
             🍡 한 입 먹기 <span className="bg-[#831843] px-1 text-[10px] text-white">{sweets.left}</span>
+          </button>
+        )}
+        {craftInfo && crafted.left > 0 && (
+          <button type="button" onClick={useCrafted} className={`${BTN} bg-[#fde68a] text-[#78350f]`}>
+            {craftInfo.emoji} 내가 만든 {crafted.kind === "matcha" ? "말차 마시기" : "다식 먹기"} <span className="bg-[#78350f] px-1 text-[10px] text-white">{crafted.left}</span>
           </button>
         )}
       </div>

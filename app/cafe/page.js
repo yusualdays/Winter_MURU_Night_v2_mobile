@@ -7,6 +7,7 @@ import { TeaNpc, TeaNpcLabel, DayeonSprite, NPC_W, NPC_H } from "../components/T
 import SeasonWindow from "../components/SeasonWindow";
 import TeaHouseHud, { useTeaHouse } from "../components/TeaHouseHud";
 import TeaMenuBoard from "../components/TeaMenuBoard";
+import TeaCraftModal from "../components/TeaCraft";
 import { TableItems, clearOrder } from "../components/TeaTable";
 import { cafeData } from "../spaceData";
 
@@ -58,6 +59,9 @@ const GUIDE = [
   { icon: "🚪", title: "통로 안내", text: "위쪽 가운데 통로는 🛋️ 거실, 왼쪽·오른쪽 아래 구석 통로는 🖼️ 전시회로 이어져요. (오픈 기간에만 열려요)" },
 ];
 
+// 🍡🍵 다도 체험존 (위쪽 통로 오른쪽 벽 앞 작은 체험대) — 가까이 가면 [🍵 다도 체험존]
+const CRAFT_ZONE = { x: 0.585, y: 0.25, w: 0.09, h: 0.07 };
+
 // 테이블 (가운데 좌표) — 의자는 테이블 양옆에 그려져요
 const TABLES = [
   { x: 0.2, y: 0.6 },
@@ -80,10 +84,12 @@ const BLOCKERS = [
   { x: COUNTER.x, y: WALL_H, w: COUNTER.w, h: COUNTER.y + COUNTER.h - WALL_H }, // 카운터 + 안쪽 (손님은 못 들어가요)
   ...TABLES.map((t) => ({ x: t.x - 0.085, y: t.y - 0.035, w: 0.17, h: 0.06 })), // 테이블 + 의자
   { x: 0.37, y: SHARE_TABLE.y + 0.01, w: 0.26, h: SHARE_TABLE.h }, // 단체석 + 의자
+  { x: CRAFT_ZONE.x, y: CRAFT_ZONE.y, w: CRAFT_ZONE.w, h: CRAFT_ZONE.h * 0.8 }, // 다도 체험대
 ];
 
 const SPOTS = [
   { id: "menu", rect: { x: 0.26, y: 0.05, w: 0.13, h: 0.13 }, near: { x: 0.39, y: 0.33 }, icon: "🍵", title: "차림표 보기" },
+  { id: "craft", rect: { x: CRAFT_ZONE.x, y: CRAFT_ZONE.y - 0.04, w: CRAFT_ZONE.w, h: 0.04 }, near: { x: CRAFT_ZONE.x + CRAFT_ZONE.w / 2, y: CRAFT_ZONE.y + CRAFT_ZONE.h + 0.03 }, icon: "🍵", title: "다도 체험존" },
   // 다연에게 말 걸기 (버튼은 다연 머리 위에 떠요)
   {
     id: "guide",
@@ -172,6 +178,13 @@ function CafeScene({ npcBubble, season, orders }) {
 
       {/* 다연 이름표 + 말풍선 (카운터 위로 보이게) */}
       <TeaNpcLabel x={NPC_X} y={NPC_Y} bubble={npcBubble} />
+
+      {/* 🍡🍵 다도 체험대 */}
+      <div className="absolute border-[5px]" style={{ ...pct(CRAFT_ZONE), borderColor: OUTLINE, background: "#5e3d28", boxShadow: "inset 0 14px 0 #8a5a3b" }}>
+        <div className="absolute left-1/2 -top-7 -translate-x-1/2 whitespace-nowrap border-2 border-[#2b1d1a] bg-[#f5e6c8] px-2 text-xs font-black text-[#2b1d1a]">🍵 다도 체험존</div>
+        <div className="absolute left-[12%] top-[-18px] text-3xl">🍵</div>
+        <div className="absolute right-[12%] top-[-16px] text-3xl">🍡</div>
+      </div>
 
       {/* 테이블 */}
       {TABLES.map((t, i) => (
@@ -305,6 +318,8 @@ export default function CafePage() {
         </PixelModal>
 
         {/* 🍵 세로형 차림표 + 메뉴 투표·피드백 */}
+        <TeaCraftModal open={openId === "craft"} onClose={close} />
+
         <TeaMenuBoard open={openId === "menu"} onClose={close} items={cafeData.menu} menuStatus={tea.menuStatus} nickname={nicknameRef.current} />
         </>
       )}
