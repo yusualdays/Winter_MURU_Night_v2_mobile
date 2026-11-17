@@ -1,15 +1,10 @@
 // ☕ 군산 온라인 찻집 · 🖼️ 전시회에서 쓰는 데이터 (여기만 고치면 내용이 바뀌어요)
 
+import { partyData } from "./data";
+
 export const cafeData = {
-  // 벽의 차림표를 누르면 보이는 메뉴
-  //  id: 사장님 관리의 "오늘의 추천 ⭐ / 재료 소진 🍂" 상태를 저장하는 이름 (영어·숫자, 겹치지 않게)
-  menu: [
-    { id: "americano", emoji: "☕", name: "따뜻한 아메리카노", description: "오늘의 원두로 내린 기본 커피예요." },
-    { id: "yuja", emoji: "🍵", name: "유자차", description: "새콤달콤한 유자청을 듬뿍 넣었어요." },
-    { id: "hotchoco", emoji: "🍫", name: "핫초코", description: "추운 날엔 역시 진한 초콜릿!" },
-    { id: "honeymilk", emoji: "🥛", name: "꿀 우유", description: "자기 전에 마시기 좋은 따뜻한 우유." },
-    { id: "cake", emoji: "🍰", name: "딸기 케이크", description: "생크림 위에 딸기를 잔뜩 올렸어요." },
-  ],
+  // 차림표 메뉴는 data.js의 teaMenu에 있어요 (사장님 메뉴 상태·투표·피드백이 메뉴 id로 저장돼요)
+  menu: partyData?.teaMenu?.items ?? [],
   // 메뉴판 아래 한 줄 인사
   note: "천천히 쉬다 가세요. 위쪽 통로는 🛋️ 거실, 왼쪽·오른쪽 아래 통로는 🖼️ 전시회예요.",
 };

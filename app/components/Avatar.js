@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import EmoteBubble from './EmoteBubble';
 import ChatBubble from './ChatBubble';
@@ -34,6 +35,7 @@ export default function Avatar({
   isMe = false,
   owner = false, // 사장님 모드: 앞치마 + 닉네임 옆 🍵 배지
   eating = true, // 앉아 있을 때 냠냠 효과 (찻집 단체석에서는 끄기)
+  action = null, // 찻집 식음료 모션 { type: "pouring" | "drinking" | "eating", at }
 }) {
   const cheering = emote?.type === 'toast'; // 건배 중이면 잔을 번쩍 드는 포즈
 
@@ -105,6 +107,9 @@ export default function Avatar({
         </div>
 
         {/* 앉아서 냠냠 (음식이 바라보는 쪽에서 통통) */}
+        {/* 찻집: 차 따르기 · 마시기 · 다식 먹기 */}
+        {action && <ActionFx key={`${action.type}-${action.at}`} action={action} dir={dir} />}
+
         {sitting && eating && !cheering && (
           <EatingFx side={dir === 'left' ? 'left' : 'right'} />
         )}
@@ -165,5 +170,72 @@ function OwnerApron({ dir, cheering }) {
         <rect key={i} x={x} y={y} width="1.02" height="1.02" fill={c} />
       ))}
     </svg>
+  );
+}
+
+// ---------- 찻집 식음료 모션 ----------
+//  pouring(2초): 다관을 기울여 차 따르기 / drinking(1.6초): 잔을 들어 한 모금 + 🎵·❤️
+//  eating(1.6초): 다식을 오물오물 + "냠"
+export const ACTION_MS = { pouring: 2000, drinking: 1600, eating: 1600 };
+function ActionFx({ action, dir }) {
+  const ms = ACTION_MS[action.type] ?? 1600;
+  const [alive, setAlive] = useState(() => Date.now() - (action.at ?? 0) < ms + 400);
+  useEffect(() => {
+    const left = ms - (Date.now() - (action.at ?? 0));
+    if (left <= 0) {
+      setAlive(false);
+      return;
+    }
+    const t = setTimeout(() => setAlive(false), left);
+    return () => clearTimeout(t);
+  }, [action, ms]);
+  if (!alive) return null;
+
+  // 입 근처 (바라보는 쪽으로 살짝)
+  const side = dir === 'left' ? -1 : dir === 'right' ? 1 : 0;
+  const mouthX = AVATAR_WIDTH / 2 + side * 26;
+  const mouthY = 72;
+  const heart = (action.at ?? 0) % 2 === 0;
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[3]">
+      <style>{`
+        @keyframes fx-sip { 0% { transform: translate(0, 34px) rotate(0deg); } 35%, 70% { transform: translate(0, 0) rotate(-28deg); } 100% { transform: translate(0, 34px) rotate(0deg); } }
+        @keyframes fx-float { 0% { transform: translateY(0) scale(0.6); opacity: 0; } 25% { opacity: 1; transform: translateY(-14px) scale(1); } 100% { transform: translateY(-60px) scale(1); opacity: 0; } }
+        @keyframes fx-chew { 0%, 100% { transform: translateY(0); } 25%, 75% { transform: translateY(-5px); } 50% { transform: translateY(2px); } }
+        @keyframes fx-pour { 0% { transform: rotate(0deg); } 25%, 80% { transform: rotate(-40deg); } 100% { transform: rotate(0deg); } }
+        @keyframes fx-stream { 0%, 20% { transform: scaleY(0); } 35%, 75% { transform: scaleY(1); } 90%, 100% { transform: scaleY(0); } }
+      `}</style>
+
+      {action.type === 'drinking' && (
+        <>
+          {/* 하얀 찻잔을 입으로 */}
+          <svg className="absolute" width="28" height="22" viewBox="0 0 8 6" shapeRendering="crispEdges" style={{ left: mouthX - 14, top: mouthY - 4, animation: 'fx-sip 1.6s ease-in-out both' }}>
+            <rect x="0" y="0" width="6" height="1" fill="#2b1d1a" />
+            <rect x="0" y="1" width="6" height="4" fill="#ffffff" stroke="#2b1d1a" strokeWidth="0.3" />
+            <rect x="1" y="1" width="4" height="1" fill="#7a9a55" />
+            <rect x="6" y="2" width="1.5" height="2" fill="none" stroke="#2b1d1a" strokeWidth="0.5" />
+          </svg>
+          <span className="absolute text-2xl" style={{ left: mouthX + (side >= 0 ? 18 : -46), top: mouthY - 46, animation: 'fx-float 1.6s ease-out 0.3s both' }}>
+            {heart ? '❤️' : '🎵'}
+          </span>
+        </>
+      )}
+
+      {action.type === 'eating' && (
+        <>
+          <span className="absolute h-4 w-4 border-2 border-[#2b1d1a] bg-[#f9a8d4]" style={{ left: mouthX - 8, top: mouthY + 4, borderRadius: 4, animation: 'fx-chew 0.4s steps(2, jump-none) 4' }} />
+          <span className="absolute whitespace-nowrap border-2 border-[#2b1d1a] bg-white px-1.5 text-sm font-black text-[#2b1d1a]" style={{ left: mouthX + (side >= 0 ? 16 : -60), top: mouthY - 40, animation: 'fx-float 1.6s ease-out both' }}>
+            오물오물
+          </span>
+        </>
+      )}
+
+      {action.type === 'pouring' && (
+        <span className="absolute text-3xl" style={{ left: mouthX + (side >= 0 ? 6 : -40), top: mouthY + 30, transformOrigin: '20% 80%', animation: 'fx-pour 2s ease-in-out both' }}>
+          🫖
+        </span>
+      )}
+    </div>
   );
 }

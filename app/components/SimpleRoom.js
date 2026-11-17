@@ -35,7 +35,9 @@ import { EMOTE_KEYS } from "./EmoteBubble";
 //  seats    : 앉을 수 있는 자리 [{ id, x, y, dir, stand: {x,y}, label }]
 //             x,y = 앉았을 때 엉덩이 자리(캐릭터 아래 가운데), stand = 의자 옆 서는 자리 (모두 0~1 비율)
 //  hud(api) : 화면 위에 덧붙일 UI (설정 창·배너 등). api = { nickname, myId, isOwner, setOwner,
-//             forceOpen, changeForceOpen, mySeat, showToast }
+//             forceOpen, changeForceOpen, mySeat, showToast, playAction }
+//  onSeatLeave(seatId): 자리에서 일어나거나 방을 나갈 때 (예: 테이블 위 주문 치우기)
+//  playAction("drinking" | "eating" | "pouring"): 내 아바타 모션 (Firebase users/{ID}.action 으로 모두에게)
 //  spots의 radius: 버튼이 뜨는 거리 (맵 기준 px, 기본 90)
 const SPEED = 320;
 const SYNC_INTERVAL = 100;
@@ -78,6 +80,7 @@ export default function SimpleRoom({
   onEnter,
   seats = [],
   hud,
+  onSeatLeave,
 }) {
   const router = useRouter();
   const [nickname, setNickname] = useState(null);
@@ -101,6 +104,9 @@ export default function SimpleRoom({
   const [forceOpen, setForceOpenState] = useState(false); // 호스트 테스트용 강제 오픈
   const [isOwner, setIsOwner] = useState(false);           // 🍵 사장님 모드 (앞치마 + 배지)
   const [seatId, setSeatId] = useState(null);              // 내가 앉아 있는 자리
+  const [action, setAction] = useState(null);              // 내 식음료 모션 { type, at }
+  const onSeatLeaveRef = useRef(onSeatLeave);
+  onSeatLeaveRef.current = onSeatLeave;
   const seatIdRef = useRef(null);
   const standPointRef = useRef(null);
   const [clock, setClock] = useState(0);          // 1분마다 오픈 기간 다시 확인
@@ -360,13 +366,25 @@ export default function SimpleRoom({
       remove(seatRef).catch(() => {});
       onDisconnect(seatRef).cancel().catch(() => {});
     }
+    onSeatLeaveRef.current?.(id);
   };
+
+  // 내 아바타 모션 (차 마시기 · 다식 먹기 등) → 모두에게
+  const playAction = useCallback(
+    (type) => {
+      const a = { type, at: Date.now() };
+      setAction(a);
+      if (db && myId) update(ref(db, `users/${myId}`), { action: a }).catch(() => {});
+    },
+    [myId]
+  );
   const standUpRef = useRef(standUp);
   standUpRef.current = standUp;
   // 방을 나가면 자리 비우기
   useEffect(
     () => () => {
       if (seatIdRef.current && db) remove(ref(db, `roomSeats/${roomId}/${seatIdRef.current}`)).catch(() => {});
+      if (seatIdRef.current) onSeatLeaveRef.current?.(seatIdRef.current);
     },
     [roomId]
   );
@@ -648,9 +666,9 @@ export default function SimpleRoom({
         {tapFx && <TapRipple key={tapFx.id} x={tapFx.x} y={tapFx.y} size={Math.max(64, 44 / scale)} />}
 
         {Object.entries(others).map(([id, u]) => (
-          <Avatar key={id} nickname={u.nickname || "손님"} x={u.x} y={u.y} isMoving={!!u.isMoving} dir={u.dir || "down"} look={normalizeLook(u)} emote={u.emote} chat={bubbles[id]} sitting={!!u.isSitting} owner={!!u.isOwner} eating={false} smooth />
+          <Avatar key={id} nickname={u.nickname || "손님"} x={u.x} y={u.y} isMoving={!!u.isMoving} dir={u.dir || "down"} look={normalizeLook(u)} emote={u.emote} chat={bubbles[id]} sitting={!!u.isSitting} owner={!!u.isOwner} eating={false} action={u.action} smooth />
         ))}
-        <Avatar nickname={nickname} x={pos.x} y={pos.y} isMoving={isMoving} dir={dir} look={look} emote={emote} chat={bubbles.me} sitting={!!seatId} owner={isOwner} eating={false} isMe />
+        <Avatar nickname={nickname} x={pos.x} y={pos.y} isMoving={isMoving} dir={dir} look={look} emote={emote} chat={bubbles.me} sitting={!!seatId} owner={isOwner} eating={false} action={action} isMe />
 
         <InteractButton target={nearTarget} onClick={interact} icon={nearIcon} text={nearTitle} boost={uiBoost} />
       </div>
@@ -678,6 +696,7 @@ export default function SimpleRoom({
         },
         mySeat,
         showToast,
+        playAction,
       })}
 
       {/* 방을 옮길 때: 화면이 스르륵 어두워졌다가 밝아져요 */}

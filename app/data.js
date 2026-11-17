@@ -6,6 +6,23 @@ export const partyData = {
   eventSchedule: { startDate: "2026-12-01", endDate: "2026-12-31" },
   // 🔑 사장님 비밀번호 — 찻집 ⚙️ 설정의 [사장님 인증]에 이 번호를 넣으면 사장님 모드가 켜져요 (꼭 바꿔 주세요!)
   ownerPin: "1234",
+  // 🍵 군산 온라인 찻집 차림표 (카운터 근처 [🍵 차림표 보기])
+  //   id: 영어·숫자로 겹치지 않게 (사장님 메뉴 상태·손님 투표·피드백이 이 id로 저장돼요)
+  //   story: 메뉴에 담긴 이야기 / price: 예정 가격 (비워 둬도 돼요)
+  teaMenu: {
+    title: "겨울 차림표",
+    subtitle: "군산의 계절을 한 잔에 담았어요",
+    // 🫖 다구 쇼룸 (스마트스토어 주소로 바꿔 주세요)
+    showroomUrl: "https://smartstore.naver.com/",
+    items: [
+      { id: "maesil", emoji: "🍵", category: "차", name: "군산 매실차", price: "6,000원", description: "새콤하고 따뜻한 겨울 매실차", story: "초여름 군산 들녘에서 딴 청매실을 설탕에 백일 동안 재웠어요. 따뜻한 물에 풀면 새콤한 향이 먼저 올라와요." },
+      { id: "matcha", emoji: "🍵", category: "차", name: "말차 한 사발", price: "7,000원", description: "다완에 직접 격불한 말차", story: "대나무 차선으로 거품을 곱게 내서 다완 그대로 드려요. 쌉싸름한 맛 뒤에 단맛이 남아요." },
+      { id: "yuja", emoji: "🍋", category: "차", name: "유자 생강차", price: "6,000원", description: "감기 기운 있을 때 한 잔", story: "고흥 유자에 생강을 얇게 저며 함께 담갔어요. 목이 칼칼한 겨울밤에 잘 어울려요." },
+      { id: "bonibam", emoji: "🌰", category: "다식", name: "수제 보늬밤", price: "5,000원", description: "속껍질째 조린 달콤한 밤", story: "공주 밤의 속껍질을 살려 사흘 동안 천천히 조렸어요. 껍질의 쌉쌀함과 시럽의 단맛이 함께 나요." },
+      { id: "gotgam", emoji: "🍊", category: "다식", name: "곶감 호두말이", price: "5,500원", description: "쫀득한 곶감 속 고소한 호두", story: "상주 곶감을 펴서 호두를 넣고 돌돌 말아 썰었어요. 차 한 모금, 곶감 한 입이 제일 잘 맞아요." },
+      { id: "dasik", emoji: "🍡", category: "다식", name: "오색 다식", price: "4,000원", description: "송화·흑임자·콩가루 다식", story: "다식판에 꾹꾹 눌러 찍은 다섯 가지 색 다식이에요. 입에서 사르르 녹아요." },
+    ],
+  },
     // 파티 BGM (내 음악 파일) — public 폴더에 넣고 "/파일이름.mp3" 로 적어요
   bgmFile: "/bgm.mp3",
   // (선택) 트리 그림 — 배경에 트리가 없으면 "/tree.png" 처럼 넣어 주세요. 비워 두면 배경의 트리를 그대로 써요

@@ -8,6 +8,7 @@ import { cafeData } from "../spaceData";
 import { isHost, inSchedule, scheduleText } from "../lib/rooms";
 import PixelModal from "./PixelModal";
 import { SEASONS } from "./SeasonWindow";
+import { OrderBar } from "./TeaTable";
 
 // ☕ 찻집 화면 위 UI 모음
 //  - ⚙️ 설정: 🪟 사계절 통창 풍경 (모두에게 실시간 반영) · 🔑 사장님 인증 · 🔓 테스트용 강제 오픈
@@ -19,10 +20,11 @@ import { SEASONS } from "./SeasonWindow";
 //   gathering:  { title, topic, meetUrl, openedAt, by }   (없으면 모임 없음)
 //   live:       { url, openedAt, by }                     (없으면 라이브 없음)
 //   menuStatus: { 메뉴id: "recommend" | "soldout" }       (없으면 기본)
+//   orders:     { 자리id: { by, tea: { at }, sweets: { left, at } } }  (테이블 위 차·다식)
 
 // 찻집 공용 상태 구독
 export function useTeaHouse() {
-  const [state, setState] = useState({ season: "winter", seasonBy: "", gathering: null, live: null, menuStatus: {} });
+  const [state, setState] = useState({ season: "winter", seasonBy: "", gathering: null, live: null, menuStatus: {}, orders: {} });
   useEffect(() => {
     if (!db) return;
     return onValue(ref(db, "teaHouse"), (snap) => {
@@ -33,6 +35,7 @@ export function useTeaHouse() {
         gathering: v.gathering?.title ? v.gathering : null,
         live: v.live?.url ? v.live : null,
         menuStatus: v.menuStatus || {},
+        orders: v.orders || {},
       });
     });
   }, []);
@@ -286,7 +289,7 @@ function Banners({ tea }) {
 function GatheringCard({ gathering }) {
   const meet = safeUrl(gathering.meetUrl);
   return (
-    <div className="safe-left fixed bottom-[calc(var(--sab,0px)+1rem)] z-[36] w-80 max-w-[calc(100vw-6rem)] bg-[#2b1d1a] p-1 shadow-[6px_6px_0_0_rgba(0,0,0,0.35)]">
+    <div className="safe-left fixed bottom-[calc(var(--sab,0px)+5.5rem)] z-[36] w-80 sm:bottom-[calc(var(--sab,0px)+1rem)] max-w-[calc(100vw-6rem)] bg-[#2b1d1a] p-1 shadow-[6px_6px_0_0_rgba(0,0,0,0.35)]">
       <div className="max-h-[50vh] overflow-y-auto border-4 border-[#f5e6c8] p-3 text-white">
         <p className="text-xs font-bold text-amber-300">📚 단체석 · 오늘의 모임</p>
         <p className="mt-0.5 font-black">{gathering.title}</p>
@@ -316,6 +319,9 @@ export default function TeaHouseHud({ tea, api }) {
     <>
       <Banners tea={tea} />
       {atShareTable && tea.gathering && <GatheringCard gathering={tea.gathering} />}
+
+      {/* 자리에 앉으면: 아래쪽 미니 주문 바 (차 · 다식) */}
+      {api.mySeat && <OrderBar seat={api.mySeat} order={tea.orders[api.mySeat.id]} api={api} />}
 
       {/* ⚙️ 오른쪽 위 설정 */}
       <div className="safe-top safe-right fixed z-40 flex flex-col items-end gap-2">
