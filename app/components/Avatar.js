@@ -37,6 +37,7 @@ export default function Avatar({
   eating = true, // 앉아 있을 때 냠냠 효과 (찻집 단체석에서는 끄기)
   focus = false, // 📖 공부 집중 모드: 머리 위 "📖 집중 중..."
   action = null, // 찻집 식음료 모션 { type: "pouring" | "drinking" | "eating", at }
+  z, // 겹치는 순서 (찻집: 발 위치가 아래일수록 앞에 — 테이블·분재 뒤로 가면 가려져요)
 }) {
   const cheering = emote?.type === 'toast'; // 건배 중이면 잔을 번쩍 드는 포즈
 
@@ -48,6 +49,7 @@ export default function Avatar({
         height: AVATAR_HEIGHT,
         transform: `translate3d(${x}px, ${y}px, 0)`,
         transition: smooth ? 'transform 0.12s linear' : 'none',
+        zIndex: z,
       }}
     >
       {/* 안쪽 전체: 앉으면 SIT_DROP만큼 아래로 (닉네임·말풍선도 머리를 따라 같이 내려가요) */}

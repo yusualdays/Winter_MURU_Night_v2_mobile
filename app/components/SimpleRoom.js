@@ -675,7 +675,7 @@ export default function SimpleRoom({
             const open = exitOpen[ex.id ?? ex.to];
             if (open && ex.paintedSign) return null; // 배경 그림에 팻말이 그려져 있으면, 열려 있을 땐 그림 팻말만
             return (
-              <div key={ex.id ?? ex.to} className="pointer-events-none absolute z-[6] flex w-0 flex-col items-center" style={{ left: ex.sign.x * mapW, top: ex.sign.y * mapH }}>
+              <div key={ex.id ?? ex.to} className="pointer-events-none absolute flex w-0 flex-col items-center" style={{ left: ex.sign.x * mapW, top: ex.sign.y * mapH, zIndex: 2400 }}>
                 <span
                   className={`shrink-0 whitespace-nowrap border-4 border-[#2b1d1a] px-3 py-1 text-xl font-black shadow-[3px_3px_0_0_rgba(0,0,0,0.35)] ${open ? "bg-[#f5e6c8] text-[#2b1d1a]" : "bg-[#fde68a] text-[#7c2d12]"}`}
                 >
@@ -690,9 +690,9 @@ export default function SimpleRoom({
         {tapFx && <TapRipple key={tapFx.id} x={tapFx.x} y={tapFx.y} size={Math.max(64, 44 / scale)} />}
 
         {Object.entries(others).map(([id, u]) => (
-          <Avatar key={id} nickname={u.nickname || "손님"} x={u.x} y={u.y} isMoving={!!u.isMoving} dir={u.dir || "down"} look={normalizeLook(u)} emote={u.emote} chat={bubbles[id]} sitting={!!u.isSitting} owner={!!u.isOwner} focus={!!u.focus} eating={false} action={u.action} smooth />
+          <Avatar key={id} nickname={u.nickname || "손님"} x={u.x} y={u.y} isMoving={!!u.isMoving} dir={u.dir || "down"} look={normalizeLook(u)} emote={u.emote} chat={bubbles[id]} sitting={!!u.isSitting} owner={!!u.isOwner} focus={!!u.focus} eating={false} action={u.action} z={100 + Math.round(u.y + AVATAR_HEIGHT)} smooth />
         ))}
-        <Avatar nickname={nickname} x={pos.x} y={pos.y} isMoving={isMoving} dir={dir} look={look} emote={emote} chat={bubbles.me} sitting={!!seatId} owner={isOwner} focus={focus} eating={false} action={action} isMe />
+        <Avatar nickname={nickname} x={pos.x} y={pos.y} isMoving={isMoving} dir={dir} look={look} emote={emote} chat={bubbles.me} sitting={!!seatId} owner={isOwner} focus={focus} eating={false} action={action} z={100 + Math.round(pos.y + AVATAR_HEIGHT)} isMe />
 
         {/* 🍵 다른 사람 캐릭터 누르기 → [대화 신청하기] (투명 버튼) */}
         {Object.entries(others).map(([id, u]) => (
@@ -702,12 +702,15 @@ export default function SimpleRoom({
             aria-label={`${u.nickname || "손님"}님에게 대화 신청`}
             onPointerDown={(e) => e.stopPropagation()}
             onClick={() => setPicked((p) => (p === id ? null : id))}
-            className="absolute z-[12] cursor-pointer bg-transparent"
-            style={{ left: u.x, top: u.y + (u.isSitting ? 20 : 0), width: AVATAR_WIDTH, height: AVATAR_HEIGHT - (u.isSitting ? 30 : 0), transition: "left 0.12s linear, top 0.12s linear" }}
+            className="absolute cursor-pointer bg-transparent"
+            style={{ zIndex: 2800, left: u.x, top: u.y + (u.isSitting ? 20 : 0), width: AVATAR_WIDTH, height: AVATAR_HEIGHT - (u.isSitting ? 30 : 0), transition: "left 0.12s linear, top 0.12s linear" }}
           />
         ))}
 
-        <InteractButton target={nearTarget} onClick={interact} icon={nearIcon} text={nearTitle} boost={uiBoost} />
+        {/* 버튼은 테이블·분재보다 항상 위에 */}
+        <div className="pointer-events-none absolute inset-0 [&_button]:pointer-events-auto" style={{ zIndex: 3000 }}>
+          <InteractButton target={nearTarget} onClick={interact} icon={nearIcon} text={nearTitle} boost={uiBoost} />
+        </div>
       </div>
 
       {renderModals?.(openId, closeDetail)}

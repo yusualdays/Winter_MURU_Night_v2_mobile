@@ -122,7 +122,7 @@ export function TableItems({ orders = {}, seats = [], mapW, mapH }) {
         const o = orders[st.id];
         if (!o || !st.place || (!o.tea && !o.sweets && !o.crafted)) return null;
         return (
-          <div key={st.id} className="pointer-events-none absolute z-[11]" style={{ left: st.place.x * mapW, top: st.place.y * mapH }}>
+          <div key={st.id} className="pointer-events-none absolute" style={{ left: st.place.x * mapW, top: st.place.y * mapH, zIndex: 2000 }}>
             {o.tea && <TeaSet tea={o.tea} />}
             {o.sweets && <SweetsPlate sweets={o.sweets} />}
             {o.crafted && <CraftedDish crafted={o.crafted} />}

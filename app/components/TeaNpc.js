@@ -107,9 +107,9 @@ export function DayeonSprite({ scale = NPC_SCALE }) {
 }
 
 // 지도 위의 다연 (x, y = 그림 왼쪽 위, 맵 좌표)
-export function TeaNpc({ x, y }) {
+export function TeaNpc({ x, y, z }) {
   return (
-    <div className="pointer-events-none absolute" style={{ left: x, top: y, width: NPC_W, height: NPC_H }}>
+    <div className="pointer-events-none absolute" style={{ left: x, top: y, width: NPC_W, height: NPC_H, zIndex: z }}>
       <DayeonSprite />
     </div>
   );
@@ -118,7 +118,7 @@ export function TeaNpc({ x, y }) {
 // 다연의 이름표 + 말풍선 (카운터보다 위에 보이도록 따로 그려요)
 export function TeaNpcLabel({ x, y, bubble }) {
   return (
-    <div className="pointer-events-none absolute z-[12]" style={{ left: x + NPC_W / 2, top: y }}>
+    <div className="pointer-events-none absolute" style={{ left: x + NPC_W / 2, top: y, zIndex: 2500 }}>
       {/* 말풍선 */}
       <div className="absolute bottom-[52px] left-0 flex w-0 justify-center">
         <AnimatePresence>

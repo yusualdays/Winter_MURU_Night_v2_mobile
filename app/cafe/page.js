@@ -19,6 +19,8 @@ import { cafeData } from "../spaceData";
 const MAP_W = 1600;
 const MAP_H = 1200;
 const BG_IMAGE = "/teahouse_bg.png";
+// 앞에 겹쳐 그리는 그림 (테이블·분재·선반만 남기고 나머지는 투명) — 캐릭터가 뒤로 지나가면 가려져요
+const FG_IMAGE = "/teahouse_fg.png";
 
 // 벽 아래 끝 (바닥이 시작되는 높이)
 const WALL_BOTTOM = 0.28;
@@ -35,8 +37,8 @@ const COUNTER_PARTS = [
   { x: 0.865, y: 0.34, w: 0.135, h: 0.16 }, // 오른쪽 카운터
   { x: 0.79, y: 0.3, w: 0.075, h: 0.17 }, // 카운터 안쪽 (다연 자리)
 ];
-// 🍵 다연이 서 있는 자리 (발 가운데) — 카운터 안쪽 가운데
-const COUNTER_NPC_POS = { x: 0.828, y: 0.45 };
+// 🍵 다연이 서 있는 자리 (발 가운데) — 주전자 옆 카운터 뒤 (카운터 앞판이 다리를 가려요)
+const COUNTER_NPC_POS = { x: 0.72, y: 0.44 };
 const NPC_IN_BG = false; // 배경 그림에 다연이 그려져 있으면 true (코드 캐릭터는 숨기고 이름표·말풍선만)
 const NPC_X = COUNTER_NPC_POS.x * MAP_W - NPC_W / 2; // 그림 왼쪽 위 (맵 좌표)
 const NPC_Y = COUNTER_NPC_POS.y * MAP_H - NPC_H;
@@ -69,8 +71,8 @@ const DUO_TABLES = [
 ];
 const CHAIR_DX = 0.065; // 테이블 가운데 → 의자 가운데
 const TABLE_SEATS = DUO_TABLES.flatMap((t) => [
-  { id: `${t.id}L`, group: t.id, x: t.x - CHAIR_DX, y: t.bottom - 0.035, dir: "right", stand: { x: t.x - CHAIR_DX, y: t.bottom + 0.025 }, place: { x: t.x - 0.018, y: t.top + 0.04 }, label: "2인석에 앉기" },
-  { id: `${t.id}R`, group: t.id, x: t.x + CHAIR_DX, y: t.bottom - 0.035, dir: "left", stand: { x: t.x + CHAIR_DX, y: t.bottom + 0.025 }, place: { x: t.x + 0.018, y: t.top + 0.04 }, label: "2인석에 앉기" },
+  { id: `${t.id}L`, group: t.id, x: t.x - CHAIR_DX, y: t.bottom - 0.035, dir: "right", stand: { x: t.x - CHAIR_DX, y: t.bottom + 0.015 }, place: { x: t.x - 0.018, y: t.top + 0.04 }, label: "2인석에 앉기" },
+  { id: `${t.id}R`, group: t.id, x: t.x + CHAIR_DX, y: t.bottom - 0.035, dir: "left", stand: { x: t.x + CHAIR_DX, y: t.bottom + 0.015 }, place: { x: t.x + 0.018, y: t.top + 0.04 }, label: "2인석에 앉기" },
 ]);
 
 // 📚 가운데 아래 단체석 (분재가 놓인 긴 쉐어 테이블) — 앉으면 독서모임 발제문·구글 미트 링크가 보여요
@@ -87,8 +89,23 @@ const ALL_SEATS = [...TABLE_SEATS, ...SHARE_SEATS];
 
 // ---------------- 벽면 오브젝트 ----------------
 const SPEAKER = { x: 0.365, y: 0.2, w: 0.072, h: 0.12 }; // 통창 옆 라디오
-const BOOKSHELF = { x: 0.005, y: 0.66, w: 0.165, h: 0.33 };
-const TEAWARE_SHELF = { x: 0.815, y: 0.56, w: 0.18, h: 0.19 };
+const BOOKSHELF = { x: 0.005, y: 0.655, w: 0.165, h: 0.345 };
+const TEAWARE_SHELF = { x: 0.812, y: 0.555, w: 0.183, h: 0.2 };
+
+// ---------------- 🌳 앞에 겹쳐 그리는 물건 (teahouse_fg.png 조각) ----------------
+//  rect = 그림 조각 자리 / base = 물건이 바닥에 닿는 높이 → 캐릭터 발이 base보다 위(뒤)에 있으면 물건이 캐릭터를 가려요
+//  (teahouse_fg.png는 배경에서 이 물건들만 오려 낸 그림이에요. 배경을 바꾸면 이 그림도 다시 만들어야 해요)
+const OCCLUDERS = [
+  ...DUO_TABLES.map((t) => ({ x: t.x - 0.042, y: t.top - 0.005, w: 0.084, h: t.bottom - t.top + 0.01, base: t.bottom })), // 2인 테이블
+  { x: 0.355, y: 0.66, w: 0.067, h: 0.09, base: 0.74 }, // 단체석 위쪽 왼쪽 의자 (앉은 사람보다 뒤)
+  { x: 0.58, y: 0.66, w: 0.068, h: 0.09, base: 0.74 }, // 단체석 위쪽 오른쪽 의자
+  { x: 0.423, y: 0.6, w: 0.155, h: 0.145, base: 0.9 }, // 🌳 분재 (뒤로 지나가면 가려져요)
+  { x: 0.318, y: 0.745, w: 0.368, h: 0.17, base: 0.9 }, // 단체석 테이블
+  ...[0.358, 0.471, 0.584].map((x) => ({ x, y: 0.83, w: 0.064, h: 0.148, base: 0.975 })), // 단체석 아래쪽 의자 3개 (앉은 사람 다리를 가려요)
+  { x: 0.812, y: 0.5, w: 0.183, h: 0.255, base: 0.75 }, // 다구 선반 + 꽃병
+  { x: 0.643, y: 0.41, w: 0.149, h: 0.095, base: 0.505 }, // 카운터 앞판 (다연 다리를 가려요)
+];
+const zOf = (base) => 100 + Math.round(base * MAP_H); // 캐릭터와 같은 기준 (발 높이 + 100)
 
 // ---------------- 🚧 장애물 (발이 못 들어가는 네모) ----------------
 const BLOCKERS = [
@@ -97,17 +114,19 @@ const BLOCKERS = [
   { x: 0, y: 0, w: 0.01, h: 1 }, // 왼쪽 끝
   { x: 0.995, y: 0, w: 0.005, h: 0.78 }, // 오른쪽 끝 (전시실 통로 위까지)
   ...COUNTER_PARTS, // 카운터 + 주방
-  ...DUO_TABLES.map((t) => ({ x: t.x - 0.09, y: t.top + 0.02, w: 0.18, h: t.bottom - t.top - 0.03 })), // 2인 테이블 + 양쪽 의자 (의자 아래 파란 점에서 앉아요)
-  { x: SHARE_TABLE.x, y: SHARE_TABLE.y + 0.015, w: SHARE_TABLE.w, h: SHARE_TABLE.h - 0.01 }, // 단체석 테이블 본체
+  ...DUO_TABLES.map((t) => ({ x: t.x - 0.09, y: t.top - 0.01, w: 0.18, h: t.bottom - t.top })), // 2인 테이블 + 양쪽 의자 (상판 위는 못 밟아요, 의자 아래 파란 점에서 앉아요)
+  { x: 0.318, y: 0.745, w: 0.368, h: 0.14 }, // 단체석 테이블 (상판 끝부터)
+  { x: 0.355, y: 0.69, w: 0.067, h: 0.06 }, // 단체석 위쪽 왼쪽 의자
+  { x: 0.58, y: 0.69, w: 0.068, h: 0.06 }, // 단체석 위쪽 오른쪽 의자
   { x: SPEAKER.x, y: 0.26, w: SPEAKER.w, h: 0.05 }, // 라디오 장
-  { x: 0, y: 0.7, w: BOOKSHELF.x + BOOKSHELF.w, h: 0.3 }, // 책장
-  { x: TEAWARE_SHELF.x, y: 0.6, w: TEAWARE_SHELF.w, h: 0.15 }, // 다구 판매존 선반
+  { x: 0, y: BOOKSHELF.y, w: BOOKSHELF.x + BOOKSHELF.w, h: 1 - BOOKSHELF.y }, // 책장 (윗면 포함)
+  { ...TEAWARE_SHELF }, // 다구 판매존 선반 (윗면 포함)
 ];
 
 // ---------------- 💬 상호작용 포인트 ----------------
 //  rect = 버튼이 뜨는 곳(그림 위) / near = 이 근처에 서면 버튼이 떠요 / radius = 거리 (맵 px)
 const SPOTS = [
-  { id: "counter", rect: { x: 0.68, y: 0.47, w: 0.22, h: 0.04 }, near: { x: 0.8, y: 0.54 }, radius: 130, icon: "🍵", title: "차림표 보기 · 다식·말차 만들기" },
+  { id: "counter", rect: { x: 0.64, y: 0.27, w: 0.16, h: 0.03 }, near: { x: 0.72, y: 0.56 }, radius: 120, icon: "🍵", title: "차림표 보기 · 다식·말차 만들기" },
   { id: "speaker", rect: { x: SPEAKER.x - 0.02, y: SPEAKER.y - 0.04, w: SPEAKER.w + 0.04, h: 0.04 }, near: { x: 0.44, y: 0.325 }, radius: 75, icon: "🎵", title: "BGM & 백색소음 설정" },
   { id: "bookshelf", rect: { x: BOOKSHELF.x, y: BOOKSHELF.y - 0.04, w: BOOKSHELF.w, h: 0.04 }, near: { x: 0.2, y: 0.78 }, radius: 130, icon: "🔖", title: "교환 독서 책갈피" },
   { id: "showroom", rect: { x: TEAWARE_SHELF.x, y: TEAWARE_SHELF.y - 0.04, w: TEAWARE_SHELF.w, h: 0.04 }, near: { x: 0.76, y: 0.68 }, radius: 120, icon: "🫖", title: "다구 쇼룸 / 스마트스토어 구경하기" },
@@ -133,7 +152,7 @@ const pct = (r) => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w
 // 🔧 ?debug=1 — 장애물(빨강) · 앉는 자리(초록) · 서는 자리(파랑) · 버튼 자리(노랑) · 통로(보라)
 function DebugOverlay() {
   return (
-    <div className="pointer-events-none absolute inset-0 z-[20]">
+    <div className="pointer-events-none absolute inset-0" style={{ zIndex: 2600 }}>
       {BLOCKERS.map((b, i) => <div key={i} className="absolute border-2 border-red-600 bg-red-500/25" style={pct(b)} />)}
       <div className="absolute border-2 border-sky-400" style={pct(WINDOW_AREA)} />
       {SPOTS.map((s) => (
@@ -166,8 +185,17 @@ function CafeScene({ npcBubble, season, orders, debug }) {
       <div className="absolute inset-0" style={{ background: `url(${BG_IMAGE}) center / 100% 100% no-repeat`, imageRendering: "pixelated" }} />
       <div className="pointer-events-none absolute bg-gradient-to-br from-white/20 via-transparent to-transparent" style={pct(WINDOW_AREA)} />
 
+      {/* 🌳 앞에 겹치는 물건들 (테이블·분재·선반) — 캐릭터가 뒤로 가면 가려져요 */}
+      {OCCLUDERS.map((o, i) => (
+        <div
+          key={i}
+          className="pointer-events-none absolute"
+          style={{ ...pct(o), zIndex: zOf(o.base), backgroundImage: `url(${FG_IMAGE})`, backgroundSize: `${MAP_W}px ${MAP_H}px`, backgroundPosition: `${-o.x * MAP_W}px ${-o.y * MAP_H}px`, imageRendering: "pixelated" }}
+        />
+      ))}
+
       {/* 🍵 알바생 다연 (그림에 있으면 코드 캐릭터는 숨기고 이름표·말풍선만) */}
-      {!NPC_IN_BG && <TeaNpc x={NPC_X} y={NPC_Y} />}
+      {!NPC_IN_BG && <TeaNpc x={NPC_X} y={NPC_Y} z={zOf(COUNTER_NPC_POS.y)} />}
       <TeaNpcLabel x={NPC_X} y={NPC_Y + (NPC_IN_BG ? 40 : 0)} bubble={npcBubble} />
 
       {/* 🍵 테이블 위 차·다식 (손님이 주문하면 모두에게 보여요) */}
