@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import SimpleRoom from "../components/SimpleRoom";
 import PixelModal from "../components/PixelModal";
-import { TeaNpc, TeaNpcLabel, DayeonSprite, NPC_W, NPC_H } from "../components/TeaNpc";
+import { TeaNpc, TeaNpcLabel, DayeonSprite } from "../components/TeaNpc";
 import SeasonWindow from "../components/SeasonWindow";
 import TeaHouseHud, { useTeaHouse } from "../components/TeaHouseHud";
 import TeaMenuBoard from "../components/TeaMenuBoard";
@@ -37,8 +37,11 @@ const COUNTER_PARTS = [
   { x: 0.865, y: 0.34, w: 0.135, h: 0.16 }, // 오른쪽 카운터
   { x: 0.79, y: 0.3, w: 0.075, h: 0.17 }, // 카운터 안쪽 (다연 자리)
 ];
-// 🍵 다연이 서 있는 자리 (발 가운데) — 주전자 옆 카운터 뒤 (카운터 앞판이 다리를 가려요)
-const COUNTER_NPC_POS = { x: 0.72, y: 0.44 };
+// 🍵 다연이 서 있는 자리 (발 가운데) — 포스기 옆 카운터 안쪽 (카운터 앞쪽 턱·앞판이 몸 아래를 가려요)
+const COUNTER_NPC_POS = { x: 0.727, y: 0.3705 };
+const NPC_DOT = 5.6; // 다연 크기 (도트 1칸 = 5.6px, 손님 캐릭터는 7px) — 카운터 안쪽이라 조금 작게
+const NPC_W = 18 * NPC_DOT;
+const NPC_H = 25 * NPC_DOT;
 const NPC_IN_BG = false; // 배경 그림에 다연이 그려져 있으면 true (코드 캐릭터는 숨기고 이름표·말풍선만)
 const NPC_X = COUNTER_NPC_POS.x * MAP_W - NPC_W / 2; // 그림 왼쪽 위 (맵 좌표)
 const NPC_Y = COUNTER_NPC_POS.y * MAP_H - NPC_H;
@@ -103,7 +106,8 @@ const OCCLUDERS = [
   { x: 0.318, y: 0.745, w: 0.368, h: 0.17, base: 0.9 }, // 단체석 테이블
   ...[0.358, 0.471, 0.584].map((x) => ({ x, y: 0.83, w: 0.064, h: 0.148, base: 0.975 })), // 단체석 아래쪽 의자 3개 (앉은 사람 다리를 가려요)
   { x: 0.812, y: 0.5, w: 0.183, h: 0.255, base: 0.75 }, // 다구 선반 + 꽃병
-  { x: 0.643, y: 0.41, w: 0.149, h: 0.095, base: 0.505 }, // 카운터 앞판 (다연 다리를 가려요)
+  { x: 0.699, y: 0.351, w: 0.093, h: 0.154, base: 0.505 }, // 카운터 앞쪽 턱 + 앞판 (다연 몸 아래를 가려요)
+  { x: 0.643, y: 0.372, w: 0.056, h: 0.133, base: 0.505 }, // 포스기 아래 카운터 (포스기는 다연을 가리지 않게 빼요)
 ];
 const zOf = (base) => 100 + Math.round(base * MAP_H); // 캐릭터와 같은 기준 (발 높이 + 100)
 
@@ -126,7 +130,7 @@ const BLOCKERS = [
 // ---------------- 💬 상호작용 포인트 ----------------
 //  rect = 버튼이 뜨는 곳(그림 위) / near = 이 근처에 서면 버튼이 떠요 / radius = 거리 (맵 px)
 const SPOTS = [
-  { id: "counter", rect: { x: 0.64, y: 0.27, w: 0.16, h: 0.03 }, near: { x: 0.72, y: 0.56 }, radius: 120, icon: "🍵", title: "차림표 보기 · 다식·말차 만들기" },
+  { id: "counter", rect: { x: 0.646, y: 0.2, w: 0.16, h: 0.03 }, near: { x: 0.72, y: 0.56 }, radius: 120, icon: "🍵", title: "차림표 보기 · 다식·말차 만들기" },
   { id: "speaker", rect: { x: SPEAKER.x - 0.02, y: SPEAKER.y - 0.04, w: SPEAKER.w + 0.04, h: 0.04 }, near: { x: 0.44, y: 0.325 }, radius: 75, icon: "🎵", title: "BGM & 백색소음 설정" },
   { id: "bookshelf", rect: { x: BOOKSHELF.x, y: BOOKSHELF.y - 0.04, w: BOOKSHELF.w, h: 0.04 }, near: { x: 0.2, y: 0.78 }, radius: 130, icon: "🔖", title: "교환 독서 책갈피" },
   { id: "showroom", rect: { x: TEAWARE_SHELF.x, y: TEAWARE_SHELF.y - 0.04, w: TEAWARE_SHELF.w, h: 0.04 }, near: { x: 0.76, y: 0.68 }, radius: 120, icon: "🫖", title: "다구 쇼룸 / 스마트스토어 구경하기" },
@@ -195,8 +199,8 @@ function CafeScene({ npcBubble, season, orders, debug }) {
       ))}
 
       {/* 🍵 알바생 다연 (그림에 있으면 코드 캐릭터는 숨기고 이름표·말풍선만) */}
-      {!NPC_IN_BG && <TeaNpc x={NPC_X} y={NPC_Y} z={zOf(COUNTER_NPC_POS.y)} />}
-      <TeaNpcLabel x={NPC_X} y={NPC_Y + (NPC_IN_BG ? 40 : 0)} bubble={npcBubble} />
+      {!NPC_IN_BG && <TeaNpc x={NPC_X} y={NPC_Y} z={zOf(COUNTER_NPC_POS.y)} scale={NPC_DOT} />}
+      <TeaNpcLabel x={NPC_X} y={NPC_Y + (NPC_IN_BG ? 40 : 0)} bubble={npcBubble} width={NPC_W} />
 
       {/* 🍵 테이블 위 차·다식 (손님이 주문하면 모두에게 보여요) */}
       <TableItems orders={orders} seats={ALL_SEATS} mapW={MAP_W} mapH={MAP_H} />
