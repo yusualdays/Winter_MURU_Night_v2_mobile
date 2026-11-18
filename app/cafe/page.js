@@ -13,7 +13,7 @@ import { TableItems, clearOrder } from "../components/TeaTable";
 import { cafeData } from "../spaceData";
 
 // ☕ 군산 온라인 찻집 (teaHouse) — 입장하면 가장 먼저 오는 곳
-//  - 배경 그림: public/teahouse_bg.png (4:3, 모던·미니멀 찻집) — 아래 좌표는 모두 이 그림 기준 0~1 비율
+//  - 배경 그림: public/teahouse_bg.png (2400x1792, 통창 유리는 투명) — 아래 좌표는 모두 이 그림 기준 0~1 비율
 //    (x: 왼쪽→오른쪽, y: 위→아래). 주소 끝에 ?debug=1 을 붙이면 장애물·자리·버튼 위치가 색칠돼 보여요 → 그림에 맞춰 숫자만 고치면 돼요
 //  - 위쪽 가운데 통로 → 🛋️ 거실 / 오른쪽 아래 통로 → 🖼️ 전시회 (data.js eventSchedule 기간에만, 기간 밖에는 "🚧 준비중")
 const MAP_W = 1600;
@@ -26,8 +26,7 @@ const WALL_BOTTOM = 0.28;
 const PASSAGE = { x: 0.455, w: 0.105, top: 0.12 };
 
 // 🪟 통창 유리 부분 — 계절 풍경은 이 네모 안에서만 보여요 (overflow-hidden). MULLIONS = 창살 x 위치
-const WINDOW_AREA = { x: 0.05, y: 0.045, w: 0.295, h: 0.18 };
-const MULLIONS = [0.117, 0.27];
+const WINDOW_AREA = { x: 0.05, y: 0.04, w: 0.297, h: 0.175 };
 
 // 🍵 카운터 + 주방 (오른쪽 위, ㄷ자) — 통째로 못 지나가요
 const COUNTER_PARTS = [
@@ -52,7 +51,7 @@ const NPC_LINES = {
 const GUIDE = [
   { icon: "👆", title: "자리 이동 & 대화", text: "바닥을 터치(클릭)하면 걸어가요. 빈 의자 옆에서 앉을 수 있고, 다른 손님 캐릭터를 누르면 1:1 찻자리 대화를 청할 수 있어요." },
   { icon: "🍵", title: "카운터", text: "카운터 앞에서 차림표를 보거나, 다식·말차 만들기 체험을 해 보세요. 만든 건 내 테이블로 가져가 먹을 수 있어요." },
-  { icon: "📖", title: "공부 집중 모드 & 소리", text: "오른쪽 위 [📖 공부 집중 모드]로 뽀모도로 타이머를 켜요. 족자 아래 라디오에서 BGM과 백색소음을 고를 수 있어요." },
+  { icon: "📖", title: "공부 집중 모드 & 소리", text: "오른쪽 위 [📖 공부 집중 모드]로 뽀모도로 타이머를 켜요. 통창 옆 라디오에서 BGM과 백색소음을 고를 수 있어요." },
   { icon: "🔖", title: "책장 & 다구 판매존", text: "왼쪽 아래 책장엔 손님들이 남긴 독서 책갈피가, 오른쪽 선반엔 다구 쇼룸이 있어요." },
   { icon: "🚪", title: "통로 안내", text: "위쪽 가운데 문은 🛋️ 거실, 오른쪽 아래 통로는 🖼️ 전시실로 이어져요. (오픈 기간에만 열려요)" },
 ];
@@ -68,7 +67,6 @@ const DUO_TABLES = [
   { id: "t3", x: 0.11, top: 0.48, bottom: 0.61 },
   { id: "t4", x: 0.34, top: 0.48, bottom: 0.61 },
 ];
-const TABLE_W = 0.08;
 const CHAIR_DX = 0.065; // 테이블 가운데 → 의자 가운데
 const TABLE_SEATS = DUO_TABLES.flatMap((t) => [
   { id: `${t.id}L`, group: t.id, x: t.x - CHAIR_DX, y: t.bottom - 0.035, dir: "right", stand: { x: t.x - CHAIR_DX, y: t.bottom + 0.025 }, place: { x: t.x - 0.018, y: t.top + 0.04 }, label: "2인석에 앉기" },
@@ -88,7 +86,7 @@ const SHARE_SEATS = [
 const ALL_SEATS = [...TABLE_SEATS, ...SHARE_SEATS];
 
 // ---------------- 벽면 오브젝트 ----------------
-const SPEAKER = { x: 0.365, y: 0.2, w: 0.07, h: 0.11 }; // 족자 아래 라디오
+const SPEAKER = { x: 0.365, y: 0.2, w: 0.072, h: 0.12 }; // 통창 옆 라디오
 const BOOKSHELF = { x: 0.005, y: 0.66, w: 0.165, h: 0.33 };
 const TEAWARE_SHELF = { x: 0.815, y: 0.56, w: 0.18, h: 0.19 };
 
@@ -99,7 +97,7 @@ const BLOCKERS = [
   { x: 0, y: 0, w: 0.01, h: 1 }, // 왼쪽 끝
   { x: 0.995, y: 0, w: 0.005, h: 0.78 }, // 오른쪽 끝 (전시실 통로 위까지)
   ...COUNTER_PARTS, // 카운터 + 주방
-  ...DUO_TABLES.map((t) => ({ x: t.x - TABLE_W / 2, y: t.top + 0.02, w: TABLE_W, h: t.bottom - t.top - 0.03 })), // 2인 테이블 본체
+  ...DUO_TABLES.map((t) => ({ x: t.x - 0.09, y: t.top + 0.02, w: 0.18, h: t.bottom - t.top - 0.03 })), // 2인 테이블 + 양쪽 의자 (의자 아래 파란 점에서 앉아요)
   { x: SHARE_TABLE.x, y: SHARE_TABLE.y + 0.015, w: SHARE_TABLE.w, h: SHARE_TABLE.h - 0.01 }, // 단체석 테이블 본체
   { x: SPEAKER.x, y: 0.26, w: SPEAKER.w, h: 0.05 }, // 라디오 장
   { x: 0, y: 0.7, w: BOOKSHELF.x + BOOKSHELF.w, h: 0.3 }, // 책장
@@ -161,15 +159,12 @@ function DebugOverlay() {
 function CafeScene({ npcBubble, season, orders, debug }) {
   return (
     <div className="absolute inset-0">
-      {/* 배경 그림 (그림이 없을 때를 대비해 나무 바닥색) */}
-      <div className="absolute inset-0" style={{ background: `url(${BG_IMAGE}) center / 100% 100% no-repeat, #c08a57`, imageRendering: "pixelated" }} />
+      {/* 🪟 사계절 통창 — 배경 그림의 유리 부분이 투명해서, 그림 "뒤"에 깔면 창틀·창살은 그림 그대로 보여요 */}
+      <SeasonWindow rect={{ x: WINDOW_AREA.x * MAP_W, y: WINDOW_AREA.y * MAP_H, w: WINDOW_AREA.w * MAP_W, h: WINDOW_AREA.h * MAP_H }} season={season} frame={false} />
 
-      {/* 🪟 사계절 통창 (유리 안쪽만, 가운데 창살은 다시 그려요) */}
-      <SeasonWindow rect={{ x: WINDOW_AREA.x * MAP_W, y: WINDOW_AREA.y * MAP_H, w: WINDOW_AREA.w * MAP_W, h: WINDOW_AREA.h * MAP_H }} season={season} />
-      {MULLIONS.map((mx) => (
-        <div key={mx} className="pointer-events-none absolute bg-[#5a3326]" style={{ left: mx * MAP_W - 7, top: WINDOW_AREA.y * MAP_H, width: 14, height: WINDOW_AREA.h * MAP_H }} />
-      ))}
-      <div className="pointer-events-none absolute bg-gradient-to-br from-white/25 via-transparent to-transparent" style={pct(WINDOW_AREA)} />
+      {/* 배경 그림 (그림을 못 불러오면 나무 바닥색) */}
+      <div className="absolute inset-0" style={{ background: `url(${BG_IMAGE}) center / 100% 100% no-repeat`, imageRendering: "pixelated" }} />
+      <div className="pointer-events-none absolute bg-gradient-to-br from-white/20 via-transparent to-transparent" style={pct(WINDOW_AREA)} />
 
       {/* 🍵 알바생 다연 (그림에 있으면 코드 캐릭터는 숨기고 이름표·말풍선만) */}
       {!NPC_IN_BG && <TeaNpc x={NPC_X} y={NPC_Y} />}
