@@ -15,6 +15,15 @@ export const SEASONS = [
   { id: "rain", icon: "🌧️", label: "비", sub: "비 오는 날" },
 ];
 
+// 📅 날짜 → 계절 (3~5월 봄 · 6~8월 여름 · 9~11월 가을 · 12~2월 겨울)
+export function seasonByDate(d = new Date()) {
+  const m = d.getMonth() + 1;
+  if (m >= 3 && m <= 5) return "spring";
+  if (m >= 6 && m <= 8) return "summer";
+  if (m >= 9 && m <= 11) return "autumn";
+  return "winter";
+}
+
 const LOOK = {
   spring: {
     sky: "linear-gradient(#bfe3ff 0%, #ffe4f1 75%)",

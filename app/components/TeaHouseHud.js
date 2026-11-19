@@ -7,12 +7,11 @@ import { partyData } from "../data";
 import { cafeData } from "../spaceData";
 import { isHost, inSchedule, scheduleText } from "../lib/rooms";
 import PixelModal from "./PixelModal";
-import { SEASONS } from "./SeasonWindow";
 import { OrderBar } from "./TeaTable";
 import { FocusToggle, FocusPanel, NoiseMixer } from "./FocusMode";
 
 // ☕ 찻집 화면 위 UI 모음
-//  - ⚙️ 설정: 🪟 사계절 통창 풍경 (모두에게 실시간 반영) · 🔑 사장님 인증 · 🔓 테스트용 강제 오픈
+//  - ⚙️ 설정: 🎧 백색소음 · 🔑 사장님 인증 (🪟 통창 풍경은 접속한 날짜의 계절로 자동) · 🔓 테스트용 강제 오픈
 //  - 📋 사장님 관리: 모임 주최 / 메뉴 실시간 상태 / 조조차회 라이브 알림
 //  - 위쪽 가운데 공지 배너 (모임 · 라이브) + 단체석에 앉은 손님에게 발제문·미트 링크 카드
 //
@@ -97,9 +96,6 @@ function SettingsPanel({ tea, api, onOpenOwner }) {
   const [pinMsg, setPinMsg] = useState("");
   const ownerPin = partyData?.ownerPin;
 
-  const chooseSeason = (id) => {
-    if (db) set(ref(db, "teaHouse/season"), { value: id, by: api.nickname }).catch(() => {});
-  };
   const login = (e) => {
     e.preventDefault();
     if (!ownerPin) return setPinMsg("data.js에 ownerPin(사장님 비밀번호)을 먼저 적어 주세요.");
@@ -116,28 +112,8 @@ function SettingsPanel({ tea, api, onOpenOwner }) {
       <div className="border-4 border-[#f5e6c8] p-3 text-white">
         <p className="font-black text-amber-300">⚙️ 찻집 설정</p>
 
-        {/* 🪟 사계절 통창 */}
-        <p className="mt-3 text-sm font-bold">🪟 통창 풍경</p>
-        <div className="mt-1.5 grid grid-cols-2 gap-1.5">
-          {SEASONS.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => chooseSeason(s.id)}
-              className={`${BTN} flex items-center gap-1.5 ${s.id === "rain" ? "col-span-2" : ""} ${tea.season === s.id ? "bg-amber-400 text-[#2b1d1a]" : "bg-[#f5e6c8] text-[#2b1d1a]"}`}
-            >
-              <span className="text-lg">{s.icon}</span>
-              <span className="text-left leading-tight">
-                {s.label}
-                <span className="block text-[10px] font-bold opacity-70">{s.sub}</span>
-              </span>
-            </button>
-          ))}
-        </div>
-        <p className="mt-1 text-[11px] text-white/50">찻집에 있는 모두의 창밖이 함께 바뀌어요{tea.seasonBy ? ` · 마지막 변경: ${tea.seasonBy}님` : ""}</p>
-
         {/* 🎧 백색소음 믹서 (나만 들려요) */}
-        <div className="mt-4 border-t-2 border-white/15 pt-3">
+        <div className="mt-3">
           <NoiseMixer />
         </div>
 

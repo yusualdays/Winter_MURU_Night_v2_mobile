@@ -140,7 +140,7 @@ function MenuDetail({ item, status, nickname, onBack }) {
 export default function TeaMenuBoard({ open, onClose, items = [], menuStatus = {}, nickname }) {
   const [selectedId, setSelectedId] = useState(null);
   const tm = partyData?.teaMenu ?? {};
-  const showroom = safeUrl(tm.showroomUrl);
+  const showroom = partyData.shopOpen ? safeUrl(tm.showroomUrl) : ""; // 🛍️ 쇼핑 준비 전이면 숨겨요
   useEffect(() => {
     if (!open) setSelectedId(null);
   }, [open]);

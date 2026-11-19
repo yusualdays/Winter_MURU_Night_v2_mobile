@@ -166,7 +166,7 @@ function Result({ kind, stars, comment, shopUrl, shopLabel, onTake, onAgain, tak
         {taken ? "✅ 테이블로 보냈어요! 자리에서 드셔 보세요" : `🪑 내 테이블로 가져가기`}
       </button>
       {taken && <p className="text-xs text-white/60">앉아 있지 않다면, 다음에 앉는 자리 테이블에 놓여요.</p>}
-      {shopUrl && (
+      {partyData.shopOpen && shopUrl && (
         <a href={shopUrl} target="_blank" rel="noopener noreferrer" className={`${BTN} block w-full bg-amber-400 text-[#2b1d1a]`}>
           🛍️ {shopLabel}
         </a>

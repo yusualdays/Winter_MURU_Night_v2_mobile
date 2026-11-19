@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import SimpleRoom from "../components/SimpleRoom";
 import { TeaNpc, TeaNpcLabel } from "../components/TeaNpc";
-import SeasonWindow from "../components/SeasonWindow";
+import SeasonWindow, { seasonByDate } from "../components/SeasonWindow";
+import { partyData } from "../data";
 import TeaHouseHud, { useTeaHouse } from "../components/TeaHouseHud";
 import TeaMenuBoard from "../components/TeaMenuBoard";
 import TeaCraftModal from "../components/TeaCraft";
@@ -58,7 +59,7 @@ const TALK_LINES = [
   "다른 손님 캐릭터를 누르면 1:1 찻자리 대화를 청할 수도 있어요. 수줍어하지 마세요!",
   "포스기 옆으로 오시면 차림표를 보거나, 다식·말차 만들기 미니게임을 할 수 있어요.",
   "오른쪽 위 📖 공부 집중 모드도 있고요, 창가 라디오에서 음악이랑 빗소리를 고를 수 있어요.",
-  "왼쪽 아래 책장엔 손님들이 남긴 책갈피가, 오른쪽 선반엔 다구 쇼룸이 있어요.",
+  partyData.shopOpen ? "왼쪽 아래 책장엔 손님들이 남긴 책갈피가, 오른쪽 선반엔 다구 쇼룸이 있어요." : "왼쪽 아래 책장엔 손님들이 남긴 책갈피가 있어요. 마음에 드는 책을 골라 보세요!",
   "위쪽 문은 🛋️ 거실, 오른쪽 아래 통로는 🖼️ 전시실로 이어져요. 오픈 기간에만 열려요!",
   "그럼 편안한 시간 보내세요. 궁금한 게 생기면 포스기 옆에서 저를 불러 주세요 😊",
 ];
@@ -131,7 +132,7 @@ const BLOCKERS = [
 
 // ---------------- 💬 상호작용 포인트 ----------------
 //  rect = 버튼이 뜨는 곳(그림 위) / near = 이 근처에 서면 버튼이 떠요 / radius = 거리 (맵 px)
-const SPOTS = [
+const ALL_SPOTS = [
   // 포스기 옆(카운터 왼쪽)에 서면 → [차림표 보기 · 미니게임 · 다연에게 말 걸기]
   { id: "counterSide", rect: { x: 0.652, y: 0.215, w: 0.046, h: 0.03 }, near: { x: 0.612, y: 0.4 }, radius: 85, icon: "💬", title: "말걸기" },
   { id: "counter", rect: { x: 0.646, y: 0.2, w: 0.16, h: 0.03 }, near: { x: 0.72, y: 0.56 }, radius: 120, icon: "💬", title: "말걸기" },
@@ -141,6 +142,9 @@ const SPOTS = [
 ];
 
 // 다연이 말하는 동안에는 카운터 버튼을 숨겨요 (말풍선을 가리지 않게)
+// 🛍️ 쇼핑(스마트스토어·공동구매)이 아직 준비 전이면 → 다구 쇼룸 선반 버튼을 숨겨요 (data.js shopOpen)
+const SHOP_OPEN = !!partyData.shopOpen;
+const SPOTS = SHOP_OPEN ? ALL_SPOTS : ALL_SPOTS.filter((sp) => sp.id !== "showroom");
 const SPOTS_DURING_TALK = SPOTS.filter((sp) => sp.id !== "counter" && sp.id !== "counterSide");
 
 // ---------------- 🚪 통로 (zone = 발이 닿으면 이동하는 경계) ----------------
@@ -222,9 +226,14 @@ export default function CafePage() {
   const tea = useTeaHouse();
   const nicknameRef = useRef("");
   const [debug, setDebug] = useState(false);
+  // 🪟 창밖 풍경 = 접속한 날짜의 계절 (자동) · 확인용: 주소 끝에 ?season=rain 처럼 붙이면 그 풍경
+  const [season, setSeason] = useState("winter");
   useEffect(() => {
     try {
-      setDebug(new URLSearchParams(window.location.search).has("debug"));
+      const q = new URLSearchParams(window.location.search);
+      setDebug(q.has("debug"));
+      const test = q.get("season");
+      setSeason(["spring", "summer", "autumn", "winter", "rain"].includes(test) ? test : seasonByDate(new Date()));
     } catch {}
   }, []);
   // 카운터 창에서 고른 것 (menu | craft | guide) — 카운터 창 대신 그 창을 열어요
@@ -329,7 +338,7 @@ export default function CafePage() {
     >
       <CafeScene
         npcBubble={npcBubble}
-        season={tea.season}
+        season={season}
         orders={tea.orders}
         debug={debug}
         npcAlert={npcAlert}
