@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useImgOk, craftSrc } from "./CraftImg";
 
 // 🎧 전시회 청음실 (아래 가운데) — 고급 LP 플레이어 + 음반 거치대 + 유튜브 재생목록
 //  - 재생목록은 app/spaceData.js 의 galleryData.listening.playlists 에 유튜브 링크를 적어요
 //    (재생목록 링크 https://www.youtube.com/playlist?list=... 또는 영상 링크 https://youtu.be/... 모두 돼요)
 //  - 손님이 직접 링크를 붙여 넣어 들을 수도 있어요
 //  - 음악은 "나만" 들려요. 유튜브 규칙에 따라 화면 아래에 가장 작은 크기(200×200) 영상 플레이어가 떠요
-//  - 전시회를 나가면 음악이 멈춰요
+//  - 청음실을 벗어나 전시회 안을 돌아다녀도 계속 재생돼요 (전시회를 나가면 멈춰요)
+//  - 🎨 그림 파일 public/craft/gallery_listening.png (가로:세로 = 2:1, 투명 배경)을 넣으면 코드 그림 대신 그 그림이 보여요
 
 // 유튜브 링크 → 퍼가기 주소 (재생목록이면 videoseries, 영상이면 영상 id)
 export function toEmbed(url) {
@@ -29,7 +31,7 @@ export function toEmbed(url) {
     if (m && m[1] !== "videoseries") video = clean(m[1]);
   }
   const base = "https://www.youtube-nocookie.com/embed/";
-  const q = "autoplay=1&playsinline=1&rel=0&modestbranding=1";
+  const q = "autoplay=1&playsinline=1&rel=0&modestbranding=1&enablejsapi=1"; // enablejsapi: 설정 창에서 음악 소리 조절
   if (video) return `${base}${video}?${q}${list ? `&list=${list}` : `&loop=1&playlist=${video}`}`;
   if (list) return `${base}videoseries?list=${list}&${q}&loop=1`;
   return null;
@@ -39,7 +41,20 @@ const SLEEVES = ["#7f1d1d", "#1e3a5f", "#b45309", "#14532d", "#4c1d95", "#0f172a
 
 // ---------------- 🗺️ 지도 위 그림 (픽셀 SVG) ----------------
 // area: 0~1 비율 { x, y, w, h } — 카펫 전체 자리. 안에 음반 거치대 · LP 콘솔 · 스피커
-export function ListeningCorner({ area, playing }) {
+export function ListeningCorner({ area, imgArea, playing }) {
+  const hasImg = useImgOk("gallery_listening");
+  if (hasImg) {
+    const a = imgArea ?? area;
+    return (
+      <div className="pointer-events-none absolute" style={{ left: `${a.x * 100}%`, top: `${a.y * 100}%`, width: `${a.w * 100}%`, height: `${a.h * 100}%` }}>
+        <style>{`@keyframes lp-note{0%{opacity:0;transform:translate(0,0)}20%{opacity:1}100%{opacity:0;transform:translate(14px,-46px)}}@keyframes lp-glow{50%{opacity:.55}}`}</style>
+        <img src={craftSrc("gallery_listening")} alt="" draggable={false} className="h-full w-full select-none" style={{ imageRendering: "pixelated" }} />
+        {playing && <div className="absolute left-1/2 top-[18%] h-[50%] w-[45%] -translate-x-1/2 rounded-full" style={{ background: "radial-gradient(closest-side, rgba(255,214,120,.45), transparent)", animation: "lp-glow 2.4s ease-in-out infinite" }} />}
+        {playing && <Notes />}
+      </div>
+    );
+  }
+  if (hasImg === null) return null;
   return (
     <div className="pointer-events-none absolute" style={{ left: `${area.x * 100}%`, top: `${area.y * 100}%`, width: `${area.w * 100}%`, height: `${area.h * 100}%` }}>
       <style>{`@keyframes lp-spin{to{transform:rotate(360deg)}}@keyframes lp-note{0%{opacity:0;transform:translate(0,0)}20%{opacity:1}100%{opacity:0;transform:translate(14px,-46px)}}`}</style>
@@ -122,18 +137,21 @@ export function ListeningCorner({ area, playing }) {
         </g>
       </svg>
       {/* 🎵 음표 (내가 듣는 중일 때) */}
-      {playing &&
-        [0, 1, 2].map((i) => (
-          <span key={i} className="absolute text-2xl text-[#c9a24a]" style={{ left: `${48 + i * 6}%`, top: "-4%", animation: `lp-note 2.4s ${i * 0.8}s ease-out infinite`, opacity: 0, textShadow: "1px 1px 0 #2b1d1a" }}>
-            {i % 2 ? "♫" : "♪"}
-          </span>
-        ))}
+      {playing && <Notes />}
       {/* 팻말 */}
       <span className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap border-4 border-[#2b1d1a] bg-[#2b1d1a] px-2 py-0.5 text-base font-black tracking-wider text-[#e5c76b] shadow-[3px_3px_0_0_rgba(0,0,0,0.35)]" style={{ top: "-16%" }}>
         🎧 청음실
       </span>
     </div>
   );
+}
+
+function Notes() {
+  return [0, 1, 2].map((i) => (
+    <span key={i} className="absolute text-2xl text-[#c9a24a]" style={{ left: `${48 + i * 6}%`, top: "-4%", animation: `lp-note 2.4s ${i * 0.8}s ease-out infinite`, opacity: 0, textShadow: "1px 1px 0 #2b1d1a" }}>
+      {i % 2 ? "♫" : "♪"}
+    </span>
+  ));
 }
 
 // ---------------- 🎧 고르기 창 (모달 안) ----------------
@@ -217,7 +235,32 @@ export function ListeningPicker({ playlists = [], playing, onPlay, onStop }) {
 }
 
 // ---------------- 📺 왼쪽 아래 작은 플레이어 (유튜브 규칙: 영상이 보여야 하고 최소 200×200) ----------------
-export function MiniPlayer({ playing, onStop }) {
+// volume: 0~100 (⚙️ 설정의 음악 소리) — 유튜브 플레이어에 postMessage로 알려줘요
+export function MiniPlayer({ playing, onStop, volume = 70 }) {
+  const frameRef = useRef(null);
+  const volRef = useRef(volume);
+  volRef.current = volume;
+  const send = (func, args = []) => {
+    try {
+      frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "command", func, args }), "*");
+    } catch {}
+  };
+  const applyVol = () => {
+    const v = volRef.current;
+    if (v <= 0) send("mute");
+    else {
+      send("unMute");
+      send("setVolume", [v]);
+    }
+  };
+  useEffect(applyVol, [volume]);
+  // 플레이어가 준비되는 데 시간이 걸려서, 처음 몇 번 더 알려줘요
+  const onLoad = () => {
+    try {
+      frameRef.current?.contentWindow?.postMessage(JSON.stringify({ event: "listening", id: 1 }), "*");
+    } catch {}
+    [300, 1200, 3000, 6000].forEach((t) => setTimeout(applyVol, t));
+  };
   if (!playing) return null;
   return (
     <div className="fixed z-[45] w-[208px] border-4 border-[#1a110e] bg-[#2b1d1a] shadow-[4px_4px_0_0_rgba(0,0,0,0.45)]" style={{ bottom: "max(12px, var(--sab, 0px))", left: "max(12px, var(--sal, 0px))" }}>
@@ -230,7 +273,9 @@ export function MiniPlayer({ playing, onStop }) {
       </div>
       <iframe
         key={playing.embed}
-        src={playing.embed}
+        ref={frameRef}
+        onLoad={onLoad}
+        src={`${playing.embed}&origin=${encodeURIComponent(typeof window !== "undefined" ? window.location.origin : "")}`}
         title={`유튜브 플레이어 - ${playing.title}`}
         width="200"
         height="200"

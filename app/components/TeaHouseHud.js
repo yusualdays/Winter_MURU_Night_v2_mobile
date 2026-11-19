@@ -91,8 +91,8 @@ const BTN = `${BOX} px-3 py-1.5 text-sm font-black active:translate-y-0.5 active
 const INPUT = "w-full border-4 border-[#1a110e] bg-[#fdf6e3] px-3 py-2 text-sm text-[#2b1d1a] outline-none placeholder:text-[#2b1d1a]/40 focus:border-amber-400";
 
 // ---------------- ⚙️ 설정 창 ----------------
-// title: 창 제목 (전시회에서도 같이 써요), onOpenOwner가 없으면 [📋 사장님 관리] 버튼을 숨겨요, children: 맨 아래 덧붙일 칸
-export function SettingsPanel({ api, onOpenOwner, title = "⚙️ 찻집 설정", children }) {
+// title: 창 제목 (전시회에서도 같이 써요), noise: 백색소음 믹서 보이기, top: 맨 위에 덧붙일 칸, onOpenOwner가 없으면 [📋 사장님 관리] 버튼을 숨겨요, children: 맨 아래 덧붙일 칸
+export function SettingsPanel({ api, onOpenOwner, title = "⚙️ 찻집 설정", noise = true, top = null, children }) {
   const [pin, setPin] = useState("");
   const [pinMsg, setPinMsg] = useState("");
   const ownerPin = partyData?.ownerPin;
@@ -113,10 +113,13 @@ export function SettingsPanel({ api, onOpenOwner, title = "⚙️ 찻집 설정"
       <div className="border-4 border-[#f5e6c8] p-3 text-white">
         <p className="font-black text-amber-300">{title}</p>
 
-        {/* 🎧 백색소음 믹서 (나만 들려요) */}
-        <div className="mt-3">
-          <NoiseMixer />
-        </div>
+        {/* 🎧 백색소음 믹서 (나만 들려요) — 전시회에서는 끄고 top(조명·음악)으로 바꿔요 */}
+        {noise && (
+          <div className="mt-3">
+            <NoiseMixer />
+          </div>
+        )}
+        {top}
 
         {/* 🔓 테스트용 강제 오픈 (호스트·사장님) */}
         {(isHost(api.nickname) || api.isOwner) && (

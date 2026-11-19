@@ -20,8 +20,9 @@ import { ListeningCorner, ListeningPicker, MiniPlayer } from "../components/Gall
 const MAP_W = 1600;
 const MAP_H = 1200;
 const BG_IMAGE = "/gallery_bg.png";
-const WALL_BOTTOM = 0.335; // 벽 아래 끝 (바닥 시작)
-const FLOOR = { x: 0.05, y: WALL_BOTTOM, r: 0.95, b: 0.935 }; // 바닥 테두리
+const WALL_BOTTOM = 0.335; // 벽 아래 끝 (바닥 시작, 그림 기준)
+const WALK_TOP = 0.41; // 발이 올라갈 수 있는 맨 위 (벽에 너무 붙어 머리가 액자를 덮지 않게)
+const FLOOR = { x: 0.05, y: WALK_TOP, r: 0.948, b: 0.928 }; // 걸을 수 있는 바닥 테두리
 const DOOR = { y: 0.53, h: 0.1 }; // 왼쪽 문 (찻집으로)
 
 // 작품 자리: inner = 액자 안쪽 그림 칸, frame = 버튼이 뜨는 곳, near = 이 근처에 서면 [🖼️ 작품 이름]
@@ -51,7 +52,7 @@ const BLOCKERS = [
   ...CASES.map((c) => ({ x: c.body.x, y: c.body.y - 0.03, w: c.body.w, h: c.body.h + 0.03 })), // 유리 진열장 (유리 위로 못 올라가게 전체)
   { x: BENCH.x, y: BENCH.y - 0.01, w: BENCH.w, h: BENCH.h + 0.01 }, // 벤치 (위에 못 서게 전체)
   { x: FLOOR.x, y: 0.66, w: 0.1, h: 0.3 }, // 화분 + 방명록 탁자
-  { x: 0.36, y: 0.72, w: 0.28, h: 0.175 }, // 🎧 청음실 (음반 거치대 · LP 콘솔 · 스피커)
+  { x: 0.355, y: 0.725, w: 0.29, h: 0.17 }, // 🎧 청음실 (음반 거치대 · LP 콘솔 · 스피커)
 ];
 
 // 🪑 가운데 벤치 (앉아서 작품 감상) — stands: 앞·뒤·옆 어디서 다가가도 앉을 수 있어요 — 앞이 트인 벤치라 legs: true (다리를 자르지 않고 벤치 앞으로 늘어뜨려요)
@@ -68,6 +69,28 @@ const GUESTBOOK_ID = "guestbook";
 // 🎧 아래 가운데 청음실 (카펫 전체 자리) — 거치대·LP 콘솔·스피커는 못 지나가고, 앞(아래)에 서면 [🎧 음악 듣기]
 const LISTEN = { x: 0.34, y: 0.743, w: 0.32, h: 0.192 };
 const LISTEN_ID = "listening";
+// 🎨 그림 파일(public/craft/gallery_listening.png, 2:1)을 넣으면 이 자리에 그려져요
+const LISTEN_IMG = { x: 0.33, y: 0.703, w: 0.34, h: 0.227 };
+
+// 💡 조명 (⚙️ 설정, 나에게만) — 밤 전시: 어둡게 + 작품·청음실에만 스포트라이트
+const SPOTLIGHTS = [
+  ...WALL_FRAMES.map((f) => ({ x: f.inner.x + f.inner.w / 2, y: f.inner.y + f.inner.h / 2, r: 0.11 })),
+  ...CASES.map((c) => ({ x: c.body.x + c.body.w / 2, y: c.body.y + 0.1, r: 0.09 })),
+  { x: 0.5, y: 0.82, r: 0.15 },
+];
+function Lighting({ mode }) {
+  if (mode === "warm") return <div className="pointer-events-none absolute inset-0" style={{ zIndex: 2350, background: "radial-gradient(ellipse at 50% 40%, rgba(255,190,110,0.10), rgba(40,20,5,0.38))", mixBlendMode: "multiply" }} />;
+  if (mode !== "spot") return null;
+  const holes = SPOTLIGHTS.map((s) => `radial-gradient(ellipse ${s.r * 100}% ${s.r * 133}% at ${s.x * 100}% ${s.y * 100}%, transparent 35%, black 100%)`).join(",");
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-0" style={{ zIndex: 2350, background: "rgba(8,6,12,0.68)", maskImage: holes, WebkitMaskImage: holes, maskComposite: "intersect", WebkitMaskComposite: "source-in" }} />
+      {SPOTLIGHTS.map((s, i) => (
+        <div key={i} className="pointer-events-none absolute" style={{ zIndex: 2351, left: `${(s.x - s.r) * 100}%`, top: `${(s.y - s.r * 1.33) * 100}%`, width: `${s.r * 200}%`, height: `${s.r * 266}%`, background: "radial-gradient(closest-side, rgba(255,220,150,0.16), transparent)" }} />
+      ))}
+    </>
+  );
+}
 
 const SPOTS = [
   ...placed.map((p) => ({ id: p.art.id, rect: p.inner, near: p.near, radius: 110, icon: "🖼️", title: p.art.title })),
@@ -112,7 +135,7 @@ function ArtImage({ art, index, big = false }) {
   );
 }
 
-function GalleryScene({ playing }) {
+function GalleryScene({ playing, light }) {
   const [debug, setDebug] = useState(false);
   useEffect(() => {
     try {
@@ -135,7 +158,8 @@ function GalleryScene({ playing }) {
       )}
 
       {/* 🎧 청음실 */}
-      <ListeningCorner area={LISTEN} playing={!!playing} />
+      <ListeningCorner area={LISTEN} imgArea={LISTEN_IMG} playing={!!playing} />
+      <Lighting mode={light} />
 
       {/* 📖 방명록 책상 팻말 */}
       <div className="pointer-events-none absolute -translate-x-1/2 whitespace-nowrap border-4 border-[#2b1d1a] bg-[#f5e6c8] px-2 py-0.5 text-base font-black text-[#2b1d1a] shadow-[3px_3px_0_0_rgba(0,0,0,0.35)]" style={{ left: `${(DESK.x + DESK.w / 2) * 100}%`, top: `${(DESK.y - 0.045) * 100}%`, zIndex: 50 }}>
@@ -159,7 +183,29 @@ function GalleryScene({ playing }) {
 
 export default function GalleryPage() {
   const guestbook = useGuestbook();
-  const [playing, setPlaying] = useState(null); // 🎧 지금 듣는 음악 { title, embed } (나만 들려요)
+  const [playing, setPlaying] = useState(null); // 🎧 지금 듣는 음악 { title, embed } (나만 들려요, 전시회 안에서는 계속 재생)
+  const [light, setLight] = useState("day"); // 💡 조명
+  const [volume, setVolume] = useState(70); // 🎵 음악 소리
+  useEffect(() => {
+    try {
+      const l = localStorage.getItem("galleryLight");
+      if (["day", "warm", "spot"].includes(l)) setLight(l);
+      const v = Number(localStorage.getItem("galleryVolume"));
+      if (localStorage.getItem("galleryVolume") !== null && v >= 0 && v <= 100) setVolume(v);
+    } catch {}
+  }, []);
+  const changeLight = (l) => {
+    setLight(l);
+    try {
+      localStorage.setItem("galleryLight", l);
+    } catch {}
+  };
+  const changeVolume = (v) => {
+    setVolume(v);
+    try {
+      localStorage.setItem("galleryVolume", String(v));
+    } catch {}
+  };
   return (
     <SimpleRoom
       roomId="exhibitionRoom"
@@ -175,8 +221,8 @@ export default function GalleryPage() {
       seats={SEATS}
       hud={(api) => (
         <>
-          <GalleryHud api={api} guestbookCount={guestbook.length} onOpenGuestbook={() => api.openDetail(GUESTBOOK_ID)} />
-          <MiniPlayer playing={playing} onStop={() => setPlaying(null)} />
+          <GalleryHud api={api} guestbookCount={guestbook.length} onOpenGuestbook={() => api.openDetail(GUESTBOOK_ID)} light={light} onLight={changeLight} volume={volume} onVolume={changeVolume} playing={playing} />
+          <MiniPlayer playing={playing} volume={volume} onStop={() => setPlaying(null)} />
         </>
       )}
       renderModals={(openId, close, api) => [
@@ -208,7 +254,7 @@ export default function GalleryPage() {
         )),
       ]}
     >
-      <GalleryScene playing={playing} />
+      <GalleryScene playing={playing} light={light} />
     </SimpleRoom>
   );
 }

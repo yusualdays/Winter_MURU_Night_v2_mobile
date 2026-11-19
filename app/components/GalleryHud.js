@@ -4,10 +4,49 @@ import { useState } from "react";
 import { SettingsPanel } from "./TeaHouseHud";
 
 // 🖼️ 전시회 화면 위 UI — 오른쪽 위 ⚙️ 설정 (찻집과 같은 모양)
-//  - 🎧 백색소음 · 🔓 미리 열기(호스트·사장님) · 🔑 사장님 인증 (사장님은 방명록 글을 지울 수 있어요)
+//  - 💡 조명 (나에게만 보여요) · 🎵 음악 소리 (청음실 유튜브) · 🔓 미리 열기(호스트·사장님) · 🔑 사장님 인증
 //  - 📖 방명록 바로 열기 (책상까지 안 걸어가도 돼요)
-export default function GalleryHud({ api, guestbookCount = 0, onOpenGuestbook }) {
+export const LIGHTS = [
+  { id: "day", icon: "☀️", name: "환하게" },
+  { id: "warm", icon: "🕯️", name: "은은하게" },
+  { id: "spot", icon: "🔦", name: "밤 전시" },
+];
+
+export default function GalleryHud({ api, guestbookCount = 0, onOpenGuestbook, light, onLight, volume, onVolume, playing }) {
   const [open, setOpen] = useState(false);
+  const top = (
+    <>
+      {/* 💡 조명 */}
+      <div className="mt-3">
+        <p className="text-xs font-black text-amber-200">💡 전시실 조명 <span className="font-bold text-white/50">(나에게만 보여요)</span></p>
+        <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+          {LIGHTS.map((l) => (
+            <button
+              key={l.id}
+              type="button"
+              aria-pressed={light === l.id}
+              onClick={() => onLight(l.id)}
+              className={`border-4 px-1 py-1.5 text-xs font-black ${light === l.id ? "border-amber-400 bg-amber-400 text-[#2b1d1a]" : "border-[#1a110e] bg-[#f5e6c8] text-[#2b1d1a]"}`}
+            >
+              <span className="block text-lg leading-none">{l.icon}</span>
+              {l.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 🎵 음악 소리 */}
+      <div className="mt-4">
+        <p className="text-xs font-black text-amber-200">🎵 청음실 음악 소리</p>
+        <label className="mt-1.5 flex items-center gap-2 text-sm text-white">
+          <span className="w-6 text-center">{volume === 0 ? "🔇" : volume < 40 ? "🔈" : "🔊"}</span>
+          <input type="range" min="0" max="100" value={volume} onChange={(e) => onVolume(Number(e.target.value))} className="h-2 min-w-0 flex-1 accent-amber-400" aria-label="음악 소리" />
+          <span className="w-8 text-right text-xs tabular-nums text-white/60">{volume}</span>
+        </label>
+        <p className="mt-1 text-[11px] text-white/50">{playing ? `💿 지금: ${playing.title}` : "청음실(아래 가운데)에서 LP를 골라 틀어 보세요"}</p>
+      </div>
+    </>
+  );
   return (
     <div className="safe-top safe-right fixed z-40 flex flex-col items-end gap-2">
       <button
@@ -20,7 +59,7 @@ export default function GalleryHud({ api, guestbookCount = 0, onOpenGuestbook })
         ⚙️
       </button>
       {open && (
-        <SettingsPanel api={api} title="⚙️ 전시회 설정">
+        <SettingsPanel api={api} title="⚙️ 전시회 설정" noise={false} top={top}>
           <div className="mt-4 border-t-4 border-dashed border-white/15 pt-3">
             <button
               type="button"
