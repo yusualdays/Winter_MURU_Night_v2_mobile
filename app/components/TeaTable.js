@@ -41,41 +41,65 @@ function useNow(watch) {
 
 // ---------- 테이블 위 다관·찻잔·다식 접시 ----------
 //  그림 파일(public/craft/table_*.png 등)이 있으면 그 그림, 없으면 코드로 그린 그림
-function TeaSet({ tea }) {
-  const now = useNow(tea.at);
-  const pouring = isPouring(tea, now);
-  const cupName = pouring ? "table_cup_empty" : "table_cup_full";
+//  모든 물건은 "테이블 상판 위"에만 놓여요 (자리마다 자기 앞 상판 칸)
+//   - 2인 테이블(옆으로 앉는 자리): 상판 반쪽에 2줄 — 뒷줄 다관·찻잔 / 앞줄 다식 접시·내가 만든 것
+//   - 단체석(위·아래로 앉는 자리): 자기 앞 상판에 한 줄로 나란히
+const SIZE = { pot: 30, cup: 19, plate: 36, dasik: 32, matcha: 27 };
+
+// 물건 하나 (cx = 가운데, by = 바닥 높이, w = 폭 · 자리 기준 px)
+function Spot({ cx, by, w, z = 0, children }) {
   return (
-    <div className="absolute" style={{ left: -34, top: -34, width: 76, height: 52 }}>
-      {/* 찻잔 + 김 */}
-      <div className="absolute" style={{ left: 38, top: 22, width: 30 }}>
-        <CraftImg
-          key={cupName}
-          name={cupName}
-          className="w-full"
-          fallback={
-            <svg width="22" height="18" viewBox="0 0 7 6" shapeRendering="crispEdges" className="mt-1">
-              <rect x="0" y="0" width="6" height="1" fill="#2b1d1a" />
-              <rect x="0.3" y="1" width="5.4" height="4" fill="#ffffff" stroke="#2b1d1a" strokeWidth="0.3" />
-              {!pouring && <rect x="1" y="1" width="4" height="1" fill="#7a9a55" />}
-            </svg>
-          }
-        />
-      </div>
-      {!pouring && (
-        <div className="absolute" style={{ left: 40, top: 2 }}>
-          {[0, 1].map((i) => (
-            <span key={i} className="tea-steam absolute h-4 w-2.5 rounded-full bg-white/80 blur-[2px]" style={{ left: 4 + i * 8, animationDelay: `${i * 0.6}s` }} />
-          ))}
-        </div>
-      )}
-      {/* 다관 (따르는 2초 동안 찻잔 쪽으로 기울어져요) */}
-      <div className="absolute" style={{ left: pouring ? 10 : 0, top: pouring ? 0 : 12, width: 42, transformOrigin: "80% 70%", transform: pouring ? "rotate(35deg)" : "none", transition: "all 0.3s" }}>
+    <div className="absolute flex items-end justify-center" style={{ left: cx - w / 2, top: by - w, width: w, height: w, zIndex: z }}>
+      {children}
+    </div>
+  );
+}
+
+// 자리 모양에 따라 물건 자리 정하기 (side: 1 = 앉은 사람이 오른쪽, -1 = 왼쪽)
+function layoutFor(seat, o) {
+  const hasTea = !!o.tea;
+  const front = [o.sweets && "sweets", o.crafted && "crafted"].filter(Boolean);
+  const wOf = (k) => (k === "sweets" ? SIZE.plate : o.crafted?.kind === "matcha" ? SIZE.matcha : SIZE.dasik);
+  const L = {};
+  if (seat.dir === "left" || seat.dir === "right") {
+    // 2인 테이블 상판 반쪽 (가로 약 60px · 세로 약 75px)
+    const s = seat.dir === "left" ? 1 : -1;
+    if (hasTea) {
+      L.pot = { cx: -10 * s, by: -12, w: SIZE.pot };
+      L.cup = { cx: 17 * s, by: -14, w: SIZE.cup };
+    }
+    const by = hasTea ? 26 : 10;
+    const xs = front.length === 2 ? [-11 * s, 17 * s] : [3 * s];
+    front.forEach((k, i) => (L[k] = { cx: xs[i], by, w: wOf(k) }));
+    L.flip = s < 0; // 왼쪽 사람: 다관 주둥이가 왼쪽(찻잔 쪽)을 보게
+  } else {
+    // 단체석: 한 줄로 나란히 (다관 · 찻잔 · 접시 · 내가 만든 것)
+    const row = [];
+    if (hasTea) row.push(["pot", SIZE.pot], ["cup", SIZE.cup]);
+    front.forEach((k) => row.push([k, wOf(k)]));
+    const gap = 3;
+    const total = row.reduce((t, [, w]) => t + w, 0) + gap * (row.length - 1);
+    let x = -total / 2;
+    row.forEach(([k, w]) => {
+      L[k] = { cx: x + w / 2, by: k === "cup" ? -2 : 0, w };
+      x += w + gap;
+    });
+    L.flip = false;
+  }
+  return L;
+}
+
+function TeaPot({ at, flip }) {
+  const now = useNow(at);
+  const pouring = isPouring({ at }, now);
+  return (
+    <div className="h-full w-full" style={{ transform: flip ? "scaleX(-1)" : undefined }}>
+      <div className="h-full w-full" style={{ transformOrigin: "60% 95%", transform: pouring ? "translate(5px,-4px) rotate(32deg)" : "none", transition: "transform 0.3s" }}>
         <CraftImg
           name="table_teapot"
           className="w-full"
           fallback={
-            <svg width="30" height="24" viewBox="0 0 10 8" shapeRendering="crispEdges">
+            <svg width="100%" viewBox="0 0 10 8" shapeRendering="crispEdges" style={{ marginTop: "25%" }}>
               <rect x="3" y="0" width="3" height="1" fill="#2b1d1a" />
               <rect x="1" y="1" width="7" height="6" fill="#7aa58a" stroke="#2b1d1a" strokeWidth="0.35" />
               <rect x="2" y="2" width="2" height="1" fill="#a7c9b3" />
@@ -84,28 +108,58 @@ function TeaSet({ tea }) {
           }
         />
       </div>
-      {pouring && <span className="tea-stream absolute block w-1 origin-top bg-[#9bbf6a]" style={{ left: 51, top: 10, height: 18 }} />}
     </div>
   );
 }
 
-// 다식 3개 (dasik_piece_1~3.png) — 한 입 먹을 때마다 하나씩 없어져요
-const PIECE_POS = [{ x: 14, y: 4 }, { x: 30, y: 2 }, { x: 46, y: 5 }];
-function SweetsPlate({ sweets }) {
-  const left = Math.max(0, sweets.left ?? 0);
+function TeaCup({ at, spot }) {
+  const now = useNow(at);
+  const pouring = isPouring({ at }, now);
+  const name = pouring ? "table_cup_empty" : "table_cup_full";
   return (
-    <div className="absolute" style={{ left: -32, top: 6, width: 64, height: 36 }}>
+    <>
+      <CraftImg
+        key={name}
+        name={name}
+        className="w-full"
+        fallback={
+          <svg width="100%" viewBox="0 0 7 6" shapeRendering="crispEdges">
+            <rect x="0" y="0" width="6" height="1" fill="#2b1d1a" />
+            <rect x="0.3" y="1" width="5.4" height="4" fill="#ffffff" stroke="#2b1d1a" strokeWidth="0.3" />
+            {!pouring && <rect x="1" y="1" width="4" height="1" fill="#7a9a55" />}
+          </svg>
+        }
+      />
+      {/* 쪼르르 (따르는 2초) / 김 (다 따른 뒤) */}
+      {pouring ? (
+        <span className="tea-stream absolute left-1/2 block w-[3px] origin-top -translate-x-1/2 bg-[#9bbf6a]" style={{ top: -spot.w * 0.55, height: spot.w * 0.9 }} />
+      ) : (
+        [0, 1].map((i) => (
+          <span key={i} className="tea-steam absolute h-3.5 w-2 rounded-full bg-white/80 blur-[2px]" style={{ left: spot.w * 0.2 + i * 7, top: -8, animationDelay: `${i * 0.6}s` }} />
+        ))
+      )}
+    </>
+  );
+}
+
+// 다식 3개 (dasik_piece_1~3.png) — 한 입 먹을 때마다 하나씩 없어져요
+function SweetsPlate({ sweets, w }) {
+  const left = Math.max(0, sweets.left ?? 0);
+  const piece = Math.round(w * 0.36);
+  const xs = [0.27, 0.5, 0.73];
+  return (
+    <div className="relative h-full w-full">
       <CraftImg
         name="table_plate"
         className="absolute inset-x-0 bottom-0 w-full"
-        fallback={<span className="absolute inset-x-1.5 bottom-1 h-[22px] rounded-[50%] border-[3px] border-[#2b1d1a] bg-white" />}
+        fallback={<span className="absolute inset-x-0 bottom-0.5 h-[45%] rounded-[50%] border-[3px] border-[#2b1d1a] bg-white" />}
       />
       {Array.from({ length: left }, (_, i) => (
-        <div key={i} className="absolute -translate-x-1/2" style={{ left: PIECE_POS[i].x, top: PIECE_POS[i].y, width: 18 }}>
+        <div key={i} className="absolute -translate-x-1/2" style={{ left: `${xs[i] * 100}%`, bottom: w * (i === 1 ? 0.3 : 0.22), width: piece }}>
           <CraftImg
             name={`dasik_piece_${i + 1}`}
             className="w-full"
-            fallback={<span className="block h-3.5 w-3.5 border-2 border-[#2b1d1a]" style={{ background: DASIK_COLORS[i % 3], borderRadius: 3, marginTop: 8 }} />}
+            fallback={<span className="mx-auto block border-2 border-[#2b1d1a]" style={{ width: piece * 0.75, height: piece * 0.75, background: DASIK_COLORS[i % 3], borderRadius: 3 }} />}
           />
         </div>
       ))}
@@ -113,7 +167,7 @@ function SweetsPlate({ sweets }) {
   );
 }
 
-// 체험존에서 만든 다식·말차 (테이블 위) → 게임에서 완성한 그림 그대로
+// 체험존에서 만든 다식·말차 → 게임에서 완성한 그림 그대로
 //  말차: matcha_bowl_foam → 다 마시면 matcha_bowl_empty
 //  다식: {다식}_done (가래떡은 tteok_done) → 다 먹으면 table_plate
 function CraftedDish({ crafted }) {
@@ -123,21 +177,21 @@ function CraftedDish({ crafted }) {
   const matcha = crafted.kind === "matcha";
   const name = matcha ? (left ? "matcha_bowl_foam" : "matcha_bowl_empty") : left ? `${crafted.kind}_done` : "table_plate";
   const fallback = matcha ? (
-    <div className="relative h-[34px] w-10">
-      <span className="absolute inset-x-0 bottom-0 h-6 rounded-b-full border-[3px] border-[#1a110e] bg-[#3d3a36]" />
-      <span className="absolute inset-x-1 bottom-4 h-2.5 rounded-[50%]" style={{ background: left ? "#9fd8a8" : "#3d3a36", boxShadow: left ? "inset 0 0 0 2px #e9f8e4" : "none" }} />
+    <div className="relative h-[70%] w-full">
+      <span className="absolute inset-x-0 bottom-0 h-[70%] rounded-b-full border-[3px] border-[#1a110e] bg-[#3d3a36]" />
+      <span className="absolute inset-x-1 top-0 h-[35%] rounded-[50%]" style={{ background: left ? "#9fd8a8" : "#3d3a36", boxShadow: left ? "inset 0 0 0 2px #e9f8e4" : "none" }} />
     </div>
   ) : (
-    <div className="relative h-[34px] w-10">
-      <span className="absolute inset-x-0 bottom-0 h-4 rounded-[50%] border-[3px] border-[#2b1d1a] bg-white" />
-      <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-lg leading-none">{left ? info.emoji.repeat(Math.min(2, left)) : "·"}</span>
+    <div className="relative h-[70%] w-full">
+      <span className="absolute inset-x-0 bottom-0 h-[50%] rounded-[50%] border-[3px] border-[#2b1d1a] bg-white" />
+      <span className="absolute bottom-[25%] left-1/2 -translate-x-1/2 text-sm leading-none">{left ? info.emoji : "·"}</span>
     </div>
   );
   return (
-    <div className="absolute flex items-end justify-center" style={{ left: matcha ? 40 : 36, top: matcha ? -14 : -22, width: matcha ? 46 : 56, height: matcha ? 46 : 56 }}>
+    <>
       <CraftImg key={name} name={name} className="w-full" fallback={fallback} />
-      <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-black text-amber-200 [text-shadow:1px_1px_0_#000]">{"⭐".repeat(crafted.stars || 1)}</span>
-    </div>
+      <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap text-[8px] font-black leading-none text-amber-200 [text-shadow:1px_1px_0_#000]">{"⭐".repeat(crafted.stars || 1)}</span>
+    </>
   );
 }
 
@@ -146,19 +200,21 @@ export function TableItems({ orders = {}, seats = [], mapW, mapH }) {
   return (
     <>
       <style>{`
-        @keyframes tea-steam-rise { 0% { transform: translateY(0) scale(0.6); opacity: 0; } 30% { opacity: 0.8; } 100% { transform: translateY(-22px) scale(1.3); opacity: 0; } }
+        @keyframes tea-steam-rise { 0% { transform: translateY(0) scale(0.6); opacity: 0; } 30% { opacity: 0.8; } 100% { transform: translateY(-18px) scale(1.3); opacity: 0; } }
         .tea-steam { animation: tea-steam-rise 1.8s ease-out infinite; }
-        @keyframes tea-stream-grow { 0% { transform: scaleY(0); } 30%, 85% { transform: scaleY(1); } 100% { transform: scaleY(0); } }
+        @keyframes tea-stream-grow { 0%, 15% { transform: translateX(-50%) scaleY(0); } 35%, 85% { transform: translateX(-50%) scaleY(1); } 100% { transform: translateX(-50%) scaleY(0); } }
         .tea-stream { animation: tea-stream-grow ${POUR_MS}ms ease-in-out both; }
       `}</style>
       {seats.map((st) => {
         const o = orders[st.id];
         if (!o || !st.place || (!o.tea && !o.sweets && !o.crafted)) return null;
+        const L = layoutFor(st, o);
         return (
           <div key={st.id} className="pointer-events-none absolute" style={{ left: st.place.x * mapW, top: st.place.y * mapH, zIndex: 2000 }}>
-            {o.tea && <TeaSet tea={o.tea} />}
-            {o.sweets && <SweetsPlate sweets={o.sweets} />}
-            {o.crafted && <CraftedDish crafted={o.crafted} />}
+            {L.pot && <Spot {...L.pot} z={1}><TeaPot at={o.tea.at} flip={L.flip} /></Spot>}
+            {L.cup && <Spot {...L.cup} z={2}><TeaCup at={o.tea.at} spot={L.cup} /></Spot>}
+            {L.sweets && <Spot {...L.sweets} z={3}><SweetsPlate sweets={o.sweets} w={L.sweets.w} /></Spot>}
+            {L.crafted && <Spot {...L.crafted} z={4}><CraftedDish crafted={o.crafted} /></Spot>}
           </div>
         );
       })}

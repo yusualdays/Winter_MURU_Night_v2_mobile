@@ -86,9 +86,9 @@ const SHARE_TABLE = { x: 0.32, y: 0.755, w: 0.36, h: 0.125 };
 const SHARE_SEATS = [
   { id: "share1", group: "share", x: 0.39, y: 0.75, dir: "down", stand: { x: 0.39, y: 0.655 }, place: { x: 0.39, y: 0.79 }, label: "단체석에 앉기" },
   { id: "share2", group: "share", x: 0.61, y: 0.75, dir: "down", stand: { x: 0.61, y: 0.655 }, place: { x: 0.61, y: 0.79 }, label: "단체석에 앉기" },
-  { id: "share3", group: "share", x: 0.39, y: 0.95, dir: "up", stand: { x: 0.29, y: 0.94 }, place: { x: 0.39, y: 0.84 }, label: "단체석에 앉기" },
-  { id: "share4", group: "share", x: 0.5, y: 0.95, dir: "up", stand: { x: 0.5, y: 0.993 }, place: { x: 0.5, y: 0.84 }, label: "단체석에 앉기" },
-  { id: "share5", group: "share", x: 0.61, y: 0.95, dir: "up", stand: { x: 0.71, y: 0.94 }, place: { x: 0.61, y: 0.84 }, label: "단체석에 앉기" },
+  { id: "share3", group: "share", x: 0.39, y: 0.95, dir: "up", stand: { x: 0.29, y: 0.94 }, place: { x: 0.39, y: 0.832 }, label: "단체석에 앉기" },
+  { id: "share4", group: "share", x: 0.5, y: 0.95, dir: "up", stand: { x: 0.5, y: 0.993 }, place: { x: 0.5, y: 0.832 }, label: "단체석에 앉기" },
+  { id: "share5", group: "share", x: 0.61, y: 0.95, dir: "up", stand: { x: 0.71, y: 0.94 }, place: { x: 0.61, y: 0.832 }, label: "단체석에 앉기" },
 ];
 const ALL_SEATS = [...TABLE_SEATS, ...SHARE_SEATS];
 
