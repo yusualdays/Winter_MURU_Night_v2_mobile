@@ -33,6 +33,7 @@ export default function Avatar({
   emote = null,
   chat = null,
   sitting = false,
+  sitLegs = false, // 앉아도 다리를 보여줄지 (전시실 벤치처럼 앞이 트인 의자 — 다리가 벤치 앞으로 내려와요)
   isMe = false,
   owner = false, // 사장님 모드: 앞치마 + 닉네임 옆 🍵 배지
   eating = true, // 앉아 있을 때 냠냠 효과 (찻집 단체석에서는 끄기)
@@ -57,7 +58,7 @@ export default function Avatar({
       {/* 안쪽 전체: 앉으면 SIT_DROP만큼 아래로 (닉네임·말풍선도 머리를 따라 같이 내려가요) */}
       <div
         className="absolute inset-0"
-        style={{ transform: sitting ? `translateY(${SIT_DROP}px)` : undefined }}
+        style={{ transform: sitting && !sitLegs ? `translateY(${SIT_DROP}px)` : undefined }}
       >
         {/* 표정/건배 말풍선 (3초) */}
         <AnimatePresence>
@@ -101,7 +102,7 @@ export default function Avatar({
         <div
           className="absolute left-1/2 -translate-x-1/2"
           style={
-            sitting
+            sitting && !sitLegs
               ? { top: 0, height: SIT_H, overflow: 'hidden' }
               : { bottom: 0 }
           }

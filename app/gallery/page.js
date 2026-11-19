@@ -4,11 +4,15 @@ import { useEffect, useState } from "react";
 import SimpleRoom from "../components/SimpleRoom";
 import PixelModal from "../components/PixelModal";
 import { galleryData } from "../spaceData";
+import GalleryGuestbook, { useGuestbook } from "../components/GalleryGuestbook";
+import GalleryHud from "../components/GalleryHud";
 
 // 🖼️ 전시회 (exhibitionRoom) — 찻집 오른쪽 아래 통로로 와요
 //  - 배경 그림: public/gallery_bg.png (4:3) — 아래 좌표는 모두 이 그림 기준 0~1 비율. 주소 끝에 ?debug=1 → 장애물·버튼 위치 색칠
 //  - 작품은 app/spaceData.js의 galleryData.artworks (앞 4개 = 벽 액자, 5·6번째 = 유리 진열장, 최대 6개)
 //    image를 넣으면 그림 속 액자 안에 내 그림이 들어가고, 비워 두면 배경에 그려진 그림이 그대로 보여요
+//  - 왼쪽 아래 책상 → 📖 방명록 겸 감상 후기 (components/GalleryGuestbook.js, Firebase galleryGuestbook)
+//  - 오른쪽 위 ⚙️ → 전시회 설정 (components/GalleryHud.js)
 //  - 왼쪽 문(왼쪽 벽 가운데) → ☕ 찻집 (오른쪽 아래 통로 앞으로 돌아가요)
 //  - data.js의 eventSchedule 기간에만 들어올 수 있어요
 const MAP_W = 1600;
@@ -31,6 +35,7 @@ const CASES = [
 ];
 const SLOTS = [...WALL_FRAMES, ...CASES.map((c) => ({ ...c, inCase: true }))];
 const BENCH = { x: 0.415, y: 0.53, w: 0.17, h: 0.1 };
+const SEAT_FEET_Y = 0.612; // 벤치에 앉았을 때 발끝 높이
 
 const artworks = (galleryData?.artworks ?? []).slice(0, SLOTS.length);
 const placed = artworks.map((art, i) => ({ art, ...SLOTS[i] }));
@@ -46,13 +51,21 @@ const BLOCKERS = [
   { x: FLOOR.x, y: 0.66, w: 0.1, h: 0.3 }, // 화분 + 방명록 탁자
 ];
 
-// 🪑 가운데 벤치 (앉아서 작품 감상)
+// 🪑 가운데 벤치 (앉아서 작품 감상) — 앞이 트인 벤치라 legs: true (다리를 자르지 않고 벤치 앞으로 늘어뜨려요)
+//   legs 자리의 y = 발끝 높이 (엉덩이는 그보다 캐릭터 다리 길이만큼 위 = 벤치 앉는 판)
 const SEATS = [
-  { id: "bench1", x: 0.46, y: 0.6, dir: "down", stand: { x: 0.46, y: 0.69 }, label: "벤치에 앉기" },
-  { id: "bench2", x: 0.54, y: 0.6, dir: "down", stand: { x: 0.54, y: 0.69 }, label: "벤치에 앉기" },
+  { id: "bench1", x: 0.46, y: SEAT_FEET_Y, dir: "down", legs: true, stand: { x: 0.46, y: 0.69 }, label: "벤치에 앉기" },
+  { id: "bench2", x: 0.54, y: SEAT_FEET_Y, dir: "down", legs: true, stand: { x: 0.54, y: 0.69 }, label: "벤치에 앉기" },
 ];
 
-const SPOTS = placed.map((p) => ({ id: p.art.id, rect: p.inner, near: p.near, radius: 110, icon: "🖼️", title: p.art.title }));
+// 📖 왼쪽 아래 책상 (방명록) — 책상 오른쪽에 서면 [📖 방명록 쓰기]
+const DESK = { x: 0.055, y: 0.745, w: 0.09, h: 0.185 };
+const GUESTBOOK_ID = "guestbook";
+
+const SPOTS = [
+  ...placed.map((p) => ({ id: p.art.id, rect: p.inner, near: p.near, radius: 110, icon: "🖼️", title: p.art.title })),
+  { id: GUESTBOOK_ID, rect: DESK, near: { x: 0.19, y: 0.84 }, radius: 130, icon: "📖", title: "방명록 쓰기" },
+];
 
 // 왼쪽 문 → 찻집
 const EXITS = [{ id: "out", to: "teaHouse", zone: { x: 0, y: DOOR.y + 0.01, w: 0.03, h: DOOR.h - 0.02 }, sign: { x: 0.11, y: 0.44 }, label: "⬅ ☕ 찻집으로" }];
@@ -113,6 +126,11 @@ function GalleryScene() {
         ) : null
       )}
 
+      {/* 📖 방명록 책상 팻말 */}
+      <div className="pointer-events-none absolute -translate-x-1/2 whitespace-nowrap border-4 border-[#2b1d1a] bg-[#f5e6c8] px-2 py-0.5 text-base font-black text-[#2b1d1a] shadow-[3px_3px_0_0_rgba(0,0,0,0.35)]" style={{ left: `${(DESK.x + DESK.w / 2) * 100}%`, top: `${(DESK.y - 0.045) * 100}%`, zIndex: 50 }}>
+        📖 방명록
+      </div>
+
       {/* 전시 제목 */}
       <div className="absolute left-1/2 top-[5.5%] -translate-x-1/2 whitespace-nowrap text-xl font-black tracking-widest text-[#5b5148]">{galleryData?.title}</div>
 
@@ -129,6 +147,7 @@ function GalleryScene() {
 }
 
 export default function GalleryPage() {
+  const guestbook = useGuestbook();
   return (
     <SimpleRoom
       roomId="exhibitionRoom"
@@ -142,8 +161,12 @@ export default function GalleryPage() {
       exits={EXITS}
       spawns={SPAWNS}
       seats={SEATS}
-      renderModals={(openId, close) =>
-        placed.map((p, i) => (
+      hud={(api) => <GalleryHud api={api} guestbookCount={guestbook.length} onOpenGuestbook={() => api.openDetail(GUESTBOOK_ID)} />}
+      renderModals={(openId, close, api) => [
+        <PixelModal key={GUESTBOOK_ID} open={openId === GUESTBOOK_ID} onClose={close} label="🖼️ 전시회" title="📖 방명록 · 감상 후기" width={640}>
+          <GalleryGuestbook entries={guestbook} artworks={artworks} nickname={api.nickname} myId={api.myId} isOwner={api.isOwner} />
+        </PixelModal>,
+        ...placed.map((p, i) => (
           <PixelModal key={p.art.id} open={openId === p.art.id} onClose={close} label="🖼️ 전시회" title={p.art.title} width={560}>
             <div className="mx-auto aspect-[4/3] w-full max-w-[460px] border-[6px] border-[#1a110e] bg-white p-2">
               <ArtImage art={p.art} index={i} big />
@@ -153,8 +176,8 @@ export default function GalleryPage() {
             </p>
             {p.art.description && <p className="mt-1 whitespace-pre-line leading-relaxed text-amber-50/90">{p.art.description}</p>}
           </PixelModal>
-        ))
-      }
+        )),
+      ]}
     >
       <GalleryScene />
     </SimpleRoom>

@@ -31,10 +31,11 @@ import { EMOTE_KEYS } from "./EmoteBubble";
 //             (거실·전시회가 오픈 기간이 아니면 sign 자리에 "준비중" 팻말이 뜨고 막혀요)
 //  spawns   : 시작 위치 (발 가운데) { default, livingRoom, "exhibitionRoom:exitLeft", ... }
 //             "온 방:이 방에서 나갔던 통로" 로 적으면, 나갔던 그 통로 앞에서 다시 시작해요
-//  children : 지도 그림 (바닥·벽·가구) / renderModals(openId, close): 상세 창들
+//  children : 지도 그림 (바닥·벽·가구) / renderModals(openId, close, api): 상세 창들 (api는 아래 hud와 같아요)
 //  onEnter  : 방에 들어왔을 때 한 번 ({ openDetail }) — 예: 첫 방문이면 안내 창 열기
 //  seats    : 앉을 수 있는 자리 [{ id, x, y, dir, stand: {x,y}, label }]
 //             x,y = 앉았을 때 엉덩이 자리(캐릭터 아래 가운데), stand = 의자 옆 서는 자리 (모두 0~1 비율)
+//             legs: true → 다리를 자르지 않고 의자 앞으로 늘어뜨려요 (앞이 트인 벤치). 이때 x,y = 발끝 자리
 //  hud(api) : 화면 위에 덧붙일 UI (설정 창·배너 등). api = { nickname, myId, isOwner, setOwner,
 //             forceOpen, changeForceOpen, mySeat, showToast, playAction, focus, setFocus, focusProp, setFocusProp }
 //  📖 focus: 공부 집중 모드 (users/{ID}.focus → 머리 위 "📖 집중 중...", 파티 UI 숨김, 1:1 대화 신청 막힘)
@@ -397,7 +398,7 @@ export default function SimpleRoom({
     seatIdRef.current = seat.id;
     setSeatId(seat.id);
     setDir(seat.dir ?? "down");
-    const p = { x: seat.x * mapW - AVATAR_WIDTH / 2, y: seat.y * mapH - AVATAR_HEIGHT };
+    const p = { x: seat.x * mapW - AVATAR_WIDTH / 2, y: seat.y * mapH - AVATAR_HEIGHT };  // legs 자리는 발끝이 y
     posRef.current = p;
     setPos(p);
   };
@@ -663,6 +664,28 @@ export default function SimpleRoom({
   }
   if (openId) nearTarget = null;
   const mySeat = seats.find((st) => st.id === seatId) ?? null;
+  // 방마다 덧붙이는 화면 UI(hud)·상세 창(renderModals)에 넘겨주는 도구 모음
+  const hudApi = {
+        openDetail,
+        nickname,
+        myId,
+        isOwner,
+        setOwner,
+        forceOpen,
+        changeForceOpen: (on) => {
+          setForceOpen(on);
+          setForceOpenState(on);
+          lockedNoticeRef.current = null;
+        },
+        mySeat,
+        showToast,
+        playAction,
+        focus,
+        setFocus,
+        focusProp,
+        setFocusProp,
+      };
+  const seatLegs = Object.fromEntries(seats.map((st) => [st.id, !!st.legs]));
 
   return (
     <main className="relative h-screen w-screen select-none overflow-hidden" style={{ background: outside, touchAction: "manipulation" }}>
@@ -719,9 +742,9 @@ export default function SimpleRoom({
         {tapFx && <TapRipple key={tapFx.id} x={tapFx.x} y={tapFx.y} size={Math.max(64, 44 / scale)} />}
 
         {Object.entries(others).map(([id, u]) => (
-          <Avatar key={id} nickname={u.nickname || "손님"} x={u.x} y={u.y} isMoving={!!u.isMoving} dir={u.dir || "down"} look={normalizeLook(u)} emote={u.emote} chat={bubbles[id]} sitting={!!u.isSitting} owner={!!u.isOwner} focus={!!u.focus} focusProp={u.focusProp} eating={false} action={u.action} z={100 + Math.round(u.y + AVATAR_HEIGHT)} smooth />
+          <Avatar key={id} nickname={u.nickname || "손님"} x={u.x} y={u.y} isMoving={!!u.isMoving} dir={u.dir || "down"} look={normalizeLook(u)} emote={u.emote} chat={bubbles[id]} sitting={!!u.isSitting} sitLegs={!!(u.isSitting && seatLegs[u.seatId])} owner={!!u.isOwner} focus={!!u.focus} focusProp={u.focusProp} eating={false} action={u.action} z={100 + Math.round(u.y + AVATAR_HEIGHT)} smooth />
         ))}
-        <Avatar nickname={nickname} x={pos.x} y={pos.y} isMoving={isMoving} dir={dir} look={look} emote={emote} chat={bubbles.me} sitting={!!seatId} owner={isOwner} focus={focus} focusProp={focusProp} eating={false} action={action} z={100 + Math.round(pos.y + AVATAR_HEIGHT)} isMe />
+        <Avatar nickname={nickname} x={pos.x} y={pos.y} isMoving={isMoving} dir={dir} look={look} emote={emote} chat={bubbles.me} sitting={!!seatId} sitLegs={!!seatLegs[seatId]} owner={isOwner} focus={focus} focusProp={focusProp} eating={false} action={action} z={100 + Math.round(pos.y + AVATAR_HEIGHT)} isMe />
 
         {/* 🍵 다른 사람 캐릭터 누르기 → [대화 신청하기] (투명 버튼) */}
         {Object.entries(others).map(([id, u]) => (
@@ -742,7 +765,7 @@ export default function SimpleRoom({
         </div>
       </div>
 
-      {renderModals?.(openId, closeDetail)}
+      {renderModals?.(openId, closeDetail, hudApi)}
 
       {/* 🍵 1:1 찻자리 채팅 (신청 버튼 · 수락/거절 알림 · 둘만의 채팅창) */}
       <TeaChat myId={myId} nickname={nickname} focus={focus} others={others} picked={picked} setPicked={setPicked} pickedPos={picked && others[picked] ? { x: others[picked].x * scale + camX, y: others[picked].y * scale + camY, w: AVATAR_WIDTH * scale } : null} showToast={showToast} />
@@ -755,25 +778,7 @@ export default function SimpleRoom({
       <GreetToast toast={toast} />
 
       {/* 방마다 덧붙이는 화면 UI (찻집: ⚙️ 설정·사장님 관리·공지 배너) */}
-      {hud?.({
-        nickname,
-        myId,
-        isOwner,
-        setOwner,
-        forceOpen,
-        changeForceOpen: (on) => {
-          setForceOpen(on);
-          setForceOpenState(on);
-          lockedNoticeRef.current = null;
-        },
-        mySeat,
-        showToast,
-        playAction,
-        focus,
-        setFocus,
-        focusProp,
-        setFocusProp,
-      })}
+      {hud?.(hudApi)}
 
       {/* 방을 옮길 때: 화면이 스르륵 어두워졌다가 밝아져요 */}
       <div className={`pointer-events-none fixed inset-0 z-[90] bg-black transition-opacity duration-300 ${leaving || arriving ? "opacity-100" : "opacity-0"}`} />

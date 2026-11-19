@@ -91,7 +91,8 @@ const BTN = `${BOX} px-3 py-1.5 text-sm font-black active:translate-y-0.5 active
 const INPUT = "w-full border-4 border-[#1a110e] bg-[#fdf6e3] px-3 py-2 text-sm text-[#2b1d1a] outline-none placeholder:text-[#2b1d1a]/40 focus:border-amber-400";
 
 // ---------------- ⚙️ 설정 창 ----------------
-function SettingsPanel({ tea, api, onOpenOwner }) {
+// title: 창 제목 (전시회에서도 같이 써요), onOpenOwner가 없으면 [📋 사장님 관리] 버튼을 숨겨요, children: 맨 아래 덧붙일 칸
+export function SettingsPanel({ api, onOpenOwner, title = "⚙️ 찻집 설정", children }) {
   const [pin, setPin] = useState("");
   const [pinMsg, setPinMsg] = useState("");
   const ownerPin = partyData?.ownerPin;
@@ -110,7 +111,7 @@ function SettingsPanel({ tea, api, onOpenOwner }) {
   return (
     <div className="max-h-[80vh] w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto bg-[#2b1d1a] p-1 shadow-[6px_6px_0_0_rgba(0,0,0,0.35)]">
       <div className="border-4 border-[#f5e6c8] p-3 text-white">
-        <p className="font-black text-amber-300">⚙️ 찻집 설정</p>
+        <p className="font-black text-amber-300">{title}</p>
 
         {/* 🎧 백색소음 믹서 (나만 들려요) */}
         <div className="mt-3">
@@ -133,9 +134,11 @@ function SettingsPanel({ tea, api, onOpenOwner }) {
             <>
               <p className="text-sm font-bold text-lime-300">🍵 사장님 모드 켜짐</p>
               <div className="mt-2 flex gap-2">
-                <button type="button" onClick={onOpenOwner} className={`${BTN} flex-1 bg-amber-400 text-[#2b1d1a]`}>
-                  📋 사장님 관리
-                </button>
+                {onOpenOwner && (
+                  <button type="button" onClick={onOpenOwner} className={`${BTN} flex-1 bg-amber-400 text-[#2b1d1a]`}>
+                    📋 사장님 관리
+                  </button>
+                )}
                 <button type="button" onClick={() => api.setOwner(false)} className={`${BTN} bg-[#6e4530] text-white`}>
                   끄기
                 </button>
@@ -154,6 +157,7 @@ function SettingsPanel({ tea, api, onOpenOwner }) {
             </form>
           )}
         </div>
+        {children}
       </div>
     </div>
   );
