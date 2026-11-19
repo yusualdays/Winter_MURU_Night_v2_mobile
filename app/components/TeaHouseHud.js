@@ -18,7 +18,8 @@ import { FocusToggle, FocusPanel, NoiseMixer } from "./FocusMode";
 //
 // Firebase "teaHouse"
 //   season:     { value: "winter", by }
-//   gathering:  { title, topic, meetUrl, openedAt, by }   (없으면 모임 없음)
+//   gathering:  { title, topic, meetUrl, startAt, endAt, openedAt, by }   (없으면 모임 없음)
+//               공지는 시작 1시간 전 ~ 끝날 때까지만 보여요
 //   live:       { url, openedAt, by }                     (없으면 라이브 없음)
 //   menuStatus: { 메뉴id: "recommend" | "soldout" }       (없으면 기본)
 //   orders:     { 자리id: { by, tea: { at }, sweets: { left, at } } }  (테이블 위 차·다식)
@@ -41,6 +42,40 @@ export function useTeaHouse() {
     });
   }, []);
   return state;
+}
+
+// 📚 모임 공지가 보이는 때: 시작 1시간 전 ~ 끝나는 시각
+const NOTICE_BEFORE_MS = 60 * 60 * 1000;
+export function gatheringPhase(g, now = Date.now()) {
+  if (!g) return "none";
+  if (!g.startAt || !g.endAt) return "live"; // 예전처럼 시간을 안 정한 모임은 항상
+  if (now > g.endAt) return "ended";
+  if (now >= g.startAt) return "live";
+  if (now >= g.startAt - NOTICE_BEFORE_MS) return "soon";
+  return "waiting";
+}
+const pad = (n) => String(n).padStart(2, "0");
+const fmtTime = (ms) => {
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const fmtHM = (ms) => {
+  const d = new Date(ms);
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+// <input type="datetime-local"> 값 ↔ 밀리초
+const toLocalInput = (ms) => {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+// 30초마다 시계 (공지가 제때 나타나고 사라지게)
+function useClock() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
 }
 
 // 메뉴 id (spaceData의 id가 없으면 순서로)
@@ -150,13 +185,28 @@ function SettingsPanel({ tea, api, onOpenOwner }) {
 
 // ---------------- 📋 사장님 관리 창 ----------------
 function OwnerPanel({ open, onClose, tea, api }) {
-  const [g, setG] = useState({ title: "", topic: "", meetUrl: "" });
+  const [g, setG] = useState({ title: "", topic: "", meetUrl: "", start: "", end: "" });
+  const now = useClock();
   const [liveUrl, setLiveUrl] = useState("");
   const [msg, setMsg] = useState("");
   useEffect(() => {
     if (!open) return;
     setMsg("");
-    if (tea.gathering) setG({ title: tea.gathering.title || "", topic: tea.gathering.topic || "", meetUrl: tea.gathering.meetUrl || "" });
+    if (tea.gathering)
+      setG({
+        title: tea.gathering.title || "",
+        topic: tea.gathering.topic || "",
+        meetUrl: tea.gathering.meetUrl || "",
+        start: tea.gathering.startAt ? toLocalInput(tea.gathering.startAt) : "",
+        end: tea.gathering.endAt ? toLocalInput(tea.gathering.endAt) : "",
+      });
+    else {
+      // 기본값: 다음 정각부터 2시간
+      const s = new Date();
+      s.setMinutes(0, 0, 0);
+      s.setHours(s.getHours() + 1);
+      setG((v) => ({ ...v, start: v.start || toLocalInput(s.getTime()), end: v.end || toLocalInput(s.getTime() + 2 * 3600000) }));
+    }
     if (tea.live) setLiveUrl(tea.live.url || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -167,9 +217,13 @@ function OwnerPanel({ open, onClose, tea, api }) {
     e.preventDefault();
     if (!g.title.trim()) return setMsg("모임 제목을 적어 주세요.");
     if (g.meetUrl.trim() && !safeUrl(g.meetUrl)) return setMsg("미트 링크는 https:// 로 시작해야 해요.");
-    write("teaHouse/gathering", { title: g.title.trim().slice(0, 40), topic: g.topic.trim().slice(0, 500), meetUrl: safeUrl(g.meetUrl), openedAt: serverTimestamp(), by: api.nickname });
+    const startAt = new Date(g.start).getTime();
+    const endAt = new Date(g.end).getTime();
+    if (!startAt || !endAt) return setMsg("모임 시작·끝 시간을 정해 주세요.");
+    if (endAt <= startAt) return setMsg("끝나는 시간이 시작 시간보다 뒤여야 해요.");
+    write("teaHouse/gathering", { title: g.title.trim().slice(0, 40), topic: g.topic.trim().slice(0, 500), meetUrl: safeUrl(g.meetUrl), startAt, endAt, openedAt: serverTimestamp(), by: api.nickname });
     setMsg("");
-    api.showToast("모임을 열었어요! 찻집 위에 공지가 떠요", "📚");
+    api.showToast(`모임을 잡았어요! ${fmtHM(startAt - NOTICE_BEFORE_MS)}부터 찻집 위에 공지가 떠요`, "📚");
   };
   const openLive = (e) => {
     e.preventDefault();
@@ -197,9 +251,16 @@ function OwnerPanel({ open, onClose, tea, api }) {
         <p className="font-black text-amber-200">📚 독서모임 · 차모임 주최</p>
         {tea.gathering ? (
           <div className="mt-2 border-2 border-lime-300/40 bg-black/20 p-3 text-sm">
-            <p className="font-bold text-lime-300">진행 중: {tea.gathering.title}</p>
+            <p className="font-bold text-lime-300">
+              {{ live: "🟢 진행 중", soon: "🟡 곧 시작 (공지 중)", waiting: "⏳ 예정", ended: "⚪ 끝남" }[gatheringPhase(tea.gathering, now)] ?? ""}: {tea.gathering.title}
+            </p>
+            {tea.gathering.startAt && (
+              <p className="mt-0.5 text-xs text-white/70">
+                {fmtTime(tea.gathering.startAt)} ~ {fmtHM(tea.gathering.endAt)} · 공지는 {fmtHM(tea.gathering.startAt - NOTICE_BEFORE_MS)}부터
+              </p>
+            )}
             <button type="button" onClick={() => write("teaHouse/gathering", null)} className={`${BTN} mt-2 bg-[#6e4530] text-white`}>
-              모임 닫기
+              모임 지우기
             </button>
           </div>
         ) : null}
@@ -207,6 +268,17 @@ function OwnerPanel({ open, onClose, tea, api }) {
           <input value={g.title} onChange={(e) => setG({ ...g, title: e.target.value })} maxLength={40} placeholder="모임 제목 (예: 12월 독서모임 — 『작별하지 않는다』)" className={INPUT} />
           <textarea value={g.topic} onChange={(e) => setG({ ...g, topic: e.target.value })} maxLength={500} rows={3} placeholder="오늘의 발제문 (단체석에 앉은 손님에게 보여요)" className={`${INPUT} resize-none`} />
           <input value={g.meetUrl} onChange={(e) => setG({ ...g, meetUrl: e.target.value })} placeholder="구글 미트 링크 (https://meet.google.com/...)" className={INPUT} />
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-xs font-bold text-white/80">
+              🕗 시작
+              <input type="datetime-local" value={g.start} onChange={(e) => setG({ ...g, start: e.target.value })} className={`${INPUT} mt-1`} />
+            </label>
+            <label className="text-xs font-bold text-white/80">
+              🕘 끝
+              <input type="datetime-local" value={g.end} onChange={(e) => setG({ ...g, end: e.target.value })} className={`${INPUT} mt-1`} />
+            </label>
+          </div>
+          <p className="text-[11px] text-white/50">찻집 위 공지는 시작 1시간 전부터 끝나는 시간까지만 보여요.</p>
           <button type="submit" className={`${BTN} bg-amber-400 text-[#2b1d1a]`}>
             {tea.gathering ? "모임 내용 고치기" : "모임 오픈하기"}
           </button>
@@ -266,8 +338,11 @@ function OwnerPanel({ open, onClose, tea, api }) {
 
 // ---------------- 위쪽 공지 배너 ----------------
 function Banners({ tea }) {
+  const now = useClock();
   const liveUrl = safeUrl(tea.live?.url);
-  if (!tea.gathering && !liveUrl) return null;
+  const phase = gatheringPhase(tea.gathering, now);
+  const showGathering = phase === "live" || phase === "soon";
+  if (!showGathering && !liveUrl) return null;
   return (
     <div className="pointer-events-none fixed inset-x-0 top-[calc(var(--sat,0px)+0.75rem)] z-[35] flex flex-col items-center gap-2 px-16">
       {liveUrl && (
@@ -278,9 +353,11 @@ function Banners({ tea }) {
           </a>
         </div>
       )}
-      {tea.gathering && (
+      {showGathering && (
         <div className={`${BOX} w-full max-w-xl bg-[#f5e6c8] px-3 py-1.5 text-center text-xs text-[#2b1d1a] sm:px-4 sm:py-2 sm:text-sm`}>
-          <span className="font-black">📚 지금 &lsquo;{tea.gathering.title}&rsquo; 모임 중</span>
+          <span className="font-black">
+            {phase === "soon" ? <>📚 {fmtHM(tea.gathering.startAt)}에 &lsquo;{tea.gathering.title}&rsquo; 모임이 열려요</> : <>📚 지금 &lsquo;{tea.gathering.title}&rsquo; 모임 중</>}
+          </span>
           <span className="ml-1 font-bold text-[#2b1d1a]/70">
             · <span className="hidden sm:inline">가운데 단체석에 앉으면 발제문과 미트 링크를 볼 수 있어요</span>
             <span className="sm:hidden">단체석에 앉아 보세요</span>
@@ -320,20 +397,26 @@ export default function TeaHouseHud({ tea, api }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [ownerOpen, setOwnerOpen] = useState(false);
   const atShareTable = api.mySeat?.group === "share";
+  const now = useClock();
+  const gatheringOn = ["live", "soon"].includes(gatheringPhase(tea.gathering, now));
+  const changeFocus = (on) => {
+    api.setFocus(on);
+    if (on) setPanelOpen(false);
+    api.showToast(on ? "집중 모드를 켰어요. 대화 신청이 잠시 막혀요" : "집중 모드를 껐어요. 수고했어요!", "📖");
+  };
 
   return (
     <>
       {/* 📖 집중 모드에서는 파티성 공지·모임 카드를 숨겨요 */}
       {!api.focus && <Banners tea={tea} />}
-      {!api.focus && atShareTable && tea.gathering && <GatheringCard gathering={tea.gathering} />}
+      {!api.focus && atShareTable && gatheringOn && <GatheringCard gathering={tea.gathering} />}
 
-      {/* 자리에 앉으면: 아래쪽 미니 주문 바 (차 · 다식) */}
-      {api.mySeat && <OrderBar seat={api.mySeat} order={tea.orders[api.mySeat.id]} api={api} />}
+      {/* 자리에 앉으면: 아래쪽 미니 주문 바 (차 · 다식 · 📖 집중 모드) */}
+      {api.mySeat && <OrderBar seat={api.mySeat} order={tea.orders[api.mySeat.id]} api={api} extra={<FocusToggle compact focus={api.focus} setFocus={changeFocus} />} />}
 
       {/* ⚙️ 오른쪽 위 설정 */}
       <div className="safe-top safe-right fixed z-40 flex flex-col items-end gap-2">
         <div className="flex items-center gap-2">
-        <FocusToggle focus={api.focus} setFocus={(on) => { api.setFocus(on); if (on) setPanelOpen(false); api.showToast(on ? "집중 모드를 켰어요. 대화 신청이 잠시 막혀요" : "집중 모드를 껐어요. 수고했어요!", "📖"); }} />
         <button
           type="button"
           onClick={() => setPanelOpen((o) => !o)}
@@ -344,7 +427,7 @@ export default function TeaHouseHud({ tea, api }) {
           ⚙️
         </button>
         </div>
-        {api.focus && !panelOpen && <FocusPanel />}
+        {api.focus && !panelOpen && <FocusPanel onOff={() => changeFocus(false)} />}
         {panelOpen && (
           <SettingsPanel
             tea={tea}

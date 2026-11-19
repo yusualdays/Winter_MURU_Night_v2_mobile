@@ -137,7 +137,7 @@ export function TableItems({ orders = {}, seats = [], mapW, mapH }) {
 const BTN =
   "flex items-center gap-1 whitespace-nowrap border-4 border-[#1a110e] px-3 py-1.5 text-sm font-black shadow-[3px_3px_0_0_rgba(0,0,0,0.4)] active:translate-y-0.5 active:shadow-none disabled:opacity-50";
 
-export function OrderBar({ seat, order, api }) {
+export function OrderBar({ seat, order, api, extra = null }) {
   const now = useNow(order?.tea?.at);
   const seatId = seat?.id;
   const nickname = api.nickname;
@@ -221,6 +221,8 @@ export function OrderBar({ seat, order, api }) {
             {craftInfo.emoji} 내가 만든 {crafted.kind === "matcha" ? "말차 마시기" : "다식 먹기"} <span className="bg-[#78350f] px-1 text-[10px] text-white">{crafted.left}</span>
           </button>
         )}
+        {/* 📖 공부 집중 모드 켜기/끄기 */}
+        {extra}
       </div>
     </div>
   );

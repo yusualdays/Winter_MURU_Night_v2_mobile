@@ -354,25 +354,35 @@ function Pomodoro() {
 }
 
 // ---------------- 토글 + 패널 ----------------
-export function FocusToggle({ focus, setFocus }) {
+//  compact: 자리 주문 바 안에 들어가는 작은 버튼
+export function FocusToggle({ focus, setFocus, compact = false }) {
   useResumeMix();
   return (
     <button
       type="button"
       onClick={() => setFocus(!focus)}
       aria-pressed={focus}
-      className={`flex h-12 items-center gap-1.5 border-4 border-[#1a110e] px-3 text-sm font-black shadow-[3px_3px_0_0_rgba(0,0,0,0.4)] active:translate-y-0.5 active:shadow-none ${focus ? "bg-amber-400 text-[#2b1d1a]" : "bg-[#f5e6c8] text-[#2b1d1a]"}`}
+      className={`flex items-center gap-1.5 whitespace-nowrap border-4 border-[#1a110e] font-black shadow-[3px_3px_0_0_rgba(0,0,0,0.4)] active:translate-y-0.5 active:shadow-none ${compact ? "px-3 py-1.5 text-sm" : "h-12 px-3 text-sm"} ${focus ? "bg-amber-400 text-[#2b1d1a]" : "bg-[#f5e6c8] text-[#2b1d1a]"}`}
     >
-      📖 <span className="hidden sm:inline">공부 집중 모드</span> {focus ? "ON" : "OFF"}
+      📖 {compact ? "집중 모드" : <span className="hidden sm:inline">공부 집중 모드</span>} {focus ? "ON" : "OFF"}
     </button>
   );
 }
 
-export function FocusPanel() {
+//  onOff: [집중 모드 끄기] (자리에서 일어난 뒤에도 끌 수 있게)
+export function FocusPanel({ onOff }) {
+  useResumeMix();
   const [mixOpen, setMixOpen] = useState(false);
   return (
     <div className={`${BOX} w-[min(20rem,calc(100vw-2rem))] bg-[#2b1d1a]/95 p-3`}>
-      <p className="mb-2 text-center text-sm font-black text-amber-200">📖 공부 집중 모드</p>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-sm font-black text-amber-200">📖 공부 집중 모드</p>
+        {onOff && (
+          <button type="button" onClick={onOff} className="border-2 border-[#1a110e] bg-[#f5e6c8] px-2 py-0.5 text-xs font-black text-[#2b1d1a]">
+            끄기 ✕
+          </button>
+        )}
+      </div>
       <Pomodoro />
       <button type="button" onClick={() => setMixOpen((o) => !o)} className="mt-3 w-full border-t-2 border-white/15 pt-2 text-left text-xs font-black text-white/80">
         {mixOpen ? "▾" : "▸"} 🎧 백색소음 섞어 듣기
