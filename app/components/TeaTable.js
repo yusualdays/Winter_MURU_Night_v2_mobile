@@ -44,7 +44,7 @@ function useNow(watch) {
 //  모든 물건은 "테이블 상판 위"에만 놓여요 (자리마다 자기 앞 상판 칸)
 //   - 2인 테이블(옆으로 앉는 자리): 상판 반쪽에 2줄 — 뒷줄 다관·찻잔 / 앞줄 다식 접시·내가 만든 것
 //   - 단체석(위·아래로 앉는 자리): 자기 앞 상판에 한 줄로 나란히
-const SIZE = { pot: 30, cup: 19, plate: 36, dasik: 32, matcha: 27 };
+const SIZE = { pot: 32, cup: 26, plate: 38, dasik: 32, matcha: 28 };
 
 // 물건 하나 (cx = 가운데, by = 바닥 높이, w = 폭 · 자리 기준 px)
 function Spot({ cx, by, w, z = 0, children }) {
@@ -66,7 +66,7 @@ function layoutFor(seat, o) {
     const s = seat.dir === "left" ? 1 : -1;
     if (hasTea) {
       L.pot = { cx: -10 * s, by: -12, w: SIZE.pot };
-      L.cup = { cx: 17 * s, by: -14, w: SIZE.cup };
+      L.cup = { cx: 18 * s, by: -10, w: SIZE.cup };
     }
     const by = hasTea ? 26 : 10;
     const xs = front.length === 2 ? [-11 * s, 17 * s] : [3 * s];
@@ -145,8 +145,8 @@ function TeaCup({ at, spot }) {
 // 다식 3개 (dasik_piece_1~3.png) — 한 입 먹을 때마다 하나씩 없어져요
 function SweetsPlate({ sweets, w }) {
   const left = Math.max(0, sweets.left ?? 0);
-  const piece = Math.round(w * 0.36);
-  const xs = [0.27, 0.5, 0.73];
+  const piece = Math.round(w * 0.6); // 다식 그림은 가운데에 작게 그려져 있어서 칸을 크게
+  const xs = [0.3, 0.5, 0.7];
   return (
     <div className="relative h-full w-full">
       <CraftImg
@@ -155,7 +155,7 @@ function SweetsPlate({ sweets, w }) {
         fallback={<span className="absolute inset-x-0 bottom-0.5 h-[45%] rounded-[50%] border-[3px] border-[#2b1d1a] bg-white" />}
       />
       {Array.from({ length: left }, (_, i) => (
-        <div key={i} className="absolute -translate-x-1/2" style={{ left: `${xs[i] * 100}%`, bottom: w * (i === 1 ? 0.3 : 0.22), width: piece }}>
+        <div key={i} className="absolute -translate-x-1/2" style={{ left: `${xs[i] * 100}%`, bottom: w * (i === 1 ? 0.12 : 0.02), width: piece }}>
           <CraftImg
             name={`dasik_piece_${i + 1}`}
             className="w-full"

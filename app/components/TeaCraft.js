@@ -520,6 +520,42 @@ function TteokPiece({ x, y, w = 40, h = 22, v = 0, topping = null, wiggle = fals
   );
 }
 
+// 🖼️ 그림 버전 떡 한 토막 (tteok_piece_raw → golden → burnt 를 굽기 정도에 따라 겹쳐 보여요)
+const clamp01 = (n) => Math.max(0, Math.min(1, n));
+function TteokPieceImg({ v = 0, topping = null }) {
+  return (
+    <div className="relative aspect-square w-full">
+      <img src={craftSrc("tteok_piece_raw")} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full" />
+      <img src={craftSrc("tteok_piece_golden")} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full" style={{ opacity: clamp01((v - 20) / 35) }} />
+      <img src={craftSrc("tteok_piece_burnt")} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full" style={{ opacity: clamp01((v - 84) / 10) }} />
+      {/* 🍯 조청 / 🫘 콩가루 (떡 윗면을 따라 비스듬히) */}
+      {topping && (
+        <div className="pointer-events-none absolute" style={{ left: "24%", top: "30%", width: "62%", height: "17%", transform: "rotate(-23deg)" }}>
+          <div className="craft-drop h-full w-full">
+            {topping === "honey" ? (
+              <div className="h-full w-full rounded-full border-2 border-[#7a3e10]/70 bg-[#c9781c]/80" style={{ boxShadow: "inset 0 2px 0 rgba(255,236,170,0.7)" }} />
+            ) : (
+              <div className="h-full w-full rounded-full" style={{ background: "radial-gradient(circle, #d9b25a 0 1.6px, transparent 2px) 0 0 / 5px 5px, radial-gradient(circle, #a8782e 0 1.2px, transparent 1.6px) 2.5px 2.5px / 5px 5px" }} />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 접시 위 떡 4토막 자리 (그림 기준 %)
+const TTEOK_PLATE_POS = [{ x: 34, y: 44 }, { x: 62, y: 40 }, { x: 40, y: 60 }, { x: 68, y: 56 }];
+// 석쇠 위 떡 4토막 자리 (석쇠 칸 기준 px · 칸 크기 320x224)
+const GRILL_W = 320;
+const GRILL_TOP = -26; // 석쇠 그림을 위로 살짝 올려서 숯불 화로 아래쪽은 잘라요
+const GRILL_POS = [0.22, 0.41, 0.6, 0.79].map((x, i) => ({ x: x * GRILL_W, y: 0.43 * GRILL_W + GRILL_TOP + (i % 2 ? -6 : 6) }));
+const PIECE_W = 78;
+// 도마 위 가래떡 (tteok_raw.png): 왼쪽 끝 A → 오른쪽 끝 B (그림 기준 %)
+const LOG_A = { x: 21, y: 59 };
+const LOG_B = { x: 76, y: 33 };
+const logPoint = (p) => ({ x: LOG_A.x + ((LOG_B.x - LOG_A.x) * p) / 100, y: LOG_A.y + ((LOG_B.y - LOG_A.y) * p) / 100 });
+
 function TteokGame({ onBack }) {
   const [step, setStep] = useState(0);
   // ① 썰기
@@ -536,10 +572,16 @@ function TteokGame({ onBack }) {
   const [tool, setTool] = useState("honey");
   const [tops, setTops] = useState([null, null, null, null]);
   const [taken, setTaken] = useState(false);
+  const [flips, setFlips] = useState([0, 0, 0, 0]);
   const raf = useRef(0);
+  // 그림 파일이 있으면 그림으로, 없으면 코드 그림으로
+  const boardImg = useImgOk("tteok_raw") !== false;
+  const grillImg = useImgOk("tteok_grill") !== false;
+  const pieceImg = useImgOk("tteok_piece_raw") !== false;
+  const plateImg = useImgOk("table_plate") !== false && pieceImg;
 
   const reset = () => {
-    setStep(0); setCuts(0); setMiss(0); setFlash(null); setTops([null, null, null, null]); setTaken(false); setBurnt(0);
+    setStep(0); setCuts(0); setMiss(0); setFlash(null); setTops([null, null, null, null]); setTaken(false); setBurnt(0); setFlips([0, 0, 0, 0]);
     piecesRef.current = []; setPieces([]);
   };
 
@@ -608,6 +650,7 @@ function TteokGame({ onBack }) {
 
   const flip = (i) => {
     sfx.tap();
+    setFlips((f) => f.map((n, k) => (k === i ? n + 1 : n)));
     piecesRef.current = piecesRef.current.map((p, k) => (k === i ? { ...p, up: p.up === "a" ? "b" : "a" } : p));
     setPieces(piecesRef.current);
   };
@@ -628,7 +671,16 @@ function TteokGame({ onBack }) {
   };
 
   const final = pieces.length ? pieces : [0, 1, 2, 3].map(() => ({ a: 70, b: 70, up: "a" }));
-  const plate = (
+  const plate = plateImg ? (
+    <div className="relative aspect-square h-full">
+      <img src={craftSrc("table_plate")} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full" />
+      {final.map((p, i) => (
+        <div key={i} className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${TTEOK_PLATE_POS[i].x}%`, top: `${TTEOK_PLATE_POS[i].y}%`, width: "38%" }}>
+          <TteokPieceImg v={Math.max(p.a, p.b)} topping={tops[i]} />
+        </div>
+      ))}
+    </div>
+  ) : (
     <svg viewBox="0 0 200 160" className="h-full w-full">
       <ellipse cx="100" cy="100" rx="88" ry="40" fill="#fff" stroke="#2b1d1a" strokeWidth="4" />
       <ellipse cx="100" cy="100" rx="70" ry="28" fill="none" stroke="#e7dccb" strokeWidth="3" />
@@ -669,6 +721,11 @@ function TteokGame({ onBack }) {
       <style>{`
         @keyframes tteok-sizzle { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
         .tteok-sizzle { animation: tteok-sizzle 0.25s steps(2, jump-none) infinite; transform-box: fill-box; }
+        .tteok-sizzle-h { animation: tteok-sizzle 0.25s steps(2, jump-none) infinite; }
+        @keyframes tteok-flip-k { 0% { transform: translateY(0) scaleY(1); } 40% { transform: translateY(-18px) scaleY(0.15); } 100% { transform: translateY(0) scaleY(1); } }
+        .tteok-flip { animation: tteok-flip-k 0.28s ease-out; }
+        @keyframes tteok-steam-k { 0% { transform: translate(-50%, 4px); opacity: 0; } 40% { opacity: 1; } 100% { transform: translate(-50%, -12px); opacity: 0; } }
+        .tteok-steam { animation: tteok-steam-k 1.1s ease-out infinite; }
       `}</style>
       <p className="mb-2 text-center font-black text-amber-200">🍢 가래떡 구이</p>
       <Steps list={["떡 썰기", "석쇠 굽기", "찍어 먹기"]} cur={step} />
@@ -676,6 +733,33 @@ function TteokGame({ onBack }) {
       {step === 0 && (
         <>
           <Stage onPointerDown={doCut} className={`cursor-pointer ${flash === "good" ? "bg-emerald-200" : flash ? "bg-rose-200" : ""}`}>
+            {boardImg ? (
+              <div className="relative aspect-square h-full">
+                <img src={craftSrc("tteok_raw")} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full" />
+                <svg viewBox="0 0 100 100" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
+                  {TTEOK_CUTS.map((c, i) => {
+                    const pt = logPoint(c);
+                    // 떡을 가로지르는 선 (떡 방향에 수직)
+                    const x1 = pt.x - 4, y1 = pt.y - 8.5, x2 = pt.x + 4, y2 = pt.y + 8.5;
+                    return i < cuts ? (
+                      <line key={c} x1={x1 + 1.5} y1={y1 + 3} x2={x2 - 1.5} y2={y2 - 3} stroke="#8a6a4a" strokeWidth="1.4" strokeLinecap="round" />
+                    ) : (
+                      <line key={c} x1={x1} y1={y1} x2={x2} y2={y2} stroke={i === cuts ? "#ef4444" : "#2b1d1a"} strokeWidth="1.1" strokeDasharray="2.4 1.8" />
+                    );
+                  })}
+                  {/* 칼 (떡을 따라 왔다 갔다) */}
+                  {(() => {
+                    const pt = logPoint(knife);
+                    return (
+                      <g transform={`translate(${pt.x} ${pt.y - 9})`}>
+                        <rect x="-2" y="-22" width="4" height="10" rx="1" fill="#6e4530" stroke="#2b1d1a" strokeWidth="1" />
+                        <path d="M-3 -12 L3 -12 L2 4 L-2 1 Z" fill="#e5e7eb" stroke="#2b1d1a" strokeWidth="1.2" />
+                      </g>
+                    );
+                  })()}
+                </svg>
+              </div>
+            ) : (
             <svg viewBox="0 0 200 160" className="h-full w-full">
               {/* 도마 */}
               <rect x="8" y="58" width="184" height="72" rx="8" fill="#c08a57" stroke="#2b1d1a" strokeWidth="4" />
@@ -699,6 +783,7 @@ function TteokGame({ onBack }) {
                 <path d="M-6 36 L6 36 L4 70 L-4 64 Z" fill="#e5e7eb" stroke="#2b1d1a" strokeWidth="2.5" />
               </g>
             </svg>
+            )}
             {flash && <span className="pointer-events-none absolute top-2 text-lg font-black text-[#2b1d1a]">{flash === "good" ? "싹둑! ✨" : "앗, 빗나갔어요!"}</span>}
           </Stage>
           <p className="my-2 text-center text-sm text-white/85">🔪 칼이 <b className="text-rose-300">빨간 점선</b> 위에 왔을 때 탭! ({cuts}/{TTEOK_CUTS.length})</p>
@@ -709,6 +794,45 @@ function TteokGame({ onBack }) {
       {step === 1 && (
         <>
           <Stage>
+            {grillImg && pieceImg ? (
+              <div className="relative h-full shrink-0" style={{ width: GRILL_W }}>
+                <img src={craftSrc("tteok_grill")} alt="" draggable={false} className="pointer-events-none absolute left-0" style={{ top: GRILL_TOP, width: GRILL_W, height: GRILL_W }} />
+                {pieces.map((p, i) => {
+                  const upV = p[p.up];
+                  const downV = p[p.up === "a" ? "b" : "a"];
+                  const pos = GRILL_POS[i];
+                  return (
+                    <div key={i}>
+                      {/* 아랫면 익는 정도 (작은 막대) */}
+                      <div className="pointer-events-none absolute h-2 border border-[#1a110e] bg-[#1a110e]" style={{ left: pos.x - 20, top: 8 + (i % 2) * 14, width: 40 }}>
+                        <div className="h-full" style={{ width: `${Math.min(100, downV)}%`, background: downV > BURN ? "#b91c1c" : downV >= GOLD[0] ? "#22c55e" : "#f59e0b" }} />
+                        <div className="absolute -top-1 h-0.5 bg-[#22c55e]" style={{ left: `${GOLD[0]}%`, width: `${GOLD[1] - GOLD[0]}%` }} />
+                      </div>
+                      {/* 떡 (탭하면 뒤집어요) */}
+                      <button
+                        type="button"
+                        aria-label={`${i + 1}번 떡 뒤집기`}
+                        onPointerDown={(e) => { e.stopPropagation(); flip(i); }}
+                        className="absolute -translate-x-1/2 -translate-y-1/2"
+                        style={{ left: pos.x, top: pos.y, width: PIECE_W, zIndex: 2 + i }}
+                      >
+                        <div key={flips[i]} className={flips[i] ? "tteok-flip" : ""}>
+                          <div className="tteok-sizzle-h">
+                            <TteokPieceImg v={upV} />
+                          </div>
+                        </div>
+                      </button>
+                      {/* 김 · 연기 */}
+                      {downV > 30 && (
+                        <span className="tteok-steam pointer-events-none absolute -translate-x-1/2 text-base" style={{ left: pos.x, top: pos.y - 34, zIndex: 10 }}>
+                          {downV > BURN ? "💨" : "♨"}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
             <svg viewBox="0 0 200 160" className="h-full w-full">
               {/* 숯불 */}
               <rect x="14" y="120" width="172" height="26" rx="6" fill="#3a2a22" stroke="#2b1d1a" strokeWidth="3" />
@@ -734,6 +858,7 @@ function TteokGame({ onBack }) {
                 );
               })}
             </svg>
+            )}
           </Stage>
           <p className="my-2 text-center text-sm text-white/85">🔥 떡을 탭하면 뒤집어요 — 위 막대가 <b className="text-emerald-300">초록</b>이면 그 면은 노릇노릇! (빨갛게 되면 타요)</p>
           <div className="flex justify-center">
@@ -749,7 +874,11 @@ function TteokGame({ onBack }) {
           <Stage>
             {plate}
             {final.map((_, i) =>
-              tops[i] ? null : (
+              tops[i] ? null : plateImg ? (
+                <div key={i} className="pointer-events-none absolute inset-y-0 left-1/2 aspect-square -translate-x-1/2">
+                  <button type="button" aria-label="찍어 먹기" onClick={() => putTopping(i)} className="craft-target pointer-events-auto absolute h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-[#2b1d1a] bg-white/30" style={{ left: `${TTEOK_PLATE_POS[i].x}%`, top: `${TTEOK_PLATE_POS[i].y}%` }} />
+                </div>
+              ) : (
                 <button key={i} type="button" aria-label="찍어 먹기" onClick={() => putTopping(i)} className="craft-target absolute h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-[#2b1d1a] bg-white/30" style={{ left: `${((58 + i * 28) / 200) * 100}%`, top: `${((98 + (i % 2 ? -8 : 6)) / 160) * 100}%` }} />
               )
             )}
