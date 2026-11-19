@@ -107,7 +107,7 @@ const SPOTS = [
 ];
 
 // 왼쪽 문 → 찻집
-const EXITS = [{ id: "out", to: "teaHouse", zone: { x: 0, y: DOOR.y + 0.01, w: 0.03, h: DOOR.h - 0.02 }, sign: { x: 0.083, y: 0.375 }, label: "⬅ ☕ 찻집으로" }];
+const EXITS = [{ id: "out", to: "teaHouse", zone: { x: 0, y: DOOR.y + 0.01, w: 0.03, h: DOOR.h - 0.02 }, label: "⬅ ☕ 찻집으로" }];
 
 const SPAWNS = {
   default: { x: 0.1, y: 0.635 },
@@ -175,8 +175,6 @@ function GalleryScene({ playing, light, guideAlert, onOpenGuide }) {
         📖 방명록
       </div>
 
-      {/* 전시 제목 */}
-      <div className="absolute left-1/2 top-[5.5%] -translate-x-1/2 whitespace-nowrap text-xl font-black tracking-widest text-[#5b5148]">{galleryData?.title}</div>
 
       {debug && (
         <div className="pointer-events-none absolute inset-0 z-[20]">
@@ -193,7 +191,7 @@ function GalleryScene({ playing, light, guideAlert, onOpenGuide }) {
 export default function GalleryPage() {
   const guestbook = useGuestbook();
   const [playing, setPlaying] = useState(null); // 🎧 지금 듣는 음악 { title, embed } (나만 들려요, 전시회 안에서는 계속 재생)
-  const [light, setLight] = useState("day"); // 💡 조명
+  const [light, setLight] = useState("warm"); // 💡 조명 (기본: 은은하게)
   const [guideAlert, setGuideAlert] = useState(false); // 📜 처음 왔으면 안내판 위 "!"
   const openRef = useRef(null); // SimpleRoom의 openDetail (onEnter에서 받아요)
   const markGuideSeen = () => {
