@@ -6,12 +6,14 @@ import PixelModal from "../components/PixelModal";
 import { galleryData } from "../spaceData";
 import GalleryGuestbook, { useGuestbook } from "../components/GalleryGuestbook";
 import GalleryHud from "../components/GalleryHud";
+import { ListeningCorner, ListeningPicker, MiniPlayer } from "../components/GalleryListening";
 
 // 🖼️ 전시회 (exhibitionRoom) — 찻집 오른쪽 아래 통로로 와요
 //  - 배경 그림: public/gallery_bg.png (4:3) — 아래 좌표는 모두 이 그림 기준 0~1 비율. 주소 끝에 ?debug=1 → 장애물·버튼 위치 색칠
 //  - 작품은 app/spaceData.js의 galleryData.artworks (앞 4개 = 벽 액자, 5·6번째 = 유리 진열장, 최대 6개)
 //    image를 넣으면 그림 속 액자 안에 내 그림이 들어가고, 비워 두면 배경에 그려진 그림이 그대로 보여요
 //  - 왼쪽 아래 책상 → 📖 방명록 겸 감상 후기 (components/GalleryGuestbook.js, Firebase galleryGuestbook)
+//  - 🎧 아래 가운데 청음실: LP 플레이어 + 음반 거치대 → 유튜브 재생목록 (components/GalleryListening.js, 목록은 spaceData galleryData.listening)
 //  - 오른쪽 위 ⚙️ → 전시회 설정 (components/GalleryHud.js)
 //  - 왼쪽 문(왼쪽 벽 가운데) → ☕ 찻집 (오른쪽 아래 통로 앞으로 돌아가요)
 //  - data.js의 eventSchedule 기간에만 들어올 수 있어요
@@ -49,6 +51,7 @@ const BLOCKERS = [
   ...CASES.map((c) => ({ x: c.body.x, y: c.body.y - 0.03, w: c.body.w, h: c.body.h + 0.03 })), // 유리 진열장 (유리 위로 못 올라가게 전체)
   { x: BENCH.x, y: BENCH.y - 0.01, w: BENCH.w, h: BENCH.h + 0.01 }, // 벤치 (위에 못 서게 전체)
   { x: FLOOR.x, y: 0.66, w: 0.1, h: 0.3 }, // 화분 + 방명록 탁자
+  { x: 0.36, y: 0.72, w: 0.28, h: 0.175 }, // 🎧 청음실 (음반 거치대 · LP 콘솔 · 스피커)
 ];
 
 // 🪑 가운데 벤치 (앉아서 작품 감상) — stands: 앞·뒤·옆 어디서 다가가도 앉을 수 있어요 — 앞이 트인 벤치라 legs: true (다리를 자르지 않고 벤치 앞으로 늘어뜨려요)
@@ -62,8 +65,13 @@ const SEATS = [
 const DESK = { x: 0.055, y: 0.745, w: 0.09, h: 0.185 };
 const GUESTBOOK_ID = "guestbook";
 
+// 🎧 아래 가운데 청음실 (카펫 전체 자리) — 거치대·LP 콘솔·스피커는 못 지나가고, 앞(아래)에 서면 [🎧 음악 듣기]
+const LISTEN = { x: 0.34, y: 0.743, w: 0.32, h: 0.192 };
+const LISTEN_ID = "listening";
+
 const SPOTS = [
   ...placed.map((p) => ({ id: p.art.id, rect: p.inner, near: p.near, radius: 110, icon: "🖼️", title: p.art.title })),
+  { id: LISTEN_ID, rect: { x: 0.445, y: 0.75, w: 0.11, h: 0.08 }, near: { x: 0.5, y: 0.915 }, radius: 150, icon: "🎧", title: "음악 듣기" },
   { id: GUESTBOOK_ID, rect: DESK, near: { x: 0.19, y: 0.84 }, radius: 130, icon: "📖", title: "방명록 쓰기" },
 ];
 
@@ -104,7 +112,7 @@ function ArtImage({ art, index, big = false }) {
   );
 }
 
-function GalleryScene() {
+function GalleryScene({ playing }) {
   const [debug, setDebug] = useState(false);
   useEffect(() => {
     try {
@@ -125,6 +133,9 @@ function GalleryScene() {
           </div>
         ) : null
       )}
+
+      {/* 🎧 청음실 */}
+      <ListeningCorner area={LISTEN} playing={!!playing} />
 
       {/* 📖 방명록 책상 팻말 */}
       <div className="pointer-events-none absolute -translate-x-1/2 whitespace-nowrap border-4 border-[#2b1d1a] bg-[#f5e6c8] px-2 py-0.5 text-base font-black text-[#2b1d1a] shadow-[3px_3px_0_0_rgba(0,0,0,0.35)]" style={{ left: `${(DESK.x + DESK.w / 2) * 100}%`, top: `${(DESK.y - 0.045) * 100}%`, zIndex: 50 }}>
@@ -148,6 +159,7 @@ function GalleryScene() {
 
 export default function GalleryPage() {
   const guestbook = useGuestbook();
+  const [playing, setPlaying] = useState(null); // 🎧 지금 듣는 음악 { title, embed } (나만 들려요)
   return (
     <SimpleRoom
       roomId="exhibitionRoom"
@@ -161,8 +173,25 @@ export default function GalleryPage() {
       exits={EXITS}
       spawns={SPAWNS}
       seats={SEATS}
-      hud={(api) => <GalleryHud api={api} guestbookCount={guestbook.length} onOpenGuestbook={() => api.openDetail(GUESTBOOK_ID)} />}
+      hud={(api) => (
+        <>
+          <GalleryHud api={api} guestbookCount={guestbook.length} onOpenGuestbook={() => api.openDetail(GUESTBOOK_ID)} />
+          <MiniPlayer playing={playing} onStop={() => setPlaying(null)} />
+        </>
+      )}
       renderModals={(openId, close, api) => [
+        <PixelModal key={LISTEN_ID} open={openId === LISTEN_ID} onClose={close} label="🖼️ 전시회" title="🎧 청음실 · LP 고르기" width={600}>
+          <ListeningPicker
+            playlists={galleryData?.listening?.playlists ?? []}
+            playing={playing}
+            onPlay={(p) => {
+              setPlaying(p);
+              close();
+              api.showToast(`${p.title} — 음악을 틀었어요`, "🎧");
+            }}
+            onStop={() => setPlaying(null)}
+          />
+        </PixelModal>,
         <PixelModal key={GUESTBOOK_ID} open={openId === GUESTBOOK_ID} onClose={close} label="🖼️ 전시회" title="📖 방명록 · 감상 후기" width={640}>
           <GalleryGuestbook entries={guestbook} artworks={artworks} nickname={api.nickname} myId={api.myId} isOwner={api.isOwner} />
         </PixelModal>,
@@ -179,7 +208,7 @@ export default function GalleryPage() {
         )),
       ]}
     >
-      <GalleryScene />
+      <GalleryScene playing={playing} />
     </SimpleRoom>
   );
 }

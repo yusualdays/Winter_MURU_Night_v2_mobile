@@ -22,4 +22,16 @@ export const galleryData = {
     { id: "art5", title: "작은 화분", artist: "호스트", year: "2026", image: "", description: "책상 위에서 꿋꿋하게 자란 친구." },
     { id: "art6", title: "기차 여행", artist: "호스트", year: "2026", image: "", description: "창밖 풍경이 그림 같던 하루." },
   ],
+  // 🎧 청음실 (아래 가운데 LP 플레이어) — url에 유튜브 "재생목록" 또는 "영상" 링크를 붙여 넣어요
+  //  예) "https://www.youtube.com/playlist?list=PLxxxxxxxx"  /  "https://youtu.be/xxxxxxxxxxx"
+  //  url이 비어 있으면 "링크 준비 중"으로 보여요. 손님이 직접 링크를 넣어 들을 수도 있어요
+  //  color: 음반 표지 색
+  listening: {
+    playlists: [
+      { id: "lp1", title: "겨울밤 재즈", desc: "눈 오는 밤의 피아노 트리오", color: "#1e3a5f", url: "" },
+      { id: "lp2", title: "따뜻한 로파이", desc: "작품 보며 듣기 좋은 잔잔한 비트", color: "#7f1d1d", url: "" },
+      { id: "lp3", title: "클래식 소품", desc: "전시회의 기본, 고요한 클래식", color: "#14532d", url: "" },
+      { id: "lp4", title: "주인장의 올해 노래", desc: "호스트가 올해 가장 많이 들은 곡들", color: "#a16207", url: "" },
+    ],
+  },
 };
