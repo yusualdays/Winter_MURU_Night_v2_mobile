@@ -46,16 +46,16 @@ const BLOCKERS = [
   { x: 0, y: DOOR.y + DOOR.h, w: FLOOR.x, h: 1 }, // 왼쪽 벽 (문 아래)
   { x: FLOOR.r, y: 0, w: 1 - FLOOR.r, h: 1 }, // 오른쪽 벽
   { x: 0, y: FLOOR.b, w: 1, h: 1 - FLOOR.b }, // 아래쪽 벽
-  ...CASES.map((c) => ({ x: c.body.x, y: c.body.y + 0.1, w: c.body.w, h: c.body.h - 0.1 })), // 유리 진열장
-  { x: BENCH.x, y: BENCH.y + 0.04, w: BENCH.w, h: 0.05 }, // 벤치
+  ...CASES.map((c) => ({ x: c.body.x, y: c.body.y - 0.03, w: c.body.w, h: c.body.h + 0.03 })), // 유리 진열장 (유리 위로 못 올라가게 전체)
+  { x: BENCH.x, y: BENCH.y - 0.01, w: BENCH.w, h: BENCH.h + 0.01 }, // 벤치 (위에 못 서게 전체)
   { x: FLOOR.x, y: 0.66, w: 0.1, h: 0.3 }, // 화분 + 방명록 탁자
 ];
 
-// 🪑 가운데 벤치 (앉아서 작품 감상) — 앞이 트인 벤치라 legs: true (다리를 자르지 않고 벤치 앞으로 늘어뜨려요)
+// 🪑 가운데 벤치 (앉아서 작품 감상) — stands: 앞·뒤·옆 어디서 다가가도 앉을 수 있어요 — 앞이 트인 벤치라 legs: true (다리를 자르지 않고 벤치 앞으로 늘어뜨려요)
 //   legs 자리의 y = 발끝 높이 (엉덩이는 그보다 캐릭터 다리 길이만큼 위 = 벤치 앉는 판)
 const SEATS = [
-  { id: "bench1", x: 0.46, y: SEAT_FEET_Y, dir: "down", legs: true, stand: { x: 0.46, y: 0.69 }, label: "벤치에 앉기" },
-  { id: "bench2", x: 0.54, y: SEAT_FEET_Y, dir: "down", legs: true, stand: { x: 0.54, y: 0.69 }, label: "벤치에 앉기" },
+  { id: "bench1", x: 0.46, y: SEAT_FEET_Y, dir: "down", legs: true, stands: [{ x: 0.46, y: 0.69 }, { x: 0.46, y: 0.49 }, { x: 0.38, y: 0.6 }], label: "벤치에 앉기" },
+  { id: "bench2", x: 0.54, y: SEAT_FEET_Y, dir: "down", legs: true, stands: [{ x: 0.54, y: 0.69 }, { x: 0.54, y: 0.49 }, { x: 0.62, y: 0.6 }], label: "벤치에 앉기" },
 ];
 
 // 📖 왼쪽 아래 책상 (방명록) — 책상 오른쪽에 서면 [📖 방명록 쓰기]

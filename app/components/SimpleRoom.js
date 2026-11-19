@@ -35,6 +35,7 @@ import { EMOTE_KEYS } from "./EmoteBubble";
 //  onEnter  : 방에 들어왔을 때 한 번 ({ openDetail }) — 예: 첫 방문이면 안내 창 열기
 //  seats    : 앉을 수 있는 자리 [{ id, x, y, dir, stand: {x,y}, label }]
 //             x,y = 앉았을 때 엉덩이 자리(캐릭터 아래 가운데), stand = 의자 옆 서는 자리 (모두 0~1 비율)
+//             stands: [{x,y}, ...] → 서는 자리를 여러 개 (상하좌우 어디서든 앉기, 일어나면 다가온 자리로)
 //             legs: true → 다리를 자르지 않고 의자 앞으로 늘어뜨려요 (앞이 트인 벤치). 이때 x,y = 발끝 자리
 //  hud(api) : 화면 위에 덧붙일 UI (설정 창·배너 등). api = { nickname, myId, isOwner, setOwner,
 //             forceOpen, changeForceOpen, mySeat, showToast, playAction, focus, setFocus, focusProp, setFocusProp }
@@ -349,10 +350,12 @@ export default function SimpleRoom({
     }
     // 의자: 의자 옆 서는 자리에서 SEAT_RADIUS 안
     for (const seat of seats) {
-      const d = Math.hypot(fx - seat.stand.x * mapW, fy - seat.stand.y * mapH);
-      if (d <= SEAT_RADIUS && d < bestDist) {
-        best = { id: `seat:${seat.id}`, seat };
-        bestDist = d;
+      for (const st of seat.stands ?? [seat.stand]) {
+        const d = Math.hypot(fx - st.x * mapW, fy - st.y * mapH);
+        if (d <= SEAT_RADIUS && d < bestDist) {
+          best = { id: `seat:${seat.id}`, seat, stand: st };
+          bestDist = d;
+        }
       }
     }
     return best;
@@ -380,7 +383,7 @@ export default function SimpleRoom({
   const takenSeats = {};
   for (const u of Object.values(others)) if (u.isSitting && u.seatId) takenSeats[u.seatId] = u.nickname || "손님";
 
-  const sitDown = async (seat) => {
+  const sitDown = async (seat, stand) => {
     if (!seat || seatIdRef.current || takenSeats[seat.id]) return;
     if (db && myId) {
       const seatRef = ref(db, `roomSeats/${roomId}/${seat.id}`);
@@ -394,7 +397,7 @@ export default function SimpleRoom({
     }
     pressedKeys.current.clear();
     targetRef.current = null;
-    standPointRef.current = seat.stand;
+    standPointRef.current = stand ?? seat.stand ?? seat.stands?.[0];
     seatIdRef.current = seat.id;
     setSeatId(seat.id);
     setDir(seat.dir ?? "down");
@@ -444,7 +447,7 @@ export default function SimpleRoom({
   // 버튼/E키: 앉아 있으면 일어나기, 의자 옆이면 앉기, 물건 옆이면 상세 창
   const interact = () => {
     if (seatIdRef.current) return standUp();
-    if (near?.seat) return sitDown(near.seat);
+    if (near?.seat) return sitDown(near.seat, near.stand);
     if (nearIdRef.current) openDetail(nearIdRef.current);
   };
   const interactRef = useRef(interact);
