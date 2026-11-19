@@ -370,7 +370,8 @@ export function FocusToggle({ focus, setFocus, compact = false }) {
 }
 
 //  onOff: [집중 모드 끄기] (자리에서 일어난 뒤에도 끌 수 있게)
-export function FocusPanel({ onOff }) {
+//  prop / onProp: 내 캐릭터가 📖 책을 읽을지 💻 노트북을 할지 (모두에게 보여요)
+export function FocusPanel({ onOff, prop = "book", onProp }) {
   useResumeMix();
   const [mixOpen, setMixOpen] = useState(false);
   return (
@@ -383,6 +384,21 @@ export function FocusPanel({ onOff }) {
           </button>
         )}
       </div>
+      {onProp && (
+        <div className="mb-3 grid grid-cols-2 gap-1.5">
+          {[["book", "📖 책 읽기"], ["laptop", "💻 노트북"]].map(([k, l]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => onProp(k)}
+              aria-pressed={prop === k}
+              className={`border-2 border-[#1a110e] py-1 text-xs font-black ${prop === k ? "bg-amber-400 text-[#2b1d1a]" : "bg-[#f5e6c8]/80 text-[#2b1d1a]"}`}
+            >
+              {l}
+            </button>
+          ))}
+        </div>
+      )}
       <Pomodoro />
       <button type="button" onClick={() => setMixOpen((o) => !o)} className="mt-3 w-full border-t-2 border-white/15 pt-2 text-left text-xs font-black text-white/80">
         {mixOpen ? "▾" : "▸"} 🎧 백색소음 섞어 듣기

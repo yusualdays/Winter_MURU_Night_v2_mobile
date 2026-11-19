@@ -124,7 +124,7 @@ function SettingsPanel({ tea, api, onOpenOwner }) {
               key={s.id}
               type="button"
               onClick={() => chooseSeason(s.id)}
-              className={`${BTN} flex items-center gap-1.5 ${tea.season === s.id ? "bg-amber-400 text-[#2b1d1a]" : "bg-[#f5e6c8] text-[#2b1d1a]"}`}
+              className={`${BTN} flex items-center gap-1.5 ${s.id === "rain" ? "col-span-2" : ""} ${tea.season === s.id ? "bg-amber-400 text-[#2b1d1a]" : "bg-[#f5e6c8] text-[#2b1d1a]"}`}
             >
               <span className="text-lg">{s.icon}</span>
               <span className="text-left leading-tight">
@@ -427,7 +427,7 @@ export default function TeaHouseHud({ tea, api }) {
           ⚙️
         </button>
         </div>
-        {api.focus && !panelOpen && <FocusPanel onOff={() => changeFocus(false)} />}
+        {api.focus && !panelOpen && <FocusPanel onOff={() => changeFocus(false)} prop={api.focusProp} onProp={api.setFocusProp} />}
         {panelOpen && (
           <SettingsPanel
             tea={tea}

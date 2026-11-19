@@ -190,7 +190,7 @@ function CafeScene({ npcBubble, season, orders, debug, npcAlert, onNpcAlert, tal
   return (
     <div className="absolute inset-0">
       {/* 🪟 사계절 통창 — 배경 그림의 유리 부분이 투명해서, 그림 "뒤"에 깔면 창틀·창살은 그림 그대로 보여요 */}
-      <SeasonWindow rect={{ x: WINDOW_AREA.x * MAP_W, y: WINDOW_AREA.y * MAP_H, w: WINDOW_AREA.w * MAP_W, h: WINDOW_AREA.h * MAP_H }} season={season} frame={false} />
+      <SeasonWindow rect={{ x: WINDOW_AREA.x * MAP_W, y: WINDOW_AREA.y * MAP_H, w: WINDOW_AREA.w * MAP_W, h: WINDOW_AREA.h * MAP_H }} season={season} frame={false} mapW={MAP_W} mapH={MAP_H} />
 
       {/* 배경 그림 (그림을 못 불러오면 나무 바닥색) */}
       <div className="absolute inset-0" style={{ background: `url(${BG_IMAGE}) center / 100% 100% no-repeat`, imageRendering: "pixelated" }} />

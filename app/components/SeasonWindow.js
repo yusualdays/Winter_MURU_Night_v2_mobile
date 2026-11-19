@@ -1,13 +1,18 @@
 "use client";
 
-// 🪟 찻집 통창 — 계절별 바깥 풍경 (봄 벚꽃 / 여름 햇살 / 가을 단풍 노을 / 겨울 밤눈)
+import { useImgOk, craftSrc } from "./CraftImg";
+
+// 🪟 찻집 통창 — 계절별 바깥 풍경 (봄 벚꽃 / 여름 햇살 / 가을 단풍 노을 / 겨울 밤눈 / 비 오는 날)
+//  - 그림: public/craft/window_{계절}.png (찻집 배경과 같은 2400x1792 크기, 창문 자리에만 풍경) → 있으면 그림, 없으면 코드 그림
+//  - 그림 위에 꽃잎·눈·빗줄기가 살짝 내려서 창밖이 움직여 보여요
 //  - rect: 통창 자리 (맵 좌표 px) — 이 네모 안에서만 보여요 (overflow-hidden 마스킹)
 //  - 배경 그림이 생기면 그림 속 통창 좌표(WINDOW_AREA)만 맞춰 주면 돼요. frame={false}로 창틀을 끌 수 있어요
 export const SEASONS = [
   { id: "spring", icon: "🌸", label: "봄", sub: "벚꽃" },
   { id: "summer", icon: "🌿", label: "여름", sub: "초록 햇살" },
-  { id: "autumn", icon: "🍁", label: "가을", sub: "단풍 노을" },
-  { id: "winter", icon: "❄️", label: "겨울", sub: "밤눈" },
+  { id: "autumn", icon: "🍁", label: "가을", sub: "단풍" },
+  { id: "winter", icon: "❄️", label: "겨울", sub: "눈 쌓인 숲" },
+  { id: "rain", icon: "🌧️", label: "비", sub: "비 오는 날" },
 ];
 
 const LOOK = {
@@ -39,28 +44,41 @@ const LOOK = {
     particle: ["#ffffff", "#e0f2fe", "#ffffff"],
     kind: "snow",
   },
+  rain: {
+    sky: "linear-gradient(#64748b 0%, #a3b8c2 80%)",
+    hills: ["#4d7c5b", "#2f5a3f"],
+    ground: "#3f6b45",
+    particle: ["#e0f2fe", "#cbd5e1", "#ffffff"],
+    kind: "rain",
+  },
 };
 
 const COUNT = 22;
 
-export default function SeasonWindow({ rect, season = "winter", frame = true }) {
-  const look = LOOK[season] ?? LOOK.winter;
+export default function SeasonWindow({ rect, season = "winter", frame = true, mapW, mapH }) {
+  const id = LOOK[season] ? season : "winter";
+  const look = LOOK[id];
   const { x, y, w, h } = rect;
+  const pic = useImgOk(`window_${id}`) === true && mapW && mapH; // 풍경 그림이 있으면 그림으로
   return (
-    <div className="pointer-events-none absolute overflow-hidden" style={{ left: x, top: y, width: w, height: h, background: look.sky }}>
+    <div className="pointer-events-none absolute overflow-hidden" style={{ left: x, top: y, width: w, height: h, background: pic ? "#9fb4b8" : look.sky }}>
       <style>{`
         @keyframes sw-fall { 0% { transform: translate(0, -20px) rotate(0deg); } 50% { transform: translate(var(--sway), calc(var(--h) * 0.5)) rotate(180deg); } 100% { transform: translate(calc(var(--sway) * -0.4), calc(var(--h) + 20px)) rotate(360deg); } }
         @keyframes sw-drift { 0% { transform: translate(-30px, 10px); } 100% { transform: translate(calc(var(--w) + 30px), calc(var(--h) * 0.4)); } }
         @keyframes sw-twinkle { 0%, 100% { opacity: 0.2; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-14px); } }
+        @keyframes sw-rain { 0% { transform: translate(0, -40px) rotate(12deg); } 100% { transform: translate(calc(var(--h) * -0.2), calc(var(--h) + 40px)) rotate(12deg); } }
       `}</style>
 
+      {/* 🖼️ 풍경 그림 (찻집 배경과 같은 크기라서, 창문 자리만큼만 잘라 보여요) */}
+      {pic && <img src={craftSrc(`window_${id}`)} alt="" draggable={false} className="absolute max-w-none" style={{ left: -x, top: -y, width: mapW, height: mapH }} />}
+
       {/* 해 · 달 */}
-      {season === "winter" && <span className="absolute h-10 w-10 bg-[#fef9c3] shadow-[0_0_20px_6px_rgba(254,249,195,0.5)]" style={{ right: "12%", top: "16%", borderRadius: 4 }} />}
-      {season === "summer" && <span className="absolute h-14 w-14 bg-[#fde047] shadow-[0_0_30px_12px_rgba(253,224,71,0.6)]" style={{ right: "10%", top: "10%", borderRadius: 6 }} />}
-      {season === "autumn" && <span className="absolute h-16 w-16 bg-[#fb923c] opacity-90" style={{ left: "45%", bottom: "18%", borderRadius: 8 }} />}
+      {!pic && season === "winter" && <span className="absolute h-10 w-10 bg-[#fef9c3] shadow-[0_0_20px_6px_rgba(254,249,195,0.5)]" style={{ right: "12%", top: "16%", borderRadius: 4 }} />}
+      {!pic && season === "summer" && <span className="absolute h-14 w-14 bg-[#fde047] shadow-[0_0_30px_12px_rgba(253,224,71,0.6)]" style={{ right: "10%", top: "10%", borderRadius: 6 }} />}
+      {!pic && season === "autumn" && <span className="absolute h-16 w-16 bg-[#fb923c] opacity-90" style={{ left: "45%", bottom: "18%", borderRadius: 8 }} />}
 
       {/* 먼 산 · 나무 (도트 계단 모양) */}
-      {[0, 1].map((layer) => (
+      {!pic && [0, 1].map((layer) => (
         <div key={layer} className="absolute inset-x-0 bottom-0 flex items-end" style={{ height: `${45 - layer * 15}%` }}>
           {Array.from({ length: 14 }, (_, i) => {
             const hh = 40 + (((i * 37 + layer * 11) % 7) * 9);
@@ -68,7 +86,7 @@ export default function SeasonWindow({ rect, season = "winter", frame = true }) 
           })}
         </div>
       ))}
-      <div className="absolute inset-x-0 bottom-0 h-[10%]" style={{ background: look.ground }} />
+      {!pic && <div className="absolute inset-x-0 bottom-0 h-[10%]" style={{ background: look.ground }} />}
 
       {/* 계절 파티클 (벚꽃잎 · 햇살 · 단풍잎 · 눈) */}
       {Array.from({ length: COUNT }, (_, i) => {
@@ -77,6 +95,9 @@ export default function SeasonWindow({ rect, season = "winter", frame = true }) 
         const color = look.particle[i % look.particle.length];
         const size = look.kind === "snow" ? 4 + (i % 3) * 2 : look.kind === "sparkle" ? 4 + (i % 2) * 3 : 7 + (i % 3) * 2;
         const style = { left: `${left}%`, top: 0, width: size, height: look.kind === "leaf" ? size * 0.8 : size, background: color, "--h": `${h}px`, "--w": `${w}px`, "--sway": `${((i % 5) - 2) * 18}px` };
+        if (look.kind === "rain") {
+          return <span key={i} className="absolute" style={{ left: `${(i * 53 + 20) % 110}%`, top: 0, width: 2, height: 18 + (i % 3) * 6, background: color, opacity: 0.55, "--h": `${h}px`, animation: `sw-rain ${0.7 + (i % 4) * 0.12}s linear ${delay / 6}s infinite` }} />;
+        }
         if (look.kind === "sparkle") {
           return <span key={i} className="absolute" style={{ ...style, top: `${20 + ((i * 29) % 60)}%`, animation: `sw-twinkle ${2.4 + (i % 4) * 0.6}s ease-in-out ${delay}s infinite` }} />;
         }

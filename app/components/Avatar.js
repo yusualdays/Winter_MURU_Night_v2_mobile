@@ -36,7 +36,8 @@ export default function Avatar({
   isMe = false,
   owner = false, // 사장님 모드: 앞치마 + 닉네임 옆 🍵 배지
   eating = true, // 앉아 있을 때 냠냠 효과 (찻집 단체석에서는 끄기)
-  focus = false, // 📖 공부 집중 모드: 머리 위 "📖 집중 중..."
+  focus = false, // 📖 공부 집중 모드: 머리 위 "📖 집중 중..." + 책 읽기 / 노트북 하는 모습
+  focusProp = 'book', // 집중 모드 소품: 'book' | 'laptop'
   action = null, // 찻집 식음료 모션 { type: "pouring" | "drinking" | "eating", at }
   z, // 겹치는 순서 (찻집: 발 위치가 아래일수록 앞에 — 테이블·분재 뒤로 가면 가려져요)
 }) {
@@ -75,7 +76,7 @@ export default function Avatar({
         {/* 📖 공부 집중 중 표시 (닉네임 위) */}
         {focus && (
           <div className="absolute -top-[68px] left-1/2 -translate-x-1/2 whitespace-nowrap border-2 border-[#1a110e] bg-[#f5e6c8] px-2 py-0.5 text-xs font-black text-[#2b1d1a] shadow-[2px_2px_0_0_rgba(0,0,0,0.4)]" style={{ scale: 'var(--ui-boost, 1)', transformOrigin: '50% 100%' }}>
-            📖 집중 중...
+            {focusProp === 'laptop' ? '💻' : '📖'} 집중 중...
           </div>
         )}
 
@@ -115,6 +116,8 @@ export default function Avatar({
           />
           {/* 사장님 앞치마 (캐릭터 그림 위에 겹쳐 그려요) */}
           {owner && <OwnerApron dir={dir} cheering={cheering} />}
+          {/* 📖 집중 모드: 책을 펼쳐 읽거나 💻 노트북 타닥타닥 (걷는 중엔 숨겨요) */}
+          {focus && !cheering && !(isMoving && !sitting) && <FocusProp kind={focusProp === 'laptop' ? 'laptop' : 'book'} dir={dir} />}
         </div>
 
         {/* 앉아서 냠냠 (음식이 바라보는 쪽에서 통통) */}
@@ -258,5 +261,103 @@ function ActionFx({ action, dir }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ---------- 📖 집중 모드 소품 (책 · 노트북) ----------
+//  캐릭터 그림(18x25 도트)과 같은 칸에 겹쳐 그려요. 글자 하나 = 도트 하나 (. 은 빈칸)
+//  - 앞모습: 가슴 앞에 펼친 책 / 노트북 뒷면(사과 대신 찻잎 로고)
+//  - 옆모습(오른쪽 보기 기준, 왼쪽은 좌우 반전): 얼굴 앞 책 / 무릎 위 노트북 + 화면 불빛
+//  - 뒷모습: 몸에 가려서 안 보여요
+const PROP_COLORS = {
+  K: '#2b1d1a', // 테두리
+  W: '#fffaf0', // 종이
+  l: '#b8aa96', // 글줄
+  C: '#8b3a3a', // 책 표지
+  G: '#c7ccd3', // 노트북
+  g: '#9aa1ab', // 노트북 그림자
+  L: '#7fb36a', // 찻잎 로고
+  B: '#bfe9ff', // 화면 불빛
+  D: '#6b7280', // 키보드
+  S: '#f6d0b1', // 손
+};
+const PROPS = {
+  book: {
+    down: { x: 4, y: 14, rows: ['KKKKKKKKKKK', 'KWWWWKWWWWK', 'KWllWKWllWK', 'KWWWWKWWWWK', 'KCCCCCCCCCK'] },
+    side: { x: 11, y: 12, rows: ['KKKK', 'KWWK', 'KWlK', 'KWWK', 'KWlK', 'KCCK'] },
+  },
+  laptop: {
+    down: { x: 4, y: 13, rows: ['.KKKKKKKKK.', '.KGGGGGGGK.', '.KGGGLGGGK.', '.KgGGGGGgK.', 'KKKKKKKKKKK', 'KDDDDDDDDDK'] },
+    side: { x: 9, y: 11, rows: ['.....K', '....BK', '....BK', '....BK', '....BK', 'GGGGGK', 'KKKKKK'] },
+  },
+};
+function PropPixels({ x0, y0, rows }) {
+  const out = [];
+  rows.forEach((row, y) =>
+    [...row].forEach((ch, x) => {
+      const c = PROP_COLORS[ch];
+      if (c) out.push(<rect key={`${x}-${y}`} x={x0 + x} y={y0 + y} width="1.02" height="1.02" fill={c} />);
+    })
+  );
+  return out;
+}
+function FocusProp({ kind, dir }) {
+  if (dir === 'up') return null;
+  const view = dir === 'left' || dir === 'right' ? 'side' : 'down';
+  const sp = PROPS[kind][view];
+  return (
+    <svg
+      className="pointer-events-none absolute left-0 top-0"
+      width={GRID_W * AVATAR_SCALE}
+      height={GRID_H * AVATAR_SCALE}
+      viewBox={`0 0 ${GRID_W} ${GRID_H}`}
+      shapeRendering="crispEdges"
+      style={{ transform: dir === 'left' ? 'scaleX(-1)' : undefined, overflow: 'visible' }}
+      aria-hidden="true"
+    >
+      <style>{`
+        @keyframes fp-type { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.7px); } }
+        @keyframes fp-glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+        @keyframes fp-page { 0%, 78% { transform: scaleX(1); } 88% { transform: scaleX(0); } 100% { transform: scaleX(-1); } }
+        @keyframes fp-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(0.5px); } }
+        .fp-type-a { animation: fp-type 0.3s steps(2, jump-none) infinite; }
+        .fp-type-b { animation: fp-type 0.3s steps(2, jump-none) 0.15s infinite; }
+        .fp-glow { animation: fp-glow 1.6s ease-in-out infinite; }
+        .fp-page { animation: fp-page 4s steps(4, jump-none) infinite; transform-box: view-box; transform-origin: 9.5px 0; }
+        .fp-bob { animation: fp-bob 2.4s steps(2, jump-none) infinite; }
+      `}</style>
+      <g className={kind === 'book' ? 'fp-bob' : undefined}>
+        <PropPixels x0={sp.x} y0={sp.y} rows={sp.rows} />
+        {/* 📖 앞모습: 오른쪽 책장이 4초마다 넘어가요 */}
+        {kind === 'book' && view === 'down' && (
+          <g className="fp-page">
+            <rect x="10" y="15" width="4" height="3" fill="#fffaf0" stroke="#2b1d1a" strokeWidth="0.15" />
+          </g>
+        )}
+        {/* 손 (책을 잡거나 키보드를 타닥타닥) */}
+        {view === 'down' && kind === 'book' && (
+          <>
+            <rect x="3" y="16" width="1.02" height="2" fill={PROP_COLORS.S} />
+            <rect x="15" y="16" width="1.02" height="2" fill={PROP_COLORS.S} />
+          </>
+        )}
+        {view === 'side' && kind === 'book' && <rect x="10" y="16" width="1.02" height="1.02" fill={PROP_COLORS.S} />}
+        {kind === 'laptop' && view === 'down' && (
+          <>
+            <rect className="fp-type-a" x="5" y="17" width="2" height="1.02" fill={PROP_COLORS.S} />
+            <rect className="fp-type-b" x="12" y="17" width="2" height="1.02" fill={PROP_COLORS.S} />
+            {/* 화면 불빛이 노트북 위로 살짝 */}
+            <rect className="fp-glow" x="6" y="12.4" width="7" height="0.6" fill="#bfe9ff" opacity="0.8" />
+          </>
+        )}
+        {kind === 'laptop' && view === 'side' && (
+          <>
+            <rect className="fp-glow" x="11" y="12" width="2.6" height="4" fill="#bfe9ff" opacity="0.25" />
+            <rect className="fp-type-a" x="10" y="15" width="1.02" height="1.02" fill={PROP_COLORS.S} />
+            <rect className="fp-type-b" x="12" y="15" width="1.02" height="1.02" fill={PROP_COLORS.S} />
+          </>
+        )}
+      </g>
+    </svg>
   );
 }
