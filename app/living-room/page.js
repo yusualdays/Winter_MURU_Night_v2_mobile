@@ -264,7 +264,19 @@ export default function LivingRoom() {
     set(myRef, { nickname, ...look, room: "livingRoom", isOwner: getOwnerLocal(), joinedAt: serverTimestamp(), ...latest.current, emote: null }).catch((err) =>
       console.error("접속자 등록 실패:", err)
     );
+    // 📶 연결이 끊겼다 다시 붙으면 (휴대폰 잠자기 등) → 서버가 지운 내 정보를 다시 등록 + "창 닫으면 지우기" 다시 걸기
+    let firstConn = true;
+    const offConn = onValue(ref(db, ".info/connected"), (s) => {
+      if (s.val() !== true) return;
+      if (firstConn) {
+        firstConn = false;
+        return;
+      }
+      onDisconnect(myRef).remove();
+      update(myRef, { nickname, ...look, room: "livingRoom", isOwner: getOwnerLocal(), ...latest.current }).catch(() => {});
+    });
     return () => {
+      offConn();
       remove(myRef).catch(() => {});
     };
   }, [nickname, myId, look]);
@@ -297,7 +309,7 @@ export default function LivingRoom() {
       const all = {};
       snap.forEach((child) => {
         const u = child.val();
-        if (child.key !== myId && u && typeof u.x === "number" && (u.room ?? "livingRoom") === "livingRoom") all[child.key] = u; // 거실에 있는 사람만
+        if (child.key !== myId && u && typeof u.x === "number" && u.room === "livingRoom" && u.nickname) all[child.key] = u; // 거실에 있는 사람만 (방·이름이 없는 유령 기록은 빼요)
       });
       setOthers(all);
       othersRef.current = all;

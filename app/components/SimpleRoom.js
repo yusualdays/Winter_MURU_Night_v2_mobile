@@ -201,8 +201,28 @@ export default function SimpleRoom({
     const myRef = ref(db, `users/${myId}`);
     onDisconnect(myRef).remove();
     latest.current = { x: Math.round(posRef.current.x), y: Math.round(posRef.current.y), isMoving: false, dir: "down" };
-    set(myRef, { nickname, ...look, room: roomId, joinedAt: serverTimestamp(), ...latest.current, isSitting: false, seatId: null, emote: null, isOwner: getOwnerLocal(), focus: roomId === "teaHouse" && (() => { try { return localStorage.getItem("partyFocus") === "true"; } catch { return false; } })() }).catch(() => {});
+    const savedFocus = () => {
+      try {
+        return { focus: roomId === "teaHouse" && localStorage.getItem("partyFocus") === "true", focusProp: localStorage.getItem("partyFocusProp") === "laptop" ? "laptop" : "book" };
+      } catch {
+        return { focus: false, focusProp: "book" };
+      }
+    };
+    set(myRef, { nickname, ...look, room: roomId, joinedAt: serverTimestamp(), ...latest.current, isSitting: false, seatId: null, emote: null, isOwner: getOwnerLocal(), ...savedFocus() }).catch(() => {});
+    // 📶 휴대폰이 잠들었다 깨는 등 연결이 끊겼다 다시 붙으면, 서버가 내 정보를 지웠을 수 있어요
+    //    → 이름·방·모습까지 다시 등록하고 "창 닫으면 지우기"도 다시 걸어요 (안 그러면 위치만 남은 유령 '손님'이 생겨요)
+    let firstConn = true;
+    const offConn = onValue(ref(db, ".info/connected"), (s) => {
+      if (s.val() !== true) return;
+      if (firstConn) {
+        firstConn = false;
+        return;
+      }
+      onDisconnect(myRef).remove();
+      update(myRef, { nickname, ...look, room: roomId, isOwner: getOwnerLocal(), ...savedFocus(), ...latest.current }).catch(() => {});
+    });
     return () => {
+      offConn();
       remove(myRef).catch(() => {});
     };
   }, [nickname, myId, look, roomId]);
@@ -264,7 +284,7 @@ export default function SimpleRoom({
       const all = {};
       snap.forEach((child) => {
         const u = child.val();
-        if (child.key !== myId && u && typeof u.x === "number" && u.room === roomId) all[child.key] = u;
+        if (child.key !== myId && u && typeof u.x === "number" && u.room === roomId && u.nickname) all[child.key] = u; // 이름 없는 유령 기록은 빼요
       });
       setOthers(all);
       othersRef.current = all;
