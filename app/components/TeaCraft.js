@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import PixelModal from "./PixelModal";
+import { CraftImg, craftSrc, useImgOk } from "./CraftImg";
 import { partyData } from "../data";
 
 // 🍡🍵 다도 체험존 미니게임 2종 (그림 파일 없이 CSS/SVG + Web Audio API 효과음만 사용)
-//  1) 수제 다식 만들기 (쿠킹마마 스타일): 보늬밤 조림 / 곶감 호두말이 / 수제 매실청
+//  1) 수제 다식 만들기 (쿠킹마마 스타일): 보늬밤 조림 / 곶감 호두말이 (+ 🍢 가래떡 구이)
 //     ① 재료 손질(연타로 점선 따라 껍질 벗기기) → ② 불 조절(초록 구간에서 3번 클릭) → ③ 플레이팅(고명 올리기)
 //  2) 말차 격불하기: ① 체 치기(다완 3번 클릭) → ② 온수 붓기(주전자 길게 누르기) → ③ 10초 동안 차선 젓기
 //  완성하면 [🪑 내 테이블로 가져가기] → 앉아 있는 자리(지금 또는 다음에 앉을 자리) 테이블에 놓여요
@@ -24,9 +25,6 @@ export const RECIPES = {
   },
   gotgam: {
     name: "곶감 호두말이", emoji: "🍊", peel: "곶감 꼭지 따고 씨 빼기", cook: "호두 살짝 볶기", base: "#d9692a", light: "#f0a05a", shell: "#8a3c14",
-  },
-  maesil: {
-    name: "수제 매실청", emoji: "🍏", peel: "매실 꼭지 따기", cook: "설탕 녹이며 데우기", base: "#9cbf55", light: "#c8e08a", shell: "#5d7a2a",
   },
   // 🍢 가래떡 구이 — 다른 다식과 진행 방식이 달라요 (썰기 → 석쇠에 굽기 → 조청·콩가루) → TteokGame
   tteok: {
@@ -188,27 +186,6 @@ function sendToTable(kind, stars) {
 
 // ---------------- 🎨 그림 파일 (public/craft/*.png) ----------------
 //  파일이 아직 없으면 → 코드로 그린 그림(fallback)을 대신 보여줘요
-const craftSrc = (name) => `/craft/${name}.png`;
-const imgOkCache = {};
-function useImgOk(name) {
-  const [ok, setOk] = useState(imgOkCache[name] ?? null);
-  useEffect(() => {
-    if (imgOkCache[name] !== undefined) { setOk(imgOkCache[name]); return; }
-    let alive = true;
-    const im = new Image();
-    im.onload = () => { imgOkCache[name] = true; if (alive) setOk(true); };
-    im.onerror = () => { imgOkCache[name] = false; if (alive) setOk(false); };
-    im.src = craftSrc(name);
-    return () => { alive = false; };
-  }, [name]);
-  return ok; // null = 확인 중, true = 있음, false = 없음
-}
-function CraftImg({ name, fallback = null, className = "", style }) {
-  const [bad, setBad] = useState(false);
-  if (bad) return fallback;
-  return <img src={craftSrc(name)} alt="" draggable={false} onError={() => setBad(true)} className={`pointer-events-none select-none ${className}`} style={style} />;
-}
-
 // 다식 그림: {id}_raw → {id}_peeled (손질) → {id}_done (완성) + 고명 그림
 //  (그림 파일이 없는 다식은 아래 SVG 그림으로)
 const GARNISH_PCT = [
@@ -255,17 +232,6 @@ function DasikArt({ id, peel = 100, cooked = 0, garnish = [] }) {
     <svg viewBox="0 0 200 160" className="h-full w-full">
       {/* 접시 */}
       <ellipse cx="100" cy="128" rx="88" ry="22" fill="#fff" stroke="#2b1d1a" strokeWidth="4" />
-      {id === "maesil" ? (
-        <g>
-          {/* 유리병 */}
-          <rect x="62" y="34" width="76" height="96" rx="10" fill="#e8f4ff" fillOpacity="0.6" stroke="#2b1d1a" strokeWidth="4" />
-          <rect x="70" y="24" width="60" height="14" fill="#c08a57" stroke="#2b1d1a" strokeWidth="4" />
-          <rect x="66" y={130 - 70 * Math.max(peeled * 0.4, glaze)} width="68" height={70 * Math.max(peeled * 0.4, glaze)} fill="#e7b84a" fillOpacity={0.3 + glaze * 0.5} />
-          {[[85, 105], [112, 98], [98, 80], [80, 70], [118, 72]].map(([x, y], i) => (
-            <circle key={i} cx={x} cy={y} r="11" fill={r.base} stroke="#2b1d1a" strokeWidth="3" opacity={i / 5 < peeled ? 1 : 0.35} />
-          ))}
-        </g>
-      ) : (
         <g>
           <circle cx="100" cy="84" r="54" fill={r.base} stroke="#2b1d1a" strokeWidth="4" />
           <circle cx="84" cy="66" r="14" fill={r.light} opacity="0.8" />
@@ -281,7 +247,6 @@ function DasikArt({ id, peel = 100, cooked = 0, garnish = [] }) {
           {/* 안 벗긴 껍질 (점선 따라 벗겨져요) */}
           <circle cx="100" cy="84" r="62" fill="none" stroke={r.shell} strokeWidth="14" strokeDasharray={`${C * (1 - peeled)} ${C}`} transform="rotate(-90 100 84)" />
         </g>
-      )}
       {peel < 100 && <circle cx="100" cy="84" r="62" fill="none" stroke="#2b1d1a" strokeWidth="2" strokeDasharray="6 6" className="craft-dash" />}
       {garnish.map((g, i) =>
         g.type === "jat" ? (
@@ -1135,7 +1100,7 @@ export default function TeaCraftModal({ open, onClose }) {
         <div className="flex flex-col gap-3">
           <button type="button" onClick={() => { ac(); setGame("dasik"); }} className={`${BTN} flex items-center gap-3 bg-[#fbcfe8] text-left text-[#831843]`}>
             <span className="text-4xl">🍡</span>
-            <span><span className="block text-base">수제 다식 만들기</span><span className="block text-xs font-bold opacity-70">보늬밤 · 곶감 호두말이 · 매실청 · 가래떡 구이</span></span>
+            <span><span className="block text-base">수제 다식 만들기</span><span className="block text-xs font-bold opacity-70">보늬밤 · 곶감 호두말이 · 가래떡 구이</span></span>
           </button>
           <button type="button" onClick={() => { ac(); setGame("matcha"); }} className={`${BTN} flex items-center gap-3 bg-[#bbf7d0] text-left text-[#14532d]`}>
             <span className="text-4xl">🍵</span>

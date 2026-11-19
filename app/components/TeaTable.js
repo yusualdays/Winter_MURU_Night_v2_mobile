@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { ref, set, update, remove, onDisconnect } from "firebase/database";
 import { db } from "../lib/firebase";
 import { CRAFT_PENDING_KEY, CRAFT_EVENT, CRAFT_INFO } from "./TeaCraft";
+import { CraftImg } from "./CraftImg";
 
 // 🍵 찻집 테이블 주문 (자리에 앉으면 아래쪽 미니 주문 바)
 //  - [🍵 차 주문] → 테이블에 다관·찻잔 + 2초 차 따르기(pouring) + 김 → [🍵 한 모금 마시기] (drinking + 🎵/❤️)
@@ -39,70 +40,102 @@ function useNow(watch) {
 }
 
 // ---------- 테이블 위 다관·찻잔·다식 접시 ----------
+//  그림 파일(public/craft/table_*.png 등)이 있으면 그 그림, 없으면 코드로 그린 그림
 function TeaSet({ tea }) {
   const now = useNow(tea.at);
   const pouring = isPouring(tea, now);
+  const cupName = pouring ? "table_cup_empty" : "table_cup_full";
   return (
-    <div className="absolute" style={{ left: -30, top: -26, width: 60, height: 40 }}>
+    <div className="absolute" style={{ left: -34, top: -34, width: 76, height: 52 }}>
       {/* 찻잔 + 김 */}
-      <svg className="absolute" width="22" height="18" viewBox="0 0 7 6" shapeRendering="crispEdges" style={{ left: 30, top: 18 }}>
-        <rect x="0" y="0" width="6" height="1" fill="#2b1d1a" />
-        <rect x="0.3" y="1" width="5.4" height="4" fill="#ffffff" stroke="#2b1d1a" strokeWidth="0.3" />
-        {!pouring && <rect x="1" y="1" width="4" height="1" fill="#7a9a55" />}
-      </svg>
+      <div className="absolute" style={{ left: 38, top: 22, width: 30 }}>
+        <CraftImg
+          key={cupName}
+          name={cupName}
+          className="w-full"
+          fallback={
+            <svg width="22" height="18" viewBox="0 0 7 6" shapeRendering="crispEdges" className="mt-1">
+              <rect x="0" y="0" width="6" height="1" fill="#2b1d1a" />
+              <rect x="0.3" y="1" width="5.4" height="4" fill="#ffffff" stroke="#2b1d1a" strokeWidth="0.3" />
+              {!pouring && <rect x="1" y="1" width="4" height="1" fill="#7a9a55" />}
+            </svg>
+          }
+        />
+      </div>
       {!pouring && (
-        <div className="absolute" style={{ left: 30, top: -6 }}>
+        <div className="absolute" style={{ left: 40, top: 2 }}>
           {[0, 1].map((i) => (
             <span key={i} className="tea-steam absolute h-4 w-2.5 rounded-full bg-white/80 blur-[2px]" style={{ left: 4 + i * 8, animationDelay: `${i * 0.6}s` }} />
           ))}
         </div>
       )}
-      {/* 다관 (따르는 2초 동안 기울어져요) */}
-      <div className="absolute" style={{ left: pouring ? 8 : 0, top: pouring ? 0 : 12, transformOrigin: "80% 70%", transform: pouring ? "rotate(-35deg)" : "none", transition: "all 0.3s" }}>
-        <svg width="30" height="24" viewBox="0 0 10 8" shapeRendering="crispEdges">
-          <rect x="3" y="0" width="3" height="1" fill="#2b1d1a" />
-          <rect x="1" y="1" width="7" height="6" fill="#7aa58a" stroke="#2b1d1a" strokeWidth="0.35" />
-          <rect x="2" y="2" width="2" height="1" fill="#a7c9b3" />
-          <rect x="8" y="2" width="2" height="1" fill="#7aa58a" stroke="#2b1d1a" strokeWidth="0.3" />
-        </svg>
-        {pouring && <span className="tea-stream absolute block w-1 origin-top bg-[#9bbf6a]" style={{ left: 30, top: 10, height: 20 }} />}
+      {/* 다관 (따르는 2초 동안 찻잔 쪽으로 기울어져요) */}
+      <div className="absolute" style={{ left: pouring ? 10 : 0, top: pouring ? 0 : 12, width: 42, transformOrigin: "80% 70%", transform: pouring ? "rotate(35deg)" : "none", transition: "all 0.3s" }}>
+        <CraftImg
+          name="table_teapot"
+          className="w-full"
+          fallback={
+            <svg width="30" height="24" viewBox="0 0 10 8" shapeRendering="crispEdges">
+              <rect x="3" y="0" width="3" height="1" fill="#2b1d1a" />
+              <rect x="1" y="1" width="7" height="6" fill="#7aa58a" stroke="#2b1d1a" strokeWidth="0.35" />
+              <rect x="2" y="2" width="2" height="1" fill="#a7c9b3" />
+              <rect x="8" y="2" width="2" height="1" fill="#7aa58a" stroke="#2b1d1a" strokeWidth="0.3" />
+            </svg>
+          }
+        />
       </div>
+      {pouring && <span className="tea-stream absolute block w-1 origin-top bg-[#9bbf6a]" style={{ left: 51, top: 10, height: 18 }} />}
     </div>
   );
 }
 
+// 다식 3개 (dasik_piece_1~3.png) — 한 입 먹을 때마다 하나씩 없어져요
+const PIECE_POS = [{ x: 14, y: 4 }, { x: 30, y: 2 }, { x: 46, y: 5 }];
 function SweetsPlate({ sweets }) {
   const left = Math.max(0, sweets.left ?? 0);
   return (
-    <div className="absolute" style={{ left: -26, top: 14, width: 52, height: 22 }}>
-      <span className="absolute inset-0 rounded-[50%] border-[3px] border-[#2b1d1a] bg-white" />
+    <div className="absolute" style={{ left: -32, top: 6, width: 64, height: 36 }}>
+      <CraftImg
+        name="table_plate"
+        className="absolute inset-x-0 bottom-0 w-full"
+        fallback={<span className="absolute inset-x-1.5 bottom-1 h-[22px] rounded-[50%] border-[3px] border-[#2b1d1a] bg-white" />}
+      />
       {Array.from({ length: left }, (_, i) => (
-        <span key={i} className="absolute h-3.5 w-3.5 border-2 border-[#2b1d1a]" style={{ left: 8 + i * 12, top: 3, background: DASIK_COLORS[i % 3], borderRadius: 3 }} />
+        <div key={i} className="absolute -translate-x-1/2" style={{ left: PIECE_POS[i].x, top: PIECE_POS[i].y, width: 18 }}>
+          <CraftImg
+            name={`dasik_piece_${i + 1}`}
+            className="w-full"
+            fallback={<span className="block h-3.5 w-3.5 border-2 border-[#2b1d1a]" style={{ background: DASIK_COLORS[i % 3], borderRadius: 3, marginTop: 8 }} />}
+          />
+        </div>
       ))}
-      {left === 0 && <span className="absolute left-1/2 top-1.5 -translate-x-1/2 text-[10px] font-bold text-[#a8a29e]">· · ·</span>}
     </div>
   );
 }
 
-// 체험존에서 만든 다식·말차 (테이블 위)
+// 체험존에서 만든 다식·말차 (테이블 위) → 게임에서 완성한 그림 그대로
+//  말차: matcha_bowl_foam → 다 마시면 matcha_bowl_empty
+//  다식: {다식}_done (가래떡은 tteok_done) → 다 먹으면 table_plate
 function CraftedDish({ crafted }) {
   const info = CRAFT_INFO[crafted.kind];
   if (!info) return null;
   const left = Math.max(0, crafted.left ?? 0);
   const matcha = crafted.kind === "matcha";
+  const name = matcha ? (left ? "matcha_bowl_foam" : "matcha_bowl_empty") : left ? `${crafted.kind}_done` : "table_plate";
+  const fallback = matcha ? (
+    <div className="relative h-[34px] w-10">
+      <span className="absolute inset-x-0 bottom-0 h-6 rounded-b-full border-[3px] border-[#1a110e] bg-[#3d3a36]" />
+      <span className="absolute inset-x-1 bottom-4 h-2.5 rounded-[50%]" style={{ background: left ? "#9fd8a8" : "#3d3a36", boxShadow: left ? "inset 0 0 0 2px #e9f8e4" : "none" }} />
+    </div>
+  ) : (
+    <div className="relative h-[34px] w-10">
+      <span className="absolute inset-x-0 bottom-0 h-4 rounded-[50%] border-[3px] border-[#2b1d1a] bg-white" />
+      <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-lg leading-none">{left ? info.emoji.repeat(Math.min(2, left)) : "·"}</span>
+    </div>
+  );
   return (
-    <div className="absolute" style={{ left: matcha ? -46 : 8, top: matcha ? -4 : -14, width: 40, height: 34 }}>
-      {matcha ? (
-        <>
-          <span className="absolute inset-x-0 bottom-0 h-6 rounded-b-full border-[3px] border-[#1a110e] bg-[#3d3a36]" />
-          <span className="absolute inset-x-1 bottom-4 h-2.5 rounded-[50%]" style={{ background: left ? "#9fd8a8" : "#3d3a36", boxShadow: left ? "inset 0 0 0 2px #e9f8e4" : "none" }} />
-        </>
-      ) : (
-        <>
-          <span className="absolute inset-x-0 bottom-0 h-4 rounded-[50%] border-[3px] border-[#2b1d1a] bg-white" />
-          <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-lg leading-none">{left ? info.emoji.repeat(Math.min(2, left)) : "·"}</span>
-        </>
-      )}
+    <div className="absolute flex items-end justify-center" style={{ left: matcha ? 40 : 36, top: matcha ? -14 : -22, width: matcha ? 46 : 56, height: matcha ? 46 : 56 }}>
+      <CraftImg key={name} name={name} className="w-full" fallback={fallback} />
       <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-black text-amber-200 [text-shadow:1px_1px_0_#000]">{"⭐".repeat(crafted.stars || 1)}</span>
     </div>
   );

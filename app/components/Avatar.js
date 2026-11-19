@@ -6,6 +6,7 @@ import EmoteBubble from './EmoteBubble';
 import ChatBubble from './ChatBubble';
 import EatingFx from './EatingFx';
 import PixelCharacter from './PixelCharacter';
+import { CraftImg } from './CraftImg';
 import { GRID_W, GRID_H } from '../lib/pixelCharacter';
 
 // 캐릭터 크기: 18x25 도트를 몇 배로 키울지 (예전 4 → 지금 7, 약 1.75배)
@@ -213,19 +214,27 @@ function ActionFx({ action, dir }) {
         @keyframes fx-sip { 0% { transform: translate(0, 34px) rotate(0deg); } 35%, 70% { transform: translate(0, 0) rotate(-28deg); } 100% { transform: translate(0, 34px) rotate(0deg); } }
         @keyframes fx-float { 0% { transform: translateY(0) scale(0.6); opacity: 0; } 25% { opacity: 1; transform: translateY(-14px) scale(1); } 100% { transform: translateY(-60px) scale(1); opacity: 0; } }
         @keyframes fx-chew { 0%, 100% { transform: translateY(0); } 25%, 75% { transform: translateY(-5px); } 50% { transform: translateY(2px); } }
-        @keyframes fx-pour { 0% { transform: rotate(0deg); } 25%, 80% { transform: rotate(-40deg); } 100% { transform: rotate(0deg); } }
+        @keyframes fx-pour { 0% { transform: rotate(0deg); } 25%, 80% { transform: rotate(40deg); } 100% { transform: rotate(0deg); } }
         @keyframes fx-stream { 0%, 20% { transform: scaleY(0); } 35%, 75% { transform: scaleY(1); } 90%, 100% { transform: scaleY(0); } }
       `}</style>
 
       {action.type === 'drinking' && (
         <>
           {/* 하얀 찻잔을 입으로 */}
-          <svg className="absolute" width="28" height="22" viewBox="0 0 8 6" shapeRendering="crispEdges" style={{ left: mouthX - 14, top: mouthY - 4, animation: 'fx-sip 1.6s ease-in-out both' }}>
-            <rect x="0" y="0" width="6" height="1" fill="#2b1d1a" />
-            <rect x="0" y="1" width="6" height="4" fill="#ffffff" stroke="#2b1d1a" strokeWidth="0.3" />
-            <rect x="1" y="1" width="4" height="1" fill="#7a9a55" />
-            <rect x="6" y="2" width="1.5" height="2" fill="none" stroke="#2b1d1a" strokeWidth="0.5" />
-          </svg>
+          <div className="absolute" style={{ left: mouthX - 17, top: mouthY - 10, width: 34, animation: 'fx-sip 1.6s ease-in-out both' }}>
+            <CraftImg
+              name="hand_cup"
+              className="w-full"
+              fallback={
+                <svg width="28" height="22" viewBox="0 0 8 6" shapeRendering="crispEdges" style={{ marginTop: 6 }}>
+                  <rect x="0" y="0" width="6" height="1" fill="#2b1d1a" />
+                  <rect x="0" y="1" width="6" height="4" fill="#ffffff" stroke="#2b1d1a" strokeWidth="0.3" />
+                  <rect x="1" y="1" width="4" height="1" fill="#7a9a55" />
+                  <rect x="6" y="2" width="1.5" height="2" fill="none" stroke="#2b1d1a" strokeWidth="0.5" />
+                </svg>
+              }
+            />
+          </div>
           <span className="absolute text-2xl" style={{ left: mouthX + (side >= 0 ? 18 : -46), top: mouthY - 46, animation: 'fx-float 1.6s ease-out 0.3s both' }}>
             {heart ? '❤️' : '🎵'}
           </span>
@@ -234,7 +243,9 @@ function ActionFx({ action, dir }) {
 
       {action.type === 'eating' && (
         <>
-          <span className="absolute h-4 w-4 border-2 border-[#2b1d1a] bg-[#f9a8d4]" style={{ left: mouthX - 8, top: mouthY + 4, borderRadius: 4, animation: 'fx-chew 0.4s steps(2, jump-none) 4' }} />
+          <div className="absolute" style={{ left: mouthX - 11, top: mouthY, width: 22, animation: 'fx-chew 0.4s steps(2, jump-none) 4' }}>
+            <CraftImg name="hand_dasik" className="w-full" fallback={<span className="block h-4 w-4 border-2 border-[#2b1d1a] bg-[#f9a8d4]" style={{ borderRadius: 4, marginTop: 4 }} />} />
+          </div>
           <span className="absolute whitespace-nowrap border-2 border-[#2b1d1a] bg-white px-1.5 text-sm font-black text-[#2b1d1a]" style={{ left: mouthX + (side >= 0 ? 16 : -60), top: mouthY - 40, animation: 'fx-float 1.6s ease-out both' }}>
             오물오물
           </span>
@@ -242,9 +253,9 @@ function ActionFx({ action, dir }) {
       )}
 
       {action.type === 'pouring' && (
-        <span className="absolute text-3xl" style={{ left: mouthX + (side >= 0 ? 6 : -40), top: mouthY + 30, transformOrigin: '20% 80%', animation: 'fx-pour 2s ease-in-out both' }}>
-          🫖
-        </span>
+        <div className="absolute" style={{ left: mouthX + (side >= 0 ? 4 : -46), top: mouthY + 24, width: 42, transformOrigin: '20% 80%', animation: 'fx-pour 2s ease-in-out both' }}>
+          <CraftImg name="table_teapot" className="w-full" fallback={<span className="inline-block -scale-x-100 text-3xl">🫖</span>} />
+        </div>
       )}
     </div>
   );
