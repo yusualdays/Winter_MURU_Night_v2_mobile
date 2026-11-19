@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import SimpleRoom from "../components/SimpleRoom";
-import PixelModal from "../components/PixelModal";
-import { TeaNpc, TeaNpcLabel, DayeonSprite } from "../components/TeaNpc";
+import { TeaNpc, TeaNpcLabel } from "../components/TeaNpc";
 import SeasonWindow from "../components/SeasonWindow";
 import TeaHouseHud, { useTeaHouse } from "../components/TeaHouseHud";
 import TeaMenuBoard from "../components/TeaMenuBoard";
@@ -46,19 +45,22 @@ const NPC_IN_BG = false; // 배경 그림에 다연이 그려져 있으면 true 
 const NPC_X = COUNTER_NPC_POS.x * MAP_W - NPC_W / 2; // 그림 왼쪽 위 (맵 좌표)
 const NPC_Y = COUNTER_NPC_POS.y * MAP_H - NPC_H;
 
-// 다연의 말
+// 다연의 말 (재방문 인사)
 const NPC_LINES = {
-  first: "어서 오세요, 차의 인연이 닿는 곳입니다. 찻집 이용 방법을 알려드릴게요!",
   again: "다시 오셨네요! 오늘도 편안한 시간 보내세요 🍵",
 };
 
-// 찻집 이용 가이드 (다연이 알려줘요)
-const GUIDE = [
-  { icon: "👆", title: "자리 이동 & 대화", text: "바닥을 터치(클릭)하면 걸어가요. 빈 의자 옆에서 앉을 수 있고, 다른 손님 캐릭터를 누르면 1:1 찻자리 대화를 청할 수 있어요." },
-  { icon: "🍵", title: "카운터", text: "카운터 앞에서 차림표를 보거나, 다식·말차 만들기 체험을 해 보세요. 만든 건 내 테이블로 가져가 먹을 수 있어요." },
-  { icon: "📖", title: "공부 집중 모드 & 소리", text: "오른쪽 위 [📖 공부 집중 모드]로 뽀모도로 타이머를 켜요. 통창 옆 라디오에서 BGM과 백색소음을 고를 수 있어요." },
-  { icon: "🔖", title: "책장 & 다구 판매존", text: "왼쪽 아래 책장엔 손님들이 남긴 독서 책갈피가, 오른쪽 선반엔 다구 쇼룸이 있어요." },
-  { icon: "🚪", title: "통로 안내", text: "위쪽 가운데 문은 🛋️ 거실, 오른쪽 아래 통로는 🖼️ 전시실로 이어져요. (오픈 기간에만 열려요)" },
+// 🍵 다연의 찻집 이용 안내 — 게임처럼 말풍선으로 한 줄씩 (말풍선을 누르면 다음 대사)
+const TALK_LINES = [
+  "어서 오세요! 군산 온라인 찻집에 처음 오셨군요. 저는 이곳 알바생 다연이에요 🍵",
+  "가고 싶은 곳의 바닥을 톡 누르면 그쪽으로 걸어가요. PC에서는 방향키도 돼요.",
+  "빈 의자 옆에 서면 [앉기] 버튼이 떠요. 앉아서 차랑 다식을 주문해 드실 수 있어요.",
+  "다른 손님 캐릭터를 누르면 1:1 찻자리 대화를 청할 수도 있어요. 수줍어하지 마세요!",
+  "포스기 옆으로 오시면 차림표를 보거나, 다식·말차 만들기 미니게임을 할 수 있어요.",
+  "오른쪽 위 📖 공부 집중 모드도 있고요, 창가 라디오에서 음악이랑 빗소리를 고를 수 있어요.",
+  "왼쪽 아래 책장엔 손님들이 남긴 책갈피가, 오른쪽 선반엔 다구 쇼룸이 있어요.",
+  "위쪽 문은 🛋️ 거실, 오른쪽 아래 통로는 🖼️ 전시실로 이어져요. 오픈 기간에만 열려요!",
+  "그럼 편안한 시간 보내세요. 궁금한 게 생기면 포스기 옆에서 저를 불러 주세요 😊",
 ];
 
 // ---------------- 🪑 좌석 (총 13석) ----------------
@@ -130,6 +132,8 @@ const BLOCKERS = [
 // ---------------- 💬 상호작용 포인트 ----------------
 //  rect = 버튼이 뜨는 곳(그림 위) / near = 이 근처에 서면 버튼이 떠요 / radius = 거리 (맵 px)
 const SPOTS = [
+  // 포스기 옆(카운터 왼쪽)에 서면 → [차림표 보기 · 미니게임 · 다연에게 말 걸기]
+  { id: "counterSide", rect: { x: 0.652, y: 0.215, w: 0.046, h: 0.03 }, near: { x: 0.612, y: 0.4 }, radius: 85, icon: "🍵", title: "차림표 · 미니게임 · 다연에게 말 걸기" },
   { id: "counter", rect: { x: 0.646, y: 0.2, w: 0.16, h: 0.03 }, near: { x: 0.72, y: 0.56 }, radius: 120, icon: "🍵", title: "차림표 보기 · 다식·말차 만들기" },
   { id: "speaker", rect: { x: SPEAKER.x - 0.02, y: SPEAKER.y - 0.04, w: SPEAKER.w + 0.04, h: 0.04 }, near: { x: 0.44, y: 0.325 }, radius: 75, icon: "🎵", title: "BGM & 백색소음 설정" },
   { id: "bookshelf", rect: { x: BOOKSHELF.x, y: BOOKSHELF.y - 0.04, w: BOOKSHELF.w, h: 0.04 }, near: { x: 0.2, y: 0.78 }, radius: 130, icon: "🔖", title: "교환 독서 책갈피" },
@@ -179,7 +183,7 @@ function DebugOverlay() {
 }
 
 // 배경 그림 + 그 위에 올리는 것들 (npcBubble: 다연의 말풍선)
-function CafeScene({ npcBubble, season, orders, debug }) {
+function CafeScene({ npcBubble, season, orders, debug, npcAlert, onNpcAlert, talk, onTalkNext, onTalkSkip }) {
   return (
     <div className="absolute inset-0">
       {/* 🪟 사계절 통창 — 배경 그림의 유리 부분이 투명해서, 그림 "뒤"에 깔면 창틀·창살은 그림 그대로 보여요 */}
@@ -200,7 +204,7 @@ function CafeScene({ npcBubble, season, orders, debug }) {
 
       {/* 🍵 알바생 다연 (그림에 있으면 코드 캐릭터는 숨기고 이름표·말풍선만) */}
       {!NPC_IN_BG && <TeaNpc x={NPC_X} y={NPC_Y} z={zOf(COUNTER_NPC_POS.y)} scale={NPC_DOT} />}
-      <TeaNpcLabel x={NPC_X} y={NPC_Y + (NPC_IN_BG ? 40 : 0)} bubble={npcBubble} width={NPC_W} />
+      <TeaNpcLabel x={NPC_X} y={NPC_Y + (NPC_IN_BG ? 40 : 0)} bubble={npcBubble} width={NPC_W} alert={npcAlert} onAlert={onNpcAlert} talk={talk} onNext={onTalkNext} onSkip={onTalkSkip} />
 
       {/* 🍵 테이블 위 차·다식 (손님이 주문하면 모두에게 보여요) */}
       <TableItems orders={orders} seats={ALL_SEATS} mapW={MAP_W} mapH={MAP_H} />
@@ -234,9 +238,29 @@ export default function CafePage() {
     later(() => setNpcBubble((b) => (b?.key === key ? null : b)), ms);
   }, []);
 
-  // 찻집에 들어왔을 때: 첫 방문이면 1초 뒤 인사 + 이용 가이드, 재방문이면 환영 인사만 4초
+  // ❗ 첫 방문 느낌표 / 💬 이용 안내 대화 { lines, index }
+  const [npcAlert, setNpcAlert] = useState(false);
+  const [talk, setTalk] = useState(null);
+  const startTalk = () => {
+    setNpcBubble(null);
+    setNpcAlert(false);
+    setTalk({ lines: TALK_LINES, index: 0 });
+  };
+  const endTalk = () => {
+    setTalk(null);
+    try {
+      localStorage.setItem("teaHouseVisited", "true"); // 이제 "와 본 손님"
+    } catch {}
+  };
+  const nextTalk = () => {
+    if (!talk) return;
+    if (talk.index < talk.lines.length - 1) setTalk({ ...talk, index: talk.index + 1 });
+    else endTalk();
+  };
+
+  // 찻집에 들어왔을 때: 첫 방문이면 다연 머리 위에 ❗ (누르면 이용 안내), 재방문이면 환영 인사만 4초
   const handleEnter = useCallback(
-    ({ openDetail }) => {
+    () => {
       try {
         nicknameRef.current = localStorage.getItem("partyNickname") || "";
       } catch {}
@@ -245,24 +269,13 @@ export default function CafePage() {
         visited = localStorage.getItem("teaHouseVisited") === "true";
       } catch {}
       if (!visited) {
-        later(() => {
-          say(NPC_LINES.first, 8000);
-          openDetail("guide");
-        }, 1000);
+        setNpcAlert(true);
       } else {
         later(() => say(NPC_LINES.again, 4000), 600);
       }
     },
     [say]
   );
-
-  // 가이드를 닫으면 "이미 와 본 손님"으로 기억
-  const closeGuide = (close) => {
-    try {
-      localStorage.setItem("teaHouseVisited", "true");
-    } catch {}
-    close();
-  };
 
   return (
     <SimpleRoom
@@ -285,42 +298,21 @@ export default function CafePage() {
           setCounterPick(null);
           close();
         };
-        const view = openId === "counter" ? counterPick ?? "counter" : openId;
+        const isCounter = openId === "counter" || openId === "counterSide";
+        const view = isCounter ? counterPick ?? "counter" : openId;
         return (
         <>
-        {/* 찻집 이용 가이드 (다연) */}
-        <PixelModal open={view === "guide"} onClose={() => closeGuide(closeAll)} label="🍵 다연의 찻집 이용 가이드" title="군산 온라인 찻집에 오신 걸 환영해요" width={520}>
-          <div className="mb-4 flex items-center gap-3 border-4 border-[#1a110e] bg-[#f5e6c8] p-3 text-[#2b1d1a]">
-            <div className="shrink-0 bg-[#d9c7a6] px-1 pt-1">
-              <DayeonSprite scale={3} />
-            </div>
-            <p className="text-sm font-bold leading-relaxed">“{NPC_LINES.first}”</p>
-          </div>
-          <ol className="flex flex-col gap-2.5">
-            {GUIDE.map((g, i) => (
-              <li key={g.title} className="flex gap-3 border-2 border-white/15 bg-black/20 p-3">
-                <span className="text-2xl leading-none">{g.icon}</span>
-                <div>
-                  <p className="font-black text-amber-200">
-                    {"①②③④"[i]} {g.title}
-                  </p>
-                  <p className="mt-0.5 text-sm leading-relaxed text-white/85">{g.text}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-          <button
-            type="button"
-            onClick={() => closeGuide(closeAll)}
-            className="mt-4 w-full border-4 border-[#1a110e] bg-amber-400 py-2 font-black text-[#2b1d1a] shadow-[4px_4px_0_0_rgba(0,0,0,0.4)] hover:bg-amber-300 active:translate-y-0.5 active:shadow-none"
-          >
-            알겠어요, 둘러볼게요! 🍵
-          </button>
-        </PixelModal>
-
         {/* 🍵 세로형 차림표 + 메뉴 투표·피드백 */}
         {/* 🍵 카운터: [차림표 보기] [다식·말차 만들기] [다연에게 말 걸기] */}
-        <CounterModal open={view === "counter"} onClose={closeAll} onPick={setCounterPick} />
+        <CounterModal
+          open={view === "counter"}
+          onClose={closeAll}
+          onPick={(pick) => {
+            if (pick !== "guide") return setCounterPick(pick);
+            closeAll(); // 💬 다연에게 말 걸기 → 창을 닫고 말풍선으로 이용 안내
+            startTalk();
+          }}
+        />
         <TeaCraftModal open={view === "craft"} onClose={closeAll} />
         {/* 🍵 세로형 차림표 + 메뉴 투표·피드백 */}
         <TeaMenuBoard open={view === "menu"} onClose={closeAll} items={cafeData.menu} menuStatus={tea.menuStatus} nickname={nicknameRef.current} />
@@ -332,7 +324,17 @@ export default function CafePage() {
         );
       }}
     >
-      <CafeScene npcBubble={npcBubble} season={tea.season} orders={tea.orders} debug={debug} />
+      <CafeScene
+        npcBubble={npcBubble}
+        season={tea.season}
+        orders={tea.orders}
+        debug={debug}
+        npcAlert={npcAlert}
+        onNpcAlert={startTalk}
+        talk={talk}
+        onTalkNext={nextTalk}
+        onTalkSkip={endTalk}
+      />
     </SimpleRoom>
   );
 }
