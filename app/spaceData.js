@@ -22,6 +22,17 @@ export const galleryData = {
     { id: "art5", title: "작은 화분", artist: "호스트", year: "2026", image: "", description: "책상 위에서 꿋꿋하게 자란 친구." },
     { id: "art6", title: "기차 여행", artist: "호스트", year: "2026", image: "", description: "창밖 풍경이 그림 같던 하루." },
   ],
+  // 📜 전시 안내문 (입구 옆 안내판) — 처음 온 손님에게 "!"가 떠요
+  guide: {
+    title: "추후 작성 예정", // 전시 제목
+    theme: "추후 작성 예정", // 전시의 주제 (여러 줄 가능)
+    // 전시 관람 순서
+    steps: [
+      { icon: "🎧", title: "청음실에서 음악 틀기", desc: "아래 가운데 청음실 앞에 서서 [🎧 음악 듣기] → LP를 골라 주세요. 둘러보는 동안 계속 흘러나와요." },
+      { icon: "🖼️", title: "작품 자유롭게 둘러보기", desc: "작품 가까이 가면 이름 버튼이 떠요. 누르면 크게 보고 설명을 읽을 수 있어요. 가운데 벤치에 앉아 쉬어 가도 좋아요." },
+      { icon: "📖", title: "방명록 적기", desc: "왼쪽 아래 책상에서 감상 한 마디와 가장 마음에 든 작품을 남겨 주세요." },
+    ],
+  },
   // 🎧 청음실 (아래 가운데 LP 플레이어) — url에 유튜브 "재생목록" 또는 "영상" 링크를 붙여 넣어요
   //  예) "https://www.youtube.com/playlist?list=PLxxxxxxxx"  /  "https://youtu.be/xxxxxxxxxxx"
   //  url이 비어 있으면 "링크 준비 중"으로 보여요. 손님이 직접 링크를 넣어 들을 수도 있어요

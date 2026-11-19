@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import SimpleRoom from "../components/SimpleRoom";
 import PixelModal from "../components/PixelModal";
 import { galleryData } from "../spaceData";
 import GalleryGuestbook, { useGuestbook } from "../components/GalleryGuestbook";
 import GalleryHud from "../components/GalleryHud";
+import { GuideBoard, GuideContent, GUIDE_SEEN_KEY } from "../components/GalleryGuide";
 import { ListeningCorner, ListeningPicker, MiniPlayer } from "../components/GalleryListening";
 
 // 🖼️ 전시회 (exhibitionRoom) — 찻집 오른쪽 아래 통로로 와요
@@ -13,6 +14,7 @@ import { ListeningCorner, ListeningPicker, MiniPlayer } from "../components/Gall
 //  - 작품은 app/spaceData.js의 galleryData.artworks (앞 4개 = 벽 액자, 5·6번째 = 유리 진열장, 최대 6개)
 //    image를 넣으면 그림 속 액자 안에 내 그림이 들어가고, 비워 두면 배경에 그려진 그림이 그대로 보여요
 //  - 왼쪽 아래 책상 → 📖 방명록 겸 감상 후기 (components/GalleryGuestbook.js, Firebase galleryGuestbook)
+//  - 📜 입구 옆 전시 안내문 (components/GalleryGuide.js, 내용은 spaceData galleryData.guide) — 첫 방문이면 "!"
 //  - 🎧 아래 가운데 청음실: LP 플레이어 + 음반 거치대 → 유튜브 재생목록 (components/GalleryListening.js, 목록은 spaceData galleryData.listening)
 //  - 오른쪽 위 ⚙️ → 전시회 설정 (components/GalleryHud.js)
 //  - 왼쪽 문(왼쪽 벽 가운데) → ☕ 찻집 (오른쪽 아래 통로 앞으로 돌아가요)
@@ -40,6 +42,10 @@ const SLOTS = [...WALL_FRAMES, ...CASES.map((c) => ({ ...c, inCase: true }))];
 const BENCH = { x: 0.415, y: 0.53, w: 0.17, h: 0.1 };
 const SEAT_FEET_Y = 0.612; // 벤치에 앉았을 때 발끝 높이
 
+// 📜 입구 옆 전시 안내문 (안내판 받침 가운데)
+const GUIDE_AT = { x: 0.165, y: 0.56 };
+const GUIDE_ID = "guide";
+
 const artworks = (galleryData?.artworks ?? []).slice(0, SLOTS.length);
 const placed = artworks.map((art, i) => ({ art, ...SLOTS[i] }));
 
@@ -52,6 +58,7 @@ const BLOCKERS = [
   ...CASES.map((c) => ({ x: c.body.x, y: c.body.y - 0.03, w: c.body.w, h: c.body.h + 0.03 })), // 유리 진열장 (유리 위로 못 올라가게 전체)
   { x: BENCH.x, y: BENCH.y - 0.01, w: BENCH.w, h: BENCH.h + 0.01 }, // 벤치 (위에 못 서게 전체)
   { x: FLOOR.x, y: 0.66, w: 0.1, h: 0.3 }, // 화분 + 방명록 탁자
+  { x: GUIDE_AT.x - 0.022, y: GUIDE_AT.y - 0.035, w: 0.044, h: 0.035 }, // 📜 전시 안내문
   { x: 0.355, y: 0.725, w: 0.29, h: 0.17 }, // 🎧 청음실 (음반 거치대 · LP 콘솔 · 스피커)
 ];
 
@@ -94,16 +101,17 @@ function Lighting({ mode }) {
 
 const SPOTS = [
   ...placed.map((p) => ({ id: p.art.id, rect: p.inner, near: p.near, radius: 110, icon: "🖼️", title: p.art.title })),
+  { id: GUIDE_ID, rect: { x: GUIDE_AT.x - 0.026, y: GUIDE_AT.y - 0.1, w: 0.052, h: 0.06 }, near: { x: GUIDE_AT.x, y: GUIDE_AT.y + 0.04 }, radius: 80, icon: "📜", title: "전시 안내문" },
   { id: LISTEN_ID, rect: { x: 0.445, y: 0.75, w: 0.11, h: 0.08 }, near: { x: 0.5, y: 0.915 }, radius: 150, icon: "🎧", title: "음악 듣기" },
   { id: GUESTBOOK_ID, rect: DESK, near: { x: 0.19, y: 0.84 }, radius: 130, icon: "📖", title: "방명록 쓰기" },
 ];
 
 // 왼쪽 문 → 찻집
-const EXITS = [{ id: "out", to: "teaHouse", zone: { x: 0, y: DOOR.y + 0.01, w: 0.03, h: DOOR.h - 0.02 }, sign: { x: 0.11, y: 0.44 }, label: "⬅ ☕ 찻집으로" }];
+const EXITS = [{ id: "out", to: "teaHouse", zone: { x: 0, y: DOOR.y + 0.01, w: 0.03, h: DOOR.h - 0.02 }, sign: { x: 0.083, y: 0.375 }, label: "⬅ ☕ 찻집으로" }];
 
 const SPAWNS = {
-  default: { x: 0.13, y: 0.58 },
-  teaHouse: { x: 0.13, y: 0.58 }, // 찻집에서 오면 → 왼쪽 문 앞
+  default: { x: 0.1, y: 0.635 },
+  teaHouse: { x: 0.1, y: 0.635 }, // 찻집에서 오면 → 왼쪽 문 앞
 };
 
 const pct = (r) => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` });
@@ -135,7 +143,7 @@ function ArtImage({ art, index, big = false }) {
   );
 }
 
-function GalleryScene({ playing, light }) {
+function GalleryScene({ playing, light, guideAlert, onOpenGuide }) {
   const [debug, setDebug] = useState(false);
   useEffect(() => {
     try {
@@ -159,6 +167,7 @@ function GalleryScene({ playing, light }) {
 
       {/* 🎧 청음실 */}
       <ListeningCorner area={LISTEN} imgArea={LISTEN_IMG} playing={!!playing} />
+      <GuideBoard at={GUIDE_AT} alert={guideAlert} onOpen={onOpenGuide} mapW={MAP_W} mapH={MAP_H} />
       <Lighting mode={light} />
 
       {/* 📖 방명록 책상 팻말 */}
@@ -185,11 +194,21 @@ export default function GalleryPage() {
   const guestbook = useGuestbook();
   const [playing, setPlaying] = useState(null); // 🎧 지금 듣는 음악 { title, embed } (나만 들려요, 전시회 안에서는 계속 재생)
   const [light, setLight] = useState("day"); // 💡 조명
+  const [guideAlert, setGuideAlert] = useState(false); // 📜 처음 왔으면 안내판 위 "!"
+  const openRef = useRef(null); // SimpleRoom의 openDetail (onEnter에서 받아요)
+  const markGuideSeen = () => {
+    setGuideAlert(false);
+    try {
+      localStorage.setItem(GUIDE_SEEN_KEY, "1");
+    } catch {}
+  };
+  const openGuide = () => openRef.current?.(GUIDE_ID);
   const [volume, setVolume] = useState(70); // 🎵 음악 소리
   useEffect(() => {
     try {
       const l = localStorage.getItem("galleryLight");
       if (["day", "warm", "spot"].includes(l)) setLight(l);
+      if (!localStorage.getItem(GUIDE_SEEN_KEY)) setGuideAlert(true);
       const v = Number(localStorage.getItem("galleryVolume"));
       if (localStorage.getItem("galleryVolume") !== null && v >= 0 && v <= 100) setVolume(v);
     } catch {}
@@ -219,6 +238,9 @@ export default function GalleryPage() {
       exits={EXITS}
       spawns={SPAWNS}
       seats={SEATS}
+      onEnter={({ openDetail }) => {
+        openRef.current = openDetail;
+      }}
       hud={(api) => (
         <>
           <GalleryHud api={api} guestbookCount={guestbook.length} onOpenGuestbook={() => api.openDetail(GUESTBOOK_ID)} light={light} onLight={changeLight} volume={volume} onVolume={changeVolume} playing={playing} />
@@ -226,6 +248,9 @@ export default function GalleryPage() {
         </>
       )}
       renderModals={(openId, close, api) => [
+        <PixelModal key={GUIDE_ID} open={openId === GUIDE_ID} onClose={close} label="🖼️ 전시회" title="📜 전시 안내문" width={560}>
+          <GuideContent guide={galleryData?.guide} onClose={close} onSeen={markGuideSeen} />
+        </PixelModal>,
         <PixelModal key={LISTEN_ID} open={openId === LISTEN_ID} onClose={close} label="🖼️ 전시회" title="🎧 청음실 · LP 고르기" width={600}>
           <ListeningPicker
             playlists={galleryData?.listening?.playlists ?? []}
@@ -254,7 +279,7 @@ export default function GalleryPage() {
         )),
       ]}
     >
-      <GalleryScene playing={playing} light={light} />
+      <GalleryScene playing={playing} light={light} guideAlert={guideAlert} onOpenGuide={openGuide} />
     </SimpleRoom>
   );
 }
