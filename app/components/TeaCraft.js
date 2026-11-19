@@ -28,6 +28,10 @@ export const RECIPES = {
   maesil: {
     name: "수제 매실청", emoji: "🍏", peel: "매실 꼭지 따기", cook: "설탕 녹이며 데우기", base: "#9cbf55", light: "#c8e08a", shell: "#5d7a2a",
   },
+  // 🍢 가래떡 구이 — 다른 다식과 진행 방식이 달라요 (썰기 → 석쇠에 굽기 → 조청·콩가루) → TteokGame
+  tteok: {
+    name: "가래떡 구이", emoji: "🍢", game: "tteok", base: "#e8b04a", light: "#fff4dc", shell: "#8a5a2b",
+  },
 };
 export const CRAFT_INFO = { ...RECIPES, matcha: { name: "내가 격불한 말차", emoji: "🍵", base: "#7fb36a" } };
 
@@ -182,7 +186,66 @@ function sendToTable(kind, stars) {
   try { window.dispatchEvent(new CustomEvent(CRAFT_EVENT)); } catch {}
 }
 
-// ---------------- 다식 그림 (SVG) ----------------
+// ---------------- 🎨 그림 파일 (public/craft/*.png) ----------------
+//  파일이 아직 없으면 → 코드로 그린 그림(fallback)을 대신 보여줘요
+const craftSrc = (name) => `/craft/${name}.png`;
+const imgOkCache = {};
+function useImgOk(name) {
+  const [ok, setOk] = useState(imgOkCache[name] ?? null);
+  useEffect(() => {
+    if (imgOkCache[name] !== undefined) { setOk(imgOkCache[name]); return; }
+    let alive = true;
+    const im = new Image();
+    im.onload = () => { imgOkCache[name] = true; if (alive) setOk(true); };
+    im.onerror = () => { imgOkCache[name] = false; if (alive) setOk(false); };
+    im.src = craftSrc(name);
+    return () => { alive = false; };
+  }, [name]);
+  return ok; // null = 확인 중, true = 있음, false = 없음
+}
+function CraftImg({ name, fallback = null, className = "", style }) {
+  const [bad, setBad] = useState(false);
+  if (bad) return fallback;
+  return <img src={craftSrc(name)} alt="" draggable={false} onError={() => setBad(true)} className={`pointer-events-none select-none ${className}`} style={style} />;
+}
+
+// 다식 그림: {id}_raw → {id}_peeled (손질) → {id}_done (완성) + 고명 그림
+//  (그림 파일이 없는 다식은 아래 SVG 그림으로)
+const GARNISH_PCT = [
+  { x: 50, y: 30 }, { x: 34, y: 45 }, { x: 66, y: 45 }, { x: 40, y: 62 }, { x: 60, y: 62 },
+];
+function DasikPic({ id, peel = 100, done = false, garnish = [], children }) {
+  const ok = useImgOk(`${id}_${done ? "done" : "raw"}`);
+  return (
+    <div className="relative aspect-square h-full">
+      {ok === false ? (
+        <div className="absolute inset-0 flex items-center">
+          <DasikArt id={id} peel={done ? 100 : peel} cooked={done ? 3 : 0} />
+        </div>
+      ) : done ? (
+        <img src={craftSrc(`${id}_done`)} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full" />
+      ) : (
+        <>
+          <img src={craftSrc(`${id}_raw`)} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full" />
+          <img src={craftSrc(`${id}_peeled`)} alt="" draggable={false} className="pointer-events-none absolute inset-0 h-full w-full transition-opacity duration-150" style={{ opacity: peel / 100 }} />
+        </>
+      )}
+      {garnish.map((g) => {
+        const s = GARNISH_PCT[g.spot];
+        return (
+          <div key={g.spot} className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${s.x}%`, top: `${s.y}%`, width: g.type === "jat" ? "13%" : "18%" }}>
+            <div className="craft-drop">
+              <CraftImg name={`garnish_${g.type}`} className="w-full drop-shadow-[1px_2px_0_rgba(0,0,0,0.35)]" style={{ transform: `rotate(${g.rot}deg)` }} fallback={<span className="block text-center text-2xl">{g.type === "jat" ? "🤍" : "🌿"}</span>} />
+            </div>
+          </div>
+        );
+      })}
+      {children}
+    </div>
+  );
+}
+
+// ---------------- 다식 그림 (SVG · 그림 파일이 없을 때) ----------------
 function DasikArt({ id, peel = 100, cooked = 0, garnish = [] }) {
   const r = RECIPES[id];
   const peeled = peel / 100;
@@ -232,9 +295,7 @@ function DasikArt({ id, peel = 100, cooked = 0, garnish = [] }) {
 }
 
 // 플레이팅 자리 (SVG 좌표)
-const GARNISH_SPOTS = [
-  { x: 100, y: 46 }, { x: 70, y: 72 }, { x: 130, y: 72 }, { x: 84, y: 108 }, { x: 116, y: 108 },
-];
+const GARNISH_SPOTS = GARNISH_PCT;
 
 // ---------------- 1) 수제 다식 만들기 ----------------
 function DasikGame({ onBack }) {
@@ -312,6 +373,9 @@ function DasikGame({ onBack }) {
     if (next.length >= GARNISH_SPOTS.length) setTimeout(() => { sfx.win(); setStep(3); }, 500);
   };
 
+  // 🍢 가래떡 구이는 따로 만든 게임으로
+  if (id && RECIPES[id]?.game === "tteok") return <TteokGame onBack={() => reset(false)} />;
+
   if (!id) {
     return (
       <div className="flex flex-col gap-2">
@@ -336,7 +400,7 @@ function DasikGame({ onBack }) {
     const kit = CFG.dasikKits?.[id] || {};
     return (
       <>
-        <Stage><DasikArt id={id} peel={100} cooked={3} garnish={garnish} /></Stage>
+        <Stage><DasikPic id={id} done garnish={garnish} /></Stage>
         <div className="mt-3">
           <Result
             kind={id}
@@ -361,7 +425,7 @@ function DasikGame({ onBack }) {
       {step === 0 && (
         <>
           <Stage onPointerDown={doPeel} className="cursor-pointer active:scale-[0.99]">
-            <DasikArt id={id} peel={peel} />
+            <DasikPic id={id} peel={peel} />
             <span className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 animate-bounce text-2xl">👆</span>
           </Stage>
           <p className="my-2 text-center text-sm text-white/85">🔪 {r.peel} — 점선을 따라 마구 연타!</p>
@@ -373,18 +437,33 @@ function DasikGame({ onBack }) {
         <>
           <Stage onPointerDown={doHeat} className={`cursor-pointer ${flash === "good" ? "bg-emerald-200" : flash ? "bg-rose-200" : ""}`}>
             <div className="flex h-full w-full items-center justify-around px-3">
-              {/* 냄비 + 불 */}
-              <div className="relative h-40 w-36">
-                <div className="absolute inset-x-0 top-6 h-24 overflow-hidden rounded-b-3xl border-4 border-[#2b1d1a] bg-[#6b7280]">
-                  <div className="absolute inset-x-2 top-3 h-6 rounded-full" style={{ background: r.base, boxShadow: `0 0 0 4px ${r.light} inset` }} />
-                  {hits > 0 && [0, 1, 2].map((i) => <span key={i} className="craft-bubble absolute h-2 w-2 rounded-full bg-white/80" style={{ left: 30 + i * 28, top: 18, animationDelay: `${i * 0.3}s` }} />)}
-                </div>
-                <div className="absolute -left-3 top-8 h-3 w-5 border-4 border-[#2b1d1a] bg-[#4b5563]" />
-                <div className="absolute inset-x-6 bottom-0 flex h-9 items-end justify-center gap-1">
-                  {[0, 1, 2, 3].map((i) => (
-                    <span key={i} className="craft-flame block w-4 rounded-t-full" style={{ height: 10 + (temp / 100) * 26, background: temp > 74 ? "#ef4444" : temp < 58 ? "#60a5fa" : "#f59e0b", animationDelay: `${i * 0.1}s` }} />
+              {/* 냄비 + 불 (pot.png · 없으면 코드 그림) */}
+              <div className="relative h-44 w-44">
+                <CraftImg
+                  name="pot"
+                  className="absolute inset-0 h-full w-full"
+                  fallback={
+                  <div className="relative h-40 w-36">
+                    <div className="absolute inset-x-0 top-6 h-24 overflow-hidden rounded-b-3xl border-4 border-[#2b1d1a] bg-[#6b7280]">
+                      <div className="absolute inset-x-2 top-3 h-6 rounded-full" style={{ background: r.base, boxShadow: `0 0 0 4px ${r.light} inset` }} />
+                      {hits > 0 && [0, 1, 2].map((i) => <span key={i} className="craft-bubble absolute h-2 w-2 rounded-full bg-white/80" style={{ left: 30 + i * 28, top: 18, animationDelay: `${i * 0.3}s` }} />)}
+                    </div>
+                    <div className="absolute -left-3 top-8 h-3 w-5 border-4 border-[#2b1d1a] bg-[#4b5563]" />
+                    <div className="absolute inset-x-6 bottom-0 flex h-9 items-end justify-center gap-1">
+                      {[0, 1, 2, 3].map((i) => (
+                        <span key={i} className="craft-flame block w-4 rounded-t-full" style={{ height: 10 + (temp / 100) * 26, background: temp > 74 ? "#ef4444" : temp < 58 ? "#60a5fa" : "#f59e0b", animationDelay: `${i * 0.1}s` }} />
+                      ))}
+                    </div>
+                  </div>
+                  }
+                />
+                {/* 불 세기 (온도에 따라 색·크기) */}
+                <div className="pointer-events-none absolute flex items-end justify-center gap-0.5" style={{ left: "29%", width: "22%", top: "64%", height: 14, transform: "translateY(-100%)" }}>
+                  {[0, 1, 2].map((i) => (
+                    <span key={i} className="craft-flame block w-2 rounded-t-full opacity-90" style={{ height: 4 + (temp / 100) * 12, background: temp > 74 ? "#ef4444" : temp < 58 ? "#60a5fa" : "#f59e0b", animationDelay: `${i * 0.1}s` }} />
                   ))}
                 </div>
+                {hits > 0 && [0, 1, 2].map((i) => <span key={i} className="craft-bubble pointer-events-none absolute h-2.5 w-2.5 rounded-full border border-[#2b1d1a] bg-white/90" style={{ left: `${30 + i * 12}%`, top: "22%", animationDelay: `${i * 0.3}s` }} />)}
               </div>
               {/* 온도 게이지 (세로) */}
               <div className="relative h-44 w-9 border-4 border-[#2b1d1a] bg-gradient-to-t from-sky-300 via-amber-200 to-rose-400">
@@ -406,13 +485,14 @@ function DasikGame({ onBack }) {
       {step === 2 && (
         <>
           <Stage>
-            <DasikArt id={id} peel={100} cooked={3} garnish={garnish} />
-            {/* 고명 자리 (SVG 200x160 기준 → %) */}
-            {GARNISH_SPOTS.map((s, i) =>
-              garnish.some((g) => g.spot === i) ? null : (
-                <button key={i} type="button" aria-label="고명 올리기" onClick={() => placeGarnish(i)} className="craft-target absolute h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-white bg-white/25" style={{ left: `${(s.x / 200) * 100}%`, top: `${(s.y / 160) * 100}%` }} />
-              )
-            )}
+            <DasikPic id={id} done garnish={garnish}>
+              {/* 고명 자리 (그림 기준 %) */}
+              {GARNISH_SPOTS.map((s, i) =>
+                garnish.some((g) => g.spot === i) ? null : (
+                  <button key={i} type="button" aria-label="고명 올리기" onClick={() => placeGarnish(i)} className="craft-target absolute h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-white bg-white/40" style={{ left: `${s.x}%`, top: `${s.y}%` }} />
+                )
+              )}
+            </DasikPic>
           </Stage>
           <p className="my-2 text-center text-sm text-white/85">✨ 고명을 고르고 반짝이는 자리를 탭해 올려요 ({garnish.length}/{GARNISH_SPOTS.length})</p>
           <div className="flex justify-center gap-2">
@@ -422,6 +502,303 @@ function DasikGame({ onBack }) {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ---------------- 1-2) 🍢 가래떡 구이 ----------------
+//  ① 떡 썰기: 좌우로 움직이는 칼이 점선 위에 왔을 때 탭 (3번 → 4토막)
+//  ② 석쇠에 굽기: 아랫면이 점점 노릇해져요. 떡을 탭하면 뒤집기! 양면을 노릇하게 (너무 오래 두면 타요)
+//  ③ 찍어 먹기: 🍯 조청 / 🫘 콩가루를 골라 떡을 탭해 올리기
+const TTEOK_CUTS = [25, 50, 75]; // 썰 자리 (%)
+const GOLD = [55, 82]; // 노릇노릇 구간 (굽기 정도 %)
+const BURN = 90; // 이 이상이면 탄 거예요
+const COOK_SPEED = 14; // 1초에 익는 정도 (%)
+
+// 굽기 정도 → 색 (하얀 떡 → 노릇 → 갈색 → 탄 색)
+function toastColor(v) {
+  const stops = [
+    [0, [250, 247, 240]],
+    [45, [246, 226, 178]],
+    [68, [232, 176, 74]],
+    [88, [168, 104, 44]],
+    [100, [70, 44, 28]],
+  ];
+  for (let i = 1; i < stops.length; i++) {
+    if (v <= stops[i][0]) {
+      const [a, ca] = stops[i - 1];
+      const [b, cb] = stops[i];
+      const t = (v - a) / (b - a);
+      return `rgb(${ca.map((c, k) => Math.round(c + (cb[k] - c) * t)).join(",")})`;
+    }
+  }
+  return "rgb(70,44,28)";
+}
+
+// 떡 한 토막 (SVG) — side: 지금 보이는 면의 굽기 정도, topping: "honey" | "kongga"
+function TteokPiece({ x, y, w = 40, h = 22, v = 0, topping = null, wiggle = false }) {
+  const grill = v > 40;
+  return (
+    <g transform={`translate(${x} ${y})`}>
+    <g className={wiggle ? "tteok-sizzle" : ""}>
+      <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={Math.min(8, h / 2)} fill={toastColor(v)} stroke="#2b1d1a" strokeWidth="3" />
+      {/* 석쇠 자국 */}
+      {grill && [-0.25, 0, 0.25].map((f) => (
+        <line key={f} x1={w * f - 3} y1={-h / 2 + 4} x2={w * f + 3} y2={h / 2 - 4} stroke="#5a3418" strokeWidth="3" strokeLinecap="round" opacity={Math.min(1, (v - 40) / 30)} />
+      ))}
+      {/* 반짝이 */}
+      <rect x={-w / 2 + 6} y={-h / 2 + 4} width={w * 0.35} height="3" rx="1.5" fill="#fff" opacity="0.7" />
+      {topping === "honey" && <path d={`M${-w / 2 + 4} ${-h / 2 + 3} Q0 ${-h / 2 - 4} ${w / 2 - 4} ${-h / 2 + 3} L${w / 2 - 6} 2 Q0 ${-3} ${-w / 2 + 6} 2Z`} fill="#c9781c" opacity="0.85" stroke="#7a3e10" strokeWidth="1.5" />}
+      {topping === "kongga" && [...Array(14)].map((_, i) => <rect key={i} x={-w / 2 + 4 + ((i * 7) % (w - 8))} y={-h / 2 + 2 + ((i * 5) % (h - 6))} width="3" height="3" fill="#d9b25a" />)}
+    </g>
+    </g>
+  );
+}
+
+function TteokGame({ onBack }) {
+  const [step, setStep] = useState(0);
+  // ① 썰기
+  const [cuts, setCuts] = useState(0);
+  const [knife, setKnife] = useState(10);
+  const knifeRef = useRef(10);
+  const [miss, setMiss] = useState(0);
+  const [flash, setFlash] = useState(null);
+  // ② 굽기: 토막마다 { a, b, up } — a·b = 양면 굽기 정도, up = 지금 위로 보이는 면 ("a"면 b가 아래에서 익는 중)
+  const [pieces, setPieces] = useState([]);
+  const piecesRef = useRef([]);
+  const [burnt, setBurnt] = useState(0);
+  // ③ 찍어 먹기
+  const [tool, setTool] = useState("honey");
+  const [tops, setTops] = useState([null, null, null, null]);
+  const [taken, setTaken] = useState(false);
+  const raf = useRef(0);
+
+  const reset = () => {
+    setStep(0); setCuts(0); setMiss(0); setFlash(null); setTops([null, null, null, null]); setTaken(false); setBurnt(0);
+    piecesRef.current = []; setPieces([]);
+  };
+
+  // ① 칼이 좌우로 왔다 갔다 (썰수록 빨라져요)
+  useEffect(() => {
+    if (step !== 0) return;
+    const t0 = performance.now();
+    const loop = (t) => {
+      const speed = 0.0016 + cuts * 0.0006;
+      const v = 50 + 44 * Math.sin((t - t0) * speed);
+      knifeRef.current = v;
+      setKnife(v);
+      raf.current = requestAnimationFrame(loop);
+    };
+    raf.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf.current);
+  }, [step, cuts]);
+
+  const doCut = () => {
+    const target = TTEOK_CUTS[cuts];
+    if (target == null) return;
+    if (Math.abs(knifeRef.current - target) <= 5) {
+      sfx.peel();
+      sfx.good();
+      setFlash("good");
+      const n = cuts + 1;
+      setCuts(n);
+      if (n >= TTEOK_CUTS.length) {
+        setTimeout(() => {
+          const start = [0, 1, 2, 3].map(() => ({ a: 0, b: 0, up: "a" }));
+          piecesRef.current = start;
+          setPieces(start);
+          setStep(1);
+        }, 600);
+      }
+    } else {
+      sfx.bad();
+      setFlash("miss");
+      setMiss((m) => m + 1);
+    }
+    setTimeout(() => setFlash(null), 400);
+  };
+
+  // ② 석쇠: 아랫면이 계속 익어요
+  useEffect(() => {
+    if (step !== 1) return;
+    let last = performance.now();
+    let tick = 0;
+    const loop = (t) => {
+      const dt = Math.min(0.1, (t - last) / 1000);
+      last = t;
+      piecesRef.current = piecesRef.current.map((p) => {
+        const down = p.up === "a" ? "b" : "a";
+        return { ...p, [down]: Math.min(100, p[down] + COOK_SPEED * dt) };
+      });
+      tick += dt;
+      if (tick > 0.05) {
+        tick = 0;
+        setPieces(piecesRef.current);
+      }
+      raf.current = requestAnimationFrame(loop);
+    };
+    raf.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf.current);
+  }, [step]);
+
+  const flip = (i) => {
+    sfx.tap();
+    piecesRef.current = piecesRef.current.map((p, k) => (k === i ? { ...p, up: p.up === "a" ? "b" : "a" } : p));
+    setPieces(piecesRef.current);
+  };
+  const allGolden = pieces.length > 0 && pieces.every((p) => p.a >= GOLD[0] && p.b >= GOLD[0]);
+  const finishGrill = () => {
+    const b = piecesRef.current.reduce((n, p) => n + (p.a > BURN ? 1 : 0) + (p.b > BURN ? 1 : 0), 0);
+    setBurnt(b);
+    sfx.good();
+    setStep(2);
+  };
+
+  const putTopping = (i) => {
+    if (tops[i]) return;
+    sfx.pop();
+    const next = tops.map((t, k) => (k === i ? tool : t));
+    setTops(next);
+    if (next.every(Boolean)) setTimeout(() => { sfx.win(); setStep(3); }, 500);
+  };
+
+  const final = pieces.length ? pieces : [0, 1, 2, 3].map(() => ({ a: 70, b: 70, up: "a" }));
+  const plate = (
+    <svg viewBox="0 0 200 160" className="h-full w-full">
+      <ellipse cx="100" cy="100" rx="88" ry="40" fill="#fff" stroke="#2b1d1a" strokeWidth="4" />
+      <ellipse cx="100" cy="100" rx="70" ry="28" fill="none" stroke="#e7dccb" strokeWidth="3" />
+      {final.map((p, i) => (
+        <TteokPiece key={i} x={58 + i * 28} y={98 + (i % 2 ? -8 : 6)} w={30} h={22} v={Math.max(p.a, p.b)} topping={tops[i]} />
+      ))}
+    </svg>
+  );
+
+  if (step === 3) {
+    let stars = 3;
+    if (miss >= 2 || burnt >= 1) stars--;
+    if (miss >= 5 || burnt >= 3) stars--;
+    stars = Math.max(1, stars);
+    const kit = CFG.dasikKits?.tteok || {};
+    return (
+      <>
+        <Stage>{plate}</Stage>
+        <div className="mt-3">
+          <Result
+            kind="tteok"
+            stars={stars}
+            comment={stars === 3 ? "다연: “겉은 바삭, 속은 쫀득! 완벽한 가래떡이에요!” 🍢" : stars === 2 ? "다연: “고소한 냄새가 찻집에 가득해요~”" : "다연: “조금 탔지만… 탄 맛도 추억이죠!”"}
+            shopUrl={safeUrl(kit.url)}
+            shopLabel={kit.label || "군산 방앗간 가래떡 보러가기"}
+            taken={taken}
+            onTake={() => { sendToTable("tteok", stars); setTaken(true); sfx.pop(); }}
+            onAgain={reset}
+          />
+        </div>
+        <button type="button" onClick={onBack} className={`${BTN} mt-2 w-full bg-black/30 text-white`}>← 다른 다식 고르기</button>
+      </>
+    );
+  }
+
+  return (
+    <div>
+      <style>{`
+        @keyframes tteok-sizzle { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-1.5px); } }
+        .tteok-sizzle { animation: tteok-sizzle 0.25s steps(2, jump-none) infinite; transform-box: fill-box; }
+      `}</style>
+      <p className="mb-2 text-center font-black text-amber-200">🍢 가래떡 구이</p>
+      <Steps list={["떡 썰기", "석쇠 굽기", "찍어 먹기"]} cur={step} />
+
+      {step === 0 && (
+        <>
+          <Stage onPointerDown={doCut} className={`cursor-pointer ${flash === "good" ? "bg-emerald-200" : flash ? "bg-rose-200" : ""}`}>
+            <svg viewBox="0 0 200 160" className="h-full w-full">
+              {/* 도마 */}
+              <rect x="8" y="58" width="184" height="72" rx="8" fill="#c08a57" stroke="#2b1d1a" strokeWidth="4" />
+              <rect x="8" y="118" width="184" height="12" fill="#9c6a3c" />
+              {/* 가래떡 (썬 자리는 틈이 벌어져요) */}
+              {[0, 25, 50, 75].map((from, i) => {
+                const to = [25, 50, 75, 100][i];
+                const gapL = i > 0 && i <= cuts ? 1.5 : 0;
+                const gapR = i < 3 && i + 1 <= cuts ? 1.5 : 0;
+                const x1 = 16 + ((from + gapL) / 100) * 168;
+                const x2 = 16 + ((to - gapR) / 100) * 168;
+                return <rect key={i} x={x1} y="74" width={x2 - x1} height="34" rx="10" fill="#faf7f0" stroke="#2b1d1a" strokeWidth="3" />;
+              })}
+              {/* 썰 자리 점선 */}
+              {TTEOK_CUTS.map((c, i) => i >= cuts && (
+                <line key={c} x1={16 + (c / 100) * 168} y1="66" x2={16 + (c / 100) * 168} y2="116" stroke={i === cuts ? "#ef4444" : "#2b1d1a"} strokeWidth="2.5" strokeDasharray="5 4" />
+              ))}
+              {/* 칼 */}
+              <g transform={`translate(${16 + (knife / 100) * 168} 0)`}>
+                <rect x="-4" y="14" width="8" height="22" rx="2" fill="#6e4530" stroke="#2b1d1a" strokeWidth="2" />
+                <path d="M-6 36 L6 36 L4 70 L-4 64 Z" fill="#e5e7eb" stroke="#2b1d1a" strokeWidth="2.5" />
+              </g>
+            </svg>
+            {flash && <span className="pointer-events-none absolute top-2 text-lg font-black text-[#2b1d1a]">{flash === "good" ? "싹둑! ✨" : "앗, 빗나갔어요!"}</span>}
+          </Stage>
+          <p className="my-2 text-center text-sm text-white/85">🔪 칼이 <b className="text-rose-300">빨간 점선</b> 위에 왔을 때 탭! ({cuts}/{TTEOK_CUTS.length})</p>
+          <p className="text-center text-xs font-bold text-white/60">실수 {miss}</p>
+        </>
+      )}
+
+      {step === 1 && (
+        <>
+          <Stage>
+            <svg viewBox="0 0 200 160" className="h-full w-full">
+              {/* 숯불 */}
+              <rect x="14" y="120" width="172" height="26" rx="6" fill="#3a2a22" stroke="#2b1d1a" strokeWidth="3" />
+              {[0, 1, 2, 3, 4, 5, 6].map((i) => <rect key={i} x={24 + i * 23} y={124 + (i % 2) * 4} width="16" height="10" fill={i % 2 ? "#f97316" : "#ef4444"} className="craft-flame" />)}
+              {/* 석쇠 */}
+              <rect x="14" y="44" width="172" height="76" fill="none" stroke="#4b5563" strokeWidth="5" />
+              {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => <line key={i} x1={14 + i * 24.5} y1="44" x2={14 + i * 24.5} y2="120" stroke="#6b7280" strokeWidth="3" />)}
+              {[0, 1, 2].map((i) => <line key={`h${i}`} x1="14" y1={63 + i * 19} x2="186" y2={63 + i * 19} stroke="#6b7280" strokeWidth="3" />)}
+              {/* 떡 4토막 — 탭하면 뒤집어요 */}
+              {pieces.map((p, i) => {
+                const upV = p[p.up];
+                const downV = p[p.up === "a" ? "b" : "a"];
+                return (
+                  <g key={i} onPointerDown={(e) => { e.stopPropagation(); flip(i); }} style={{ cursor: "pointer" }}>
+                    <TteokPiece x={40 + i * 40} y={82} w={34} h={22} v={upV} wiggle />
+                    {/* 아랫면 익는 정도 (작은 막대) */}
+                    <rect x={40 + i * 40 - 15} y="22" width="30" height="7" fill="#1a110e" />
+                    <rect x={40 + i * 40 - 15} y="22" width={(Math.min(100, downV) / 100) * 30} height="7" fill={downV > BURN ? "#7f1d1d" : downV >= GOLD[0] ? "#22c55e" : "#f59e0b"} />
+                    <rect x={40 + i * 40 - 15 + (GOLD[0] / 100) * 30} y="20" width={((GOLD[1] - GOLD[0]) / 100) * 30} height="2" fill="#22c55e" />
+                    {/* 김 */}
+                    {downV > 30 && <text x={40 + i * 40} y="40" textAnchor="middle" fontSize="12">{downV > BURN ? "💨" : "♨"}</text>}
+                  </g>
+                );
+              })}
+            </svg>
+          </Stage>
+          <p className="my-2 text-center text-sm text-white/85">🔥 떡을 탭하면 뒤집어요 — 위 막대가 <b className="text-emerald-300">초록</b>이면 그 면은 노릇노릇! (빨갛게 되면 타요)</p>
+          <div className="flex justify-center">
+            <button type="button" onClick={finishGrill} disabled={!allGolden} className={`${BTN} bg-amber-400 text-[#2b1d1a]`}>
+              {allGolden ? "🍽️ 접시에 담기" : "양면을 다 노릇하게 구워 주세요"}
+            </button>
+          </div>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <Stage>
+            {plate}
+            {final.map((_, i) =>
+              tops[i] ? null : (
+                <button key={i} type="button" aria-label="찍어 먹기" onClick={() => putTopping(i)} className="craft-target absolute h-10 w-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-[#2b1d1a] bg-white/30" style={{ left: `${((58 + i * 28) / 200) * 100}%`, top: `${((98 + (i % 2 ? -8 : 6)) / 160) * 100}%` }} />
+              )
+            )}
+          </Stage>
+          <p className="my-2 text-center text-sm text-white/85">✨ 고르고 떡을 탭해서 올려요 ({tops.filter(Boolean).length}/4)</p>
+          <div className="flex justify-center gap-2">
+            {[["honey", "🍯 조청"], ["kongga", "🫘 콩가루"]].map(([k, l]) => (
+              <button key={k} type="button" onClick={() => setTool(k)} className={`${BTN} ${tool === k ? "bg-amber-300 text-[#2b1d1a]" : "bg-black/30 text-white"}`}>{l}</button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <button type="button" onClick={onBack} className={`${BTN} mt-3 w-full bg-[#6e4530] text-white`}>← 다른 다식 고르기</button>
     </div>
   );
 }
@@ -443,6 +820,19 @@ const Bowl = ({ children }) => (
     {children}
   </svg>
 );
+
+// 다완 그림: layers = [[그림 이름, 투명도], ...] (아래부터 쌓아요). 그림이 없으면 fallback(SVG)
+function MatchaBowl({ layers, fallback }) {
+  const ok = useImgOk("matcha_bowl_empty");
+  if (ok === false) return fallback;
+  return (
+    <div className="pointer-events-none absolute bottom-1 left-1/2 aspect-square h-[80%] -translate-x-1/2">
+      {layers.map(([name, op]) => (
+        <img key={name} src={craftSrc(name)} alt="" draggable={false} className="absolute inset-0 h-full w-full transition-opacity duration-200" style={{ opacity: op }} />
+      ))}
+    </div>
+  );
+}
 
 function MatchaGame({ onBack }) {
   const [step, setStep] = useState(0);
@@ -559,12 +949,17 @@ function MatchaGame({ onBack }) {
     return (
       <>
         <Stage>
-          <Bowl>
-            <ellipse cx="100" cy="72" rx="62" ry="14" fill={tea} />
-            {Array.from({ length: bubbles }, (_, i) => (
-              <circle key={i} cx={50 + ((i * 37) % 100)} cy={64 + ((i * 13) % 14)} r={2 + (i % 3)} fill="#e9f8e4" opacity="0.8" />
-            ))}
-          </Bowl>
+          <MatchaBowl
+            layers={[["matcha_bowl_water", 1], ["matcha_bowl_foam", Math.max(0.3, t)]]}
+            fallback={
+              <Bowl>
+                <ellipse cx="100" cy="72" rx="62" ry="14" fill={tea} />
+                {Array.from({ length: bubbles }, (_, i) => (
+                  <circle key={i} cx={50 + ((i * 37) % 100)} cy={64 + ((i * 13) % 14)} r={2 + (i % 3)} fill="#e9f8e4" opacity="0.8" />
+                ))}
+              </Bowl>
+            }
+          />
         </Stage>
         <div className="mt-3">
           <Result
@@ -599,13 +994,22 @@ function MatchaGame({ onBack }) {
               if (n >= 3) { sfx.good(); setTimeout(() => setStep(1), 700); }
             }}
           >
-            <Bowl>
-              {sift > 0 && <ellipse cx="100" cy="74" rx={10 + sift * 9} ry={3 + sift * 2.5} fill="#5d8a2f" />}
-            </Bowl>
-            {/* 체 */}
-            <div key={sift} className="craft-shake pointer-events-none absolute left-1/2 top-3 -translate-x-1/2">
-              <div className="h-12 w-24 rounded-b-full border-4 border-[#1a110e]" style={{ background: "repeating-linear-gradient(45deg,#d6d3d1 0 3px,#a8a29e 3px 6px)" }} />
-              {sift > 0 && sift < 3 && [0, 1, 2, 3].map((i) => <span key={i} className="craft-powder absolute h-1.5 w-1.5 rounded-full bg-[#5d8a2f]" style={{ left: 28 + i * 12, top: 44, animationDelay: `${i * 0.08}s` }} />)}
+            <MatchaBowl
+              layers={[["matcha_bowl_empty", 1], ["matcha_bowl_powder", sift / 3]]}
+              fallback={
+                <Bowl>
+                  {sift > 0 && <ellipse cx="100" cy="74" rx={10 + sift * 9} ry={3 + sift * 2.5} fill="#5d8a2f" />}
+                </Bowl>
+              }
+            />
+            {/* 체 (matcha_sieve.png · 없으면 코드 그림) */}
+            <div key={sift} className="craft-shake pointer-events-none absolute top-0" style={{ left: "calc(50% - 42px)" }}>
+              <CraftImg
+                name="matcha_sieve"
+                className="w-36"
+                fallback={<div className="mt-3 h-12 w-24 rounded-b-full border-4 border-[#1a110e]" style={{ background: "repeating-linear-gradient(45deg,#d6d3d1 0 3px,#a8a29e 3px 6px)" }} />}
+              />
+              {sift > 0 && sift < 3 && [0, 1, 2, 3].map((i) => <span key={i} className="craft-powder absolute h-1.5 w-1.5 rounded-full bg-[#5d8a2f]" style={{ left: 30 + i * 10, top: 70, animationDelay: `${i * 0.08}s` }} />)}
             </div>
           </Stage>
           <p className="my-2 text-center text-sm text-white/85">🥄 다완을 탭해 말차 가루를 체에 쳐요 ({sift}/3)</p>
@@ -615,17 +1019,28 @@ function MatchaGame({ onBack }) {
       {step === 1 && (
         <>
           <Stage>
-            <Bowl>
-              <ellipse cx="100" cy="74" rx="37" ry="10" fill="#5d8a2f" />
-              {water > 0 && <ellipse cx="100" cy="72" rx={Math.min(64, 30 + water * 0.4)} ry={Math.min(16, 8 + water * 0.1)} fill={mix("#7fae4a", "#3f6f22", Math.min(1, water / 70))} />}
-            </Bowl>
-            {/* 주전자 */}
-            <div className="pointer-events-none absolute right-6 top-4 transition-transform duration-200" style={{ transform: pouring ? "rotate(-35deg)" : "none", transformOrigin: "20% 80%" }}>
-              <div className="relative h-14 w-16 rounded-t-3xl border-4 border-[#1a110e] bg-[#9ca3af]">
-                <span className="absolute -left-6 top-4 h-2.5 w-7 -rotate-12 border-4 border-[#1a110e] bg-[#9ca3af]" />
-                <span className="absolute -top-3 left-5 h-3 w-5 border-4 border-[#1a110e] bg-[#6b7280]" />
-              </div>
-              {pouring && <span className="craft-water absolute -left-6 top-6 block h-16 w-1.5 origin-top rotate-[30deg] bg-sky-200/90" />}
+            <MatchaBowl
+              layers={[["matcha_bowl_powder", 1], ["matcha_bowl_water", Math.min(1, water / 70)]]}
+              fallback={
+                <Bowl>
+                  <ellipse cx="100" cy="74" rx="37" ry="10" fill="#5d8a2f" />
+                  {water > 0 && <ellipse cx="100" cy="72" rx={Math.min(64, 30 + water * 0.4)} ry={Math.min(16, 8 + water * 0.1)} fill={mix("#7fae4a", "#3f6f22", Math.min(1, water / 70))} />}
+                </Bowl>
+              }
+            />
+            {/* 숙우 (matcha_pourer.png · 없으면 코드 그림) */}
+            <div className="pointer-events-none absolute right-3 top-1 transition-transform duration-200" style={{ transform: pouring ? "rotate(-35deg)" : "none", transformOrigin: "30% 80%" }}>
+              <CraftImg
+                name="matcha_pourer"
+                className="w-28"
+                fallback={
+                  <div className="relative mr-3 mt-3 h-14 w-16 rounded-t-3xl border-4 border-[#1a110e] bg-[#9ca3af]">
+                    <span className="absolute -left-6 top-4 h-2.5 w-7 -rotate-12 border-4 border-[#1a110e] bg-[#9ca3af]" />
+                    <span className="absolute -top-3 left-5 h-3 w-5 border-4 border-[#1a110e] bg-[#6b7280]" />
+                  </div>
+                }
+              />
+              {pouring && <span className="craft-water absolute left-0 top-8 block h-16 w-1.5 origin-top rotate-[30deg] bg-sky-200/90" />}
             </div>
             {/* 수위 게이지 */}
             <div className="pointer-events-none absolute left-3 top-4 h-40 w-5 border-4 border-[#1a110e] bg-black/20">
@@ -650,16 +1065,29 @@ function MatchaGame({ onBack }) {
       {step === 2 && (
         <>
           <Stage onPointerDown={(e) => { lastX.current = null; addFoam(1.5); onMove(e); }} onPointerMove={onMove} className="cursor-grab">
-            <Bowl>
-              <ellipse cx="100" cy="72" rx="62" ry="14" fill={tea} />
-              {Array.from({ length: bubbles }, (_, i) => (
-                <circle key={i} cx={50 + ((i * 37) % 100)} cy={64 + ((i * 13) % 14)} r={2 + (i % 3)} fill="#e9f8e4" opacity="0.8" className="craft-foam" />
-              ))}
-            </Bowl>
-            {/* 차선 */}
-            <div className="pointer-events-none absolute top-2 -translate-x-1/2 transition-[left] duration-75" style={{ left: `${whiskX}%`, transform: `translateX(-50%) rotate(${(whiskX - 50) * 0.35}deg)` }}>
-              <div className="mx-auto h-16 w-3 border-2 border-[#1a110e] bg-[#e7c98f]" />
-              <div className="h-12 w-10 rounded-b-full border-2 border-[#1a110e]" style={{ background: "repeating-linear-gradient(90deg,#f1dcaa 0 2px,#c9a86a 2px 4px)" }} />
+            <MatchaBowl
+              layers={[["matcha_bowl_water", 1], ["matcha_bowl_foam", t]]}
+              fallback={
+                <Bowl>
+                  <ellipse cx="100" cy="72" rx="62" ry="14" fill={tea} />
+                  {Array.from({ length: bubbles }, (_, i) => (
+                    <circle key={i} cx={50 + ((i * 37) % 100)} cy={64 + ((i * 13) % 14)} r={2 + (i % 3)} fill="#e9f8e4" opacity="0.8" className="craft-foam" />
+                  ))}
+                </Bowl>
+              }
+            />
+            {/* 차선 (matcha_whisk.png · 없으면 코드 그림) */}
+            <div className="pointer-events-none absolute -top-2 -translate-x-1/2 transition-[left] duration-75" style={{ left: `${whiskX}%`, transform: `translateX(-50%) rotate(${(whiskX - 50) * 0.35}deg)` }}>
+              <CraftImg
+                name="matcha_whisk"
+                className="h-36 w-auto"
+                fallback={
+                  <div className="mt-4">
+                    <div className="mx-auto h-16 w-3 border-2 border-[#1a110e] bg-[#e7c98f]" />
+                    <div className="h-12 w-10 rounded-b-full border-2 border-[#1a110e]" style={{ background: "repeating-linear-gradient(90deg,#f1dcaa 0 2px,#c9a86a 2px 4px)" }} />
+                  </div>
+                }
+              />
             </div>
           </Stage>
           <div className="my-2 flex items-center justify-between text-sm font-bold text-white/85">
@@ -694,7 +1122,7 @@ export default function TeaCraftModal({ open, onClose }) {
         .craft-flame { animation: craft-flicker 0.25s ease-in-out infinite; transform-origin: bottom; transition: height 0.1s; }
         @keyframes craft-bub { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-16px); opacity: 0; } }
         .craft-bubble { animation: craft-bub 0.9s ease-out infinite; }
-        @keyframes craft-shake-k { 0%,100% { transform: translateX(-50%); } 25% { transform: translateX(-58%); } 75% { transform: translateX(-42%); } }
+        @keyframes craft-shake-k { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-7px); } 75% { transform: translateX(7px); } }
         .craft-shake { animation: craft-shake-k 0.15s 3; }
         @keyframes craft-powder-fall { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(60px); opacity: 0; } }
         .craft-powder { animation: craft-powder-fall 0.6s ease-in both; }
@@ -707,7 +1135,7 @@ export default function TeaCraftModal({ open, onClose }) {
         <div className="flex flex-col gap-3">
           <button type="button" onClick={() => { ac(); setGame("dasik"); }} className={`${BTN} flex items-center gap-3 bg-[#fbcfe8] text-left text-[#831843]`}>
             <span className="text-4xl">🍡</span>
-            <span><span className="block text-base">수제 다식 만들기</span><span className="block text-xs font-bold opacity-70">보늬밤 · 곶감 호두말이 · 매실청 (3단계)</span></span>
+            <span><span className="block text-base">수제 다식 만들기</span><span className="block text-xs font-bold opacity-70">보늬밤 · 곶감 호두말이 · 매실청 · 가래떡 구이</span></span>
           </button>
           <button type="button" onClick={() => { ac(); setGame("matcha"); }} className={`${BTN} flex items-center gap-3 bg-[#bbf7d0] text-left text-[#14532d]`}>
             <span className="text-4xl">🍵</span>
