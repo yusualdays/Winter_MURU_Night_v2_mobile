@@ -133,12 +133,15 @@ const BLOCKERS = [
 //  rect = 버튼이 뜨는 곳(그림 위) / near = 이 근처에 서면 버튼이 떠요 / radius = 거리 (맵 px)
 const SPOTS = [
   // 포스기 옆(카운터 왼쪽)에 서면 → [차림표 보기 · 미니게임 · 다연에게 말 걸기]
-  { id: "counterSide", rect: { x: 0.652, y: 0.215, w: 0.046, h: 0.03 }, near: { x: 0.612, y: 0.4 }, radius: 85, icon: "🍵", title: "차림표 · 미니게임 · 다연에게 말 걸기" },
-  { id: "counter", rect: { x: 0.646, y: 0.2, w: 0.16, h: 0.03 }, near: { x: 0.72, y: 0.56 }, radius: 120, icon: "🍵", title: "차림표 보기 · 다식·말차 만들기" },
+  { id: "counterSide", rect: { x: 0.652, y: 0.215, w: 0.046, h: 0.03 }, near: { x: 0.612, y: 0.4 }, radius: 85, icon: "💬", title: "말걸기" },
+  { id: "counter", rect: { x: 0.646, y: 0.2, w: 0.16, h: 0.03 }, near: { x: 0.72, y: 0.56 }, radius: 120, icon: "💬", title: "말걸기" },
   { id: "speaker", rect: { x: SPEAKER.x - 0.02, y: SPEAKER.y - 0.04, w: SPEAKER.w + 0.04, h: 0.04 }, near: { x: 0.44, y: 0.325 }, radius: 75, icon: "🎵", title: "BGM & 백색소음 설정" },
   { id: "bookshelf", rect: { x: BOOKSHELF.x, y: BOOKSHELF.y - 0.04, w: BOOKSHELF.w, h: 0.04 }, near: { x: 0.2, y: 0.78 }, radius: 130, icon: "🔖", title: "교환 독서 책갈피" },
   { id: "showroom", rect: { x: TEAWARE_SHELF.x, y: TEAWARE_SHELF.y - 0.04, w: TEAWARE_SHELF.w, h: 0.04 }, near: { x: 0.76, y: 0.68 }, radius: 120, icon: "🫖", title: "다구 쇼룸 / 스마트스토어 구경하기" },
 ];
+
+// 다연이 말하는 동안에는 카운터 버튼을 숨겨요 (말풍선을 가리지 않게)
+const SPOTS_DURING_TALK = SPOTS.filter((sp) => sp.id !== "counter" && sp.id !== "counterSide");
 
 // ---------------- 🚪 통로 (zone = 발이 닿으면 이동하는 경계) ----------------
 //  paintedSign: 배경 그림에 팻말이 있으면 true (열려 있을 땐 그림 팻말만, 준비중일 때만 코드 팻말)
@@ -286,7 +289,7 @@ export default function CafePage() {
       mapH={MAP_H}
       outside="#3b2a20"
       blockers={BLOCKERS}
-      spots={SPOTS}
+      spots={talk ? SPOTS_DURING_TALK : SPOTS}
       exits={EXITS}
       spawns={SPAWNS}
       seats={ALL_SEATS}

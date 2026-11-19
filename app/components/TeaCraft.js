@@ -319,10 +319,7 @@ function DasikGame({ onBack }) {
         {Object.entries(RECIPES).map(([k, r]) => (
           <button key={k} type="button" onClick={() => { setId(k); reset(true); }} className={`${BTN} flex items-center gap-3 bg-[#f5e6c8] text-left text-[#2b1d1a]`}>
             <span className="text-3xl">{r.emoji}</span>
-            <span>
-              <span className="block">{r.name}</span>
-              <span className="block text-xs font-bold text-[#2b1d1a]/60">{r.peel} → {r.cook} → 고명 올리기</span>
-            </span>
+            <span>{r.name}</span>
           </button>
         ))}
         <button type="button" onClick={onBack} className={`${BTN} mt-1 bg-[#6e4530] text-white`}>← 체험 고르기</button>
