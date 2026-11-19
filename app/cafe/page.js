@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import SimpleRoom from "../components/SimpleRoom";
 import { TeaNpc, TeaNpcLabel } from "../components/TeaNpc";
-import SeasonWindow, { seasonByDate } from "../components/SeasonWindow";
+import SeasonWindow, { seasonByDate, useGunsanWeather } from "../components/SeasonWindow";
 import { partyData } from "../data";
 import TeaHouseHud, { useTeaHouse } from "../components/TeaHouseHud";
 import TeaMenuBoard from "../components/TeaMenuBoard";
@@ -226,16 +226,24 @@ export default function CafePage() {
   const tea = useTeaHouse();
   const nicknameRef = useRef("");
   const [debug, setDebug] = useState(false);
-  // 🪟 창밖 풍경 = 접속한 날짜의 계절 (자동) · 확인용: 주소 끝에 ?season=rain 처럼 붙이면 그 풍경
-  const [season, setSeason] = useState("winter");
+  // 🪟 창밖 풍경 (자동)
+  //   1) 지금 군산에 눈이 오면 → ❄️ 겨울(눈 쌓인 숲) 그림 (11월이어도)
+  //   2) 비가 오면 → 🌧️ 비 오는 날 그림
+  //   3) 아니면 → 접속한 날짜의 계절 그림
+  //   확인용: 주소 끝에 ?season=rain 처럼 붙이면 그 풍경 (내 화면에만)
+  const weather = useGunsanWeather();
+  const [dateSeason, setDateSeason] = useState("winter");
+  const [testSeason, setTestSeason] = useState(null);
   useEffect(() => {
     try {
       const q = new URLSearchParams(window.location.search);
       setDebug(q.has("debug"));
       const test = q.get("season");
-      setSeason(["spring", "summer", "autumn", "winter", "rain"].includes(test) ? test : seasonByDate(new Date()));
+      if (["spring", "summer", "autumn", "winter", "rain"].includes(test)) setTestSeason(test);
+      setDateSeason(seasonByDate(new Date()));
     } catch {}
   }, []);
+  const season = testSeason || (weather === "snow" ? "winter" : weather === "rain" ? "rain" : dateSeason);
   // 카운터 창에서 고른 것 (menu | craft | guide) — 카운터 창 대신 그 창을 열어요
   const [counterPick, setCounterPick] = useState(null);
 

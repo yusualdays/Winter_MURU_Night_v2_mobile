@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useImgOk, craftSrc } from "./CraftImg";
 
 // 🪟 찻집 통창 — 계절별 바깥 풍경 (봄 벚꽃 / 여름 햇살 / 가을 단풍 노을 / 겨울 밤눈 / 비 오는 날)
@@ -22,6 +23,37 @@ export function seasonByDate(d = new Date()) {
   if (m >= 6 && m <= 8) return "summer";
   if (m >= 9 && m <= 11) return "autumn";
   return "winter";
+}
+
+// 🌦️ 지금 군산 날씨 (Open-Meteo 무료 날씨 API · 열쇠 필요 없음) → "rain" | "snow" | null(맑음·흐림·확인 실패)
+//  - 찻집에 들어올 때 한 번 + 15분마다 다시 확인해요
+//  - 날씨 코드: 눈 71~77, 85~86 / 비 51~67(이슬비·비·어는 비), 80~82(소나기), 95~99(뇌우)
+const GUNSAN = { lat: 35.9676, lon: 126.7366 };
+const WEATHER_URL = `https://api.open-meteo.com/v1/forecast?latitude=${GUNSAN.lat}&longitude=${GUNSAN.lon}&current=weather_code,rain,showers,snowfall&timezone=Asia%2FSeoul`;
+export function weatherKind(c) {
+  if (!c) return null;
+  const code = Number(c.weather_code);
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86 || c.snowfall > 0) return "snow";
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95 || c.rain > 0 || c.showers > 0) return "rain";
+  return null;
+}
+export function useGunsanWeather() {
+  const [kind, setKind] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const check = () =>
+      fetch(WEATHER_URL)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => alive && setKind(weatherKind(j?.current)))
+        .catch(() => {}); // 인터넷·API 문제면 그냥 계절 풍경
+    check();
+    const t = setInterval(check, 15 * 60 * 1000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+  return kind;
 }
 
 const LOOK = {
