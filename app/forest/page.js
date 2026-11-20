@@ -128,7 +128,7 @@ function ForestScene({ mapW, trees, nearKey, isMine, benchBusy, benchX, onToStar
           x={t.x}
           groundY={GROUND_Y + ((Math.round(t.x) % 3) - 1) * 6}
           kind={t.kind ?? 0}
-          label={t.secret ? "🔒" : nameOf(t)}
+          label={t.treeName ? `${t.secret ? "🔒 " : ""}${t.treeName}` : t.secret ? "🔒" : nameOf(t)}
           mine={isMine(t)}
           near={nearKey === t.key}
           fresh={typeof t.createdAt === "number" && now - t.createdAt < 8000}
@@ -151,6 +151,7 @@ function ReadingCard({ near, host, mine, canRemove, onEdit, onRemove, secretText
   return (
     <div className="pointer-events-none fixed left-1/2 top-[15%] z-30 w-[min(560px,92vw)] -translate-x-1/2">
       <div className="pointer-events-auto border-[5px] border-[#2b1d1a] bg-[#f3e2bd] px-5 py-4 text-center text-[#2b1d1a]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f, 6px 6px 0 0 rgba(0,0,0,.35)" }}>
+        {!isHostTree && near.treeName && <p className="mb-2 text-sm font-black tracking-wide text-[#3f6212]">🌳 {near.treeName}</p>}
         {locked ? (
           <p className="py-1 text-lg font-black">🔒 비밀 이야기가 담긴 나무예요</p>
         ) : (
@@ -180,53 +181,31 @@ function ReadingCard({ near, host, mine, canRemove, onEdit, onRemove, secretText
 }
 
 // ---------------- 🌱 심기 창 ----------------
+//  나무 고르기 → 🌳 나무 이름 → 나무에게 하고 싶은 말 → 내 이름(선택) · 🔒 비밀 나무
 function PlantForm({ initial, defaultName = "", onSubmit, onCancel }) {
   const wasSecret = !!initial?.secret;
   const [text, setText] = useState(wasSecret ? "" : initial?.text ?? "");
+  const [treeName, setTreeName] = useState(initial?.treeName ?? "");
   const [name, setName] = useState(initial ? (wasSecret ? "" : nameOf(initial)) : defaultName);
   const [secret, setSecret] = useState(wasSecret);
   const [kind, setKind] = useState(initial?.kind ?? Math.floor(Math.random() * 6));
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const LABEL = "mb-1 block text-xs font-black text-amber-200";
+  const FIELD = "w-full border-4 border-[#1a110e] bg-[#fdf6e3] px-2.5 py-1.5 text-sm text-[#2b1d1a] outline-none placeholder:text-[#2b1d1a]/40 focus:border-amber-400";
   return (
     <form
       onSubmit={async (e) => {
         e.preventDefault();
         const t = text.replace(/\s+$/g, "").replace(/^\s+/, "");
-        if (!t) return setMsg("한 마디 적어 주세요 🌱");
+        if (!t) return setMsg("나무에게 한 마디 해 주세요 🌱");
         setBusy(true);
-        const err = await onSubmit({ text: t.slice(0, MAX_LEN), name: name.trim().slice(0, 20), secret, kind });
+        const err = await onSubmit({ text: t.slice(0, MAX_LEN), treeName: treeName.trim().slice(0, 12), name: name.trim().slice(0, 20), secret, kind });
         setBusy(false);
         if (err) setMsg(err);
       }}
     >
-      <div className="border-[5px] border-[#2b1d1a] bg-[#f3e2bd] p-3 text-[#2b1d1a]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f" }}>
-        <textarea
-          value={text}
-          autoFocus
-          maxLength={MAX_LEN}
-          rows={4}
-          onChange={(e) => {
-            setText(e.target.value);
-            setMsg("");
-          }}
-          placeholder={forestData.placeholder}
-          className="w-full resize-none bg-transparent p-1 text-lg font-bold leading-relaxed outline-none placeholder:font-bold placeholder:text-[#2b1d1a]/35"
-        />
-        <div className="text-right text-xs text-[#2b1d1a]/50">
-          {text.length}/{MAX_LEN}
-        </div>
-      </div>
-      {wasSecret && <p className="mt-1 text-[11px] text-amber-100/60">비밀 나무 내용은 나도 다시 볼 수 없어서, 새로 써야 해요.</p>}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={20} placeholder="이름 (비워 두면 이름 없이)" className="min-w-0 flex-1 border-4 border-[#1a110e] bg-[#fdf6e3] px-2.5 py-1.5 text-sm text-[#2b1d1a] outline-none placeholder:text-[#2b1d1a]/40" />
-        <label className={`flex shrink-0 cursor-pointer items-center gap-2 border-4 px-3 py-1.5 text-sm font-black ${secret ? "border-amber-400 bg-[#3b2a20] text-amber-200" : "border-[#1a110e] bg-[#2b1d1a] text-white/85"}`}>
-          <input type="checkbox" checked={secret} onChange={(e) => setSecret(e.target.checked)} className="h-4 w-4 accent-amber-400" />
-          🔒 비밀 나무
-        </label>
-      </div>
-      {secret && <p className="mt-1 text-[11px] text-amber-100/70">주인장만 읽을 수 있어요. 다른 사람에겐 "비밀 이야기가 담긴 나무예요"로 보여요.</p>}
-      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
         {TREE_KINDS.map((k, i) => (
           <button key={i} type="button" onClick={() => setKind(i)} aria-pressed={kind === i} aria-label={k.name} className={`flex flex-col items-center border-4 p-1 ${kind === i ? "border-amber-400 bg-[#3b2a20]" : "border-[#1a110e] bg-[#2b1d1a]"}`}>
             <span className="flex h-[66px] items-end justify-center">
@@ -235,6 +214,41 @@ function PlantForm({ initial, defaultName = "", onSubmit, onCancel }) {
           </button>
         ))}
       </div>
+
+      <label className="mt-3 block">
+        <span className={LABEL}>🌳 나무 이름</span>
+        <input value={treeName} onChange={(e) => setTreeName(e.target.value)} maxLength={12} placeholder="예: 쉼표, 단단이, 늦봄" className={FIELD} />
+      </label>
+
+      <label className="mt-3 block">
+        <span className={LABEL}>💬 나무에게 하고 싶은 말</span>
+        <div className="border-[5px] border-[#2b1d1a] bg-[#f3e2bd] p-3 text-[#2b1d1a]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f" }}>
+          <textarea
+            value={text}
+            maxLength={MAX_LEN}
+            rows={4}
+            onChange={(e) => {
+              setText(e.target.value);
+              setMsg("");
+            }}
+            placeholder={forestData.placeholder}
+            className="w-full resize-none bg-transparent p-1 text-lg font-bold leading-relaxed outline-none placeholder:font-bold placeholder:text-[#2b1d1a]/35"
+          />
+          <div className="text-right text-xs text-[#2b1d1a]/50">
+            {text.length}/{MAX_LEN}
+          </div>
+        </div>
+      </label>
+      {wasSecret && <p className="mt-1 text-[11px] text-amber-100/60">비밀 나무 내용은 나도 다시 볼 수 없어서, 새로 써야 해요.</p>}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <input value={name} onChange={(e) => setName(e.target.value)} maxLength={20} placeholder="내 이름 (비워 두면 이름 없이)" className={`${FIELD} min-w-0 flex-1`} />
+        <label className={`flex shrink-0 cursor-pointer items-center gap-2 border-4 px-3 py-1.5 text-sm font-black ${secret ? "border-amber-400 bg-[#3b2a20] text-amber-200" : "border-[#1a110e] bg-[#2b1d1a] text-white/85"}`}>
+          <input type="checkbox" checked={secret} onChange={(e) => setSecret(e.target.checked)} className="h-4 w-4 accent-amber-400" />
+          🔒 비밀 나무
+        </label>
+      </div>
+      {secret && <p className="mt-1 text-[11px] text-amber-100/70">하고 싶은 말과 내 이름은 주인장만 읽을 수 있어요. 나무 이름은 숲에 보여요.</p>}
       {msg && <p className="mt-2 text-sm font-bold text-rose-300">{msg}</p>}
       <div className="mt-4 flex justify-end gap-2">
         <button type="button" onClick={onCancel} className="border-4 border-[#1a110e] bg-[#6e4530] px-4 py-2 font-black text-white">
@@ -649,12 +663,12 @@ export default function ForestPage() {
 
 
   // 🌱 심기 / 고쳐 쓰기 — 실패하면 오류 문구를 돌려줘요 (창에 표시)
-  const savePlant = async ({ text, name, secret, kind }) => {
+  const savePlant = async ({ text, treeName, name, secret, kind }) => {
     const api = apiRef.current;
     if (!db || !plantAt) return "지금은 저장할 수 없어요";
     const editing = plantAt.editing;
     const key = editing ? editing.key : newKeyOf(myId);
-    const pub = { name: secret ? "" : name, byId: myId, kind, x: Math.round(editing ? editing.x : plantAt.x), [editing ? "updatedAt" : "createdAt"]: serverTimestamp() };
+    const pub = { treeName: treeName || null, name: secret ? "" : name, byId: myId, kind, x: Math.round(editing ? editing.x : plantAt.x), [editing ? "updatedAt" : "createdAt"]: serverTimestamp() };
     try {
       if (secret) {
         // 비밀 내용은 forestSecrets에만 (관리자만 읽을 수 있는 곳)
@@ -717,7 +731,7 @@ export default function ForestPage() {
       }}
       spots={[{ id: GUIDE_ID, rect: { x: (INTRO_X - 50) / mapW, y: (GROUND_Y - 110) / MAP_H, w: 100 / mapW, h: 0.03 }, near: { x: INTRO_X / mapW, y: 0.86 }, radius: 110, icon: "📜", title: "이용안내" }]}
       renderModals={(openId, close) => [
-        <PixelModal key={GUIDE_ID} open={openId === GUIDE_ID} onClose={close} label="🌳 무해림" title={`📜 ${forestData.guide?.title ?? "이용안내"}`} width={520}>
+        <PixelModal key={GUIDE_ID} open={openId === GUIDE_ID} onClose={close} label="🌳 무해림" title="📜 무해림 이용안내" width={520}>
           <ForestGuide
             onSeen={() => {
               setGuideAlert(false);
@@ -748,26 +762,26 @@ export default function ForestPage() {
   );
 }
 
-// 📜 무해림 이용안내 (spaceData forestData.guide)
+// 📜 무해림 이용안내 (spaceData forestData.guide — title + text)
 function ForestGuide({ onSeen, onClose }) {
   useEffect(() => {
     onSeen?.(); // 한 번 열어 보면 "!" 끄기
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const steps = forestData.guide?.steps ?? [];
+  const g = forestData.guide ?? {};
+  const paras = String(g.text ?? "").split(/\n\s*\n/).filter((p) => p.trim());
   return (
     <div>
-      <ul className="flex flex-col gap-2">
-        {steps.map((s, i) => (
-          <li key={i} className="flex items-start gap-3 border-4 border-[#1a110e] bg-[#2b1d1a] px-3 py-2 text-[#f5e6c8]">
-            <span className="text-xl leading-none">{s.icon}</span>
-            <span className="min-w-0">
-              <span className="block font-black">{s.title}</span>
-              {s.desc && <span className="block text-xs leading-relaxed text-white/70">{s.desc}</span>}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <div className="border-[5px] border-[#2b1d1a] bg-[#f3e2bd] px-5 py-6 text-center text-[#2b1d1a]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f" }}>
+        <p className="text-4xl font-black tracking-[0.15em]">{g.title}</p>
+        <div className="mt-5 flex flex-col gap-4 text-[15px] font-bold leading-relaxed">
+          {paras.map((p, i) => (
+            <p key={i} className="whitespace-pre-line">
+              {p.trim()}
+            </p>
+          ))}
+        </div>
+      </div>
       <button type="button" onClick={onClose} className="mt-4 w-full border-4 border-[#1a110e] bg-amber-400 py-2.5 font-black text-[#2b1d1a] shadow-[4px_4px_0_0_rgba(0,0,0,0.4)] active:translate-y-0.5 active:shadow-none">
         숲길 걷기 ▶
       </button>
