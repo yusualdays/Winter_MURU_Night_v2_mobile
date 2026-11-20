@@ -21,12 +21,14 @@ const isConfigured = !Object.values(firebaseConfig).some(
 
 // 설정이 잘못돼도 화면 전체가 멈추지 않도록 try로 감싸기
 let db = null;
+let firebaseApp = null; // 로그인(무해림 비밀 나무)에서도 같이 써요
 if (isConfigured)
   try {
     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    firebaseApp = app;
     db = getDatabase(app);
   } catch (err) {
     console.error('Firebase 설정을 확인해 주세요:', err);
   }
 
-export { db };
+export { db, firebaseApp };
