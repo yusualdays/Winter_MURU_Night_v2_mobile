@@ -27,6 +27,7 @@ import TapRipple, { TAP_FX_MS } from "../components/TapRipple";
 import { ROOMS, rememberFrom, inZone, isRoomOpen, getOwnerLocal } from "../lib/rooms";
 import { EMOTE_KEYS } from "../components/EmoteBubble";
 import { ref, set, update, remove, push, onValue, onDisconnect, runTransaction, serverTimestamp } from "firebase/database";
+import { findPath } from "../lib/pathfind";
 import { db } from "../lib/firebase";
 import { getMyId, getLook } from "../lib/session";
 import { DEFAULT_LOOK, normalizeLook } from "../lib/pixelCharacter";
@@ -137,6 +138,7 @@ export default function LivingRoom() {
   const posRef = useRef({ x: 0, y: 0 });  // 지금 내 위치 (자동 이동 계산용)
   const targetRef = useRef(null);         // 터치(클릭)한 목표 지점 { x, y } — 발 가운데가 여기로 가요
   const stuckRef = useRef(0);             // 장애물에 막혀 못 가는 프레임 수
+  const pathRef = useRef([]);             // 🧭 터치 이동: 장애물을 피해 차례로 지나갈 점들
   const mapElRef = useRef(null);          // 맵 화면(div)
   const [tapFx, setTapFx] = useState(null); // 터치한 곳 파동 { x, y, id }
   const doorArmedRef = useRef(false);     // 문 밖으로 한 번 나와야 문이 작동 (도착하자마자 되돌아가지 않게)
@@ -506,8 +508,11 @@ export default function LivingRoom() {
         const tx = targetRef.current.x - (p.x + FEET.offsetX + FEET.width / 2);
         const ty = targetRef.current.y - (p.y + FEET.offsetY + FEET.height / 2);
         autoDist = Math.hypot(tx, ty);
-        if (autoDist < 4) targetRef.current = null; // 도착!
-        else {
+        if (autoDist < 4) {
+          // 이 점에 도착 → 다음 점으로 (없으면 도착!)
+          targetRef.current = pathRef.current.shift() || null;
+          autoDist = 0;
+        } else {
           dx = tx / autoDist;
           dy = ty / autoDist;
         }
@@ -542,7 +547,10 @@ export default function LivingRoom() {
           if (autoDist && targetRef.current) {
             const moved = (x - p.x) * dx + (y - p.y) * dy; // 목표 쪽으로 간 거리
             stuckRef.current = moved < step * 0.3 ? stuckRef.current + 1 : 0;
-            if (stuckRef.current >= 4) targetRef.current = null;
+            if (stuckRef.current >= 10) {
+              targetRef.current = null;
+              pathRef.current = [];
+            }
           }
           posRef.current = { x, y };
           return { x, y };
@@ -684,7 +692,23 @@ export default function LivingRoom() {
     const y = clamp((e.clientY - rect.top) / scale, 0, mapRef.current.h);
     pressedKeys.current.clear();
     stuckRef.current = 0;
-    targetRef.current = { x, y };
+    // 🧭 장애물을 피해서 가는 길 찾기 (못 가는 곳을 누르면 가장 가까운 갈 수 있는 곳까지)
+    const { w, h, rects } = mapRef.current;
+    const feetFree = (fx, fy) => {
+      const ax = fx - FEET.offsetX - FEET.width / 2;
+      const ay = fy - FEET.offsetY - FEET.height / 2;
+      if (ax < 0 || ay < 0 || ax > w - AVATAR_WIDTH || ay > h - AVATAR_HEIGHT) return false;
+      return !isBlocked(ax, ay, rects);
+    };
+    const p = posRef.current;
+    const path = p ? findPath({ x: p.x + FEET.offsetX + FEET.width / 2, y: p.y + FEET.offsetY + FEET.height / 2 }, { x, y }, feetFree, w, h) : [];
+    if (path.length) {
+      targetRef.current = path[0];
+      pathRef.current = path.slice(1);
+    } else {
+      targetRef.current = { x, y };
+      pathRef.current = [];
+    }
     setTapFx({ x, y, id: Date.now() });
   };
 

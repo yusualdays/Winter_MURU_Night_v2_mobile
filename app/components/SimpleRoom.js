@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ref, set, update, remove, push, onValue, onDisconnect, runTransaction, serverTimestamp } from "firebase/database";
+import { findPath } from "../lib/pathfind";
 import { db } from "../lib/firebase";
 import { getMyId, getLook } from "../lib/session";
 import { DEFAULT_LOOK, normalizeLook } from "../lib/pixelCharacter";
@@ -125,6 +126,7 @@ export default function SimpleRoom({
   const posRef = useRef(null);
   const targetRef = useRef(null);
   const stuckRef = useRef(0);
+  const pathRef = useRef([]); // 🧭 터치 이동: 장애물을 피해 차례로 지나갈 점들
   const mapElRef = useRef(null);
   const openIdRef = useRef(null);
   const nearIdRef = useRef(null);
@@ -137,6 +139,16 @@ export default function SimpleRoom({
 
   const rects = useMemo(() => blockers.map((o) => ({ x: o.x * mapW, y: o.y * mapH, w: o.w * mapW, h: o.h * mapH })), [blockers, mapW, mapH]);
   const blocked = useCallback((x, y) => rects.some((r) => overlaps(feetRect(x, y), r)), [rects]);
+  // 발 가운데가 (fx, fy)일 때 갈 수 있는지 (길찾기용)
+  const feetFree = useCallback(
+    (fx, fy) => {
+      const x = fx - FEET.offsetX - FEET.width / 2;
+      const y = fy - FEET.offsetY - FEET.height / 2;
+      if (x < 0 || y < 0 || x > mapW - AVATAR_WIDTH || y > mapH - AVATAR_HEIGHT) return false;
+      return !blocked(x, y);
+    },
+    [blocked, mapW, mapH]
+  );
 
   // 1) 닉네임·캐릭터·ID, 시작 위치 (어느 문으로 들어왔는지)
   useEffect(() => {
@@ -519,8 +531,11 @@ export default function SimpleRoom({
         const tx = targetRef.current.x - (p0.x + FEET.offsetX + FEET.width / 2);
         const ty = targetRef.current.y - (p0.y + FEET.offsetY + FEET.height / 2);
         autoDist = Math.hypot(tx, ty);
-        if (autoDist < 4) targetRef.current = null;
-        else {
+        if (autoDist < 4) {
+          // 이 점에 도착 → 다음 점으로 (없으면 도착!)
+          targetRef.current = pathRef.current.shift() || null;
+          autoDist = 0;
+        } else {
           dx = tx / autoDist;
           dy = ty / autoDist;
         }
@@ -545,7 +560,11 @@ export default function SimpleRoom({
         if (autoDist && targetRef.current) {
           const moved = (x - p.x) * dx + (y - p.y) * dy;
           stuckRef.current = moved < step * 0.3 ? stuckRef.current + 1 : 0;
-          if (stuckRef.current >= 4) targetRef.current = null; // 장애물 앞에서 멈춤
+          if (stuckRef.current >= 10) {
+            // 길을 따라가다 정말 막히면 멈춤
+            targetRef.current = null;
+            pathRef.current = [];
+          }
         }
         posRef.current = { x, y };
         setPos({ x, y });
@@ -627,7 +646,16 @@ export default function SimpleRoom({
     const y = clamp((e.clientY - rect.top) / scale, 0, mapH);
     pressedKeys.current.clear();
     stuckRef.current = 0;
-    targetRef.current = { x, y };
+    // 🧭 장애물을 피해서 가는 길 찾기 (못 가는 곳을 누르면 가장 가까운 갈 수 있는 곳까지)
+    const p = posRef.current;
+    const path = p ? findPath({ x: p.x + FEET.offsetX + FEET.width / 2, y: p.y + FEET.offsetY + FEET.height / 2 }, { x, y }, feetFree, mapW, mapH) : [];
+    if (path.length) {
+      targetRef.current = path[0];
+      pathRef.current = path.slice(1);
+    } else {
+      targetRef.current = { x, y };
+      pathRef.current = [];
+    }
     setTapFx({ x, y, id: Date.now() });
   };
   useEffect(() => {

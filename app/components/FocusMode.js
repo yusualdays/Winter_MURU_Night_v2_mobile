@@ -277,7 +277,8 @@ function Digit({ n, color }) {
   );
 }
 
-function Pomodoro() {
+//  mini: 휴대폰용 한 줄 (⏱ 남은 시간 + ▶/⏸ + 펼치기) — 접었다 펴도 타이머는 그대로 이어져요
+function Pomodoro({ mini = false, onExpand, extra = null }) {
   const [mode, setMode] = useState("focus"); // focus | break
   const [left, setLeft] = useState(FOCUS_MIN * 60);
   const [running, setRunning] = useState(false);
@@ -318,6 +319,24 @@ function Pomodoro() {
   const color = mode === "focus" ? "#fbbf24" : "#6ee7b7";
   const blocks = 20;
   const done = Math.round(((total - left) / total) * blocks);
+
+  if (mini) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <span className="text-base leading-none">{mode === "focus" ? "📖" : "🍵"}</span>
+        <span className="min-w-[3.4rem] font-mono text-lg font-black tabular-nums leading-none" style={{ color }}>
+          {mm}:{ss}
+        </span>
+        <button type="button" onClick={() => { startEngine(); setRunning((r) => !r); }} aria-label={running ? "잠깐 멈춤" : "시작"} className={`border-2 border-[#1a110e] px-2 py-0.5 text-xs font-black ${running ? "bg-[#6e4530] text-white" : "bg-amber-400 text-[#2b1d1a]"}`}>
+          {running ? "⏸" : "▶"}
+        </button>
+        <button type="button" onClick={onExpand} aria-label="크게 보기" className="border-2 border-[#1a110e] bg-[#f5e6c8] px-2 py-0.5 text-xs font-black text-[#2b1d1a]">
+          ⤢
+        </button>
+        {extra}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -374,17 +393,37 @@ export function FocusToggle({ focus, setFocus, compact = false }) {
 export function FocusPanel({ onOff, prop = "book", onProp }) {
   useResumeMix();
   const [mixOpen, setMixOpen] = useState(false);
+  // 📱 휴대폰(좁은 화면·터치)에서는 처음부터 작게 → 캐릭터가 보이게
+  const [small, setSmall] = useState(false);
+  const [touchy, setTouchy] = useState(false);
+  useEffect(() => {
+    try {
+      const m = window.matchMedia("(max-width: 640px), (pointer: coarse)").matches;
+      setSmall(m);
+      setTouchy(m);
+    } catch {}
+  }, []);
+  // (아래 순서를 바꾸지 마세요: 작게/크게 바꿔도 타이머가 이어지도록 Pomodoro 자리가 그대로예요)
   return (
-    <div className={`${BOX} w-[min(20rem,calc(100vw-2rem))] bg-[#2b1d1a]/95 p-3`}>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-sm font-black text-amber-200">📖 공부 집중 모드</p>
-        {onOff && (
-          <button type="button" onClick={onOff} className="border-2 border-[#1a110e] bg-[#f5e6c8] px-2 py-0.5 text-xs font-black text-[#2b1d1a]">
-            끄기 ✕
-          </button>
-        )}
-      </div>
-      {onProp && (
+    <div className={small ? `${BOX} bg-[#2b1d1a]/95 px-2 py-1.5` : `${BOX} w-[min(20rem,calc(100vw-2rem))] bg-[#2b1d1a]/95 p-3`}>
+      {!small && (
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-sm font-black text-amber-200">📖 공부 집중 모드</p>
+          <div className="flex gap-1">
+            {touchy && (
+              <button type="button" onClick={() => setSmall(true)} className="border-2 border-[#1a110e] bg-black/30 px-2 py-0.5 text-xs font-black text-white">
+                작게 ▴
+              </button>
+            )}
+            {onOff && (
+              <button type="button" onClick={onOff} className="border-2 border-[#1a110e] bg-[#f5e6c8] px-2 py-0.5 text-xs font-black text-[#2b1d1a]">
+                끄기 ✕
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {!small && onProp && (
         <div className="mb-3 grid grid-cols-2 gap-1.5">
           {[["book", "📖 책 읽기"], ["laptop", "💻 노트북"]].map(([k, l]) => (
             <button
@@ -399,11 +438,23 @@ export function FocusPanel({ onOff, prop = "book", onProp }) {
           ))}
         </div>
       )}
-      <Pomodoro />
-      <button type="button" onClick={() => setMixOpen((o) => !o)} className="mt-3 w-full border-t-2 border-white/15 pt-2 text-left text-xs font-black text-white/80">
-        {mixOpen ? "▾" : "▸"} 🎧 백색소음 섞어 듣기
-      </button>
-      {mixOpen && (
+      <Pomodoro
+        mini={small}
+        onExpand={() => setSmall(false)}
+        extra={
+          onOff ? (
+            <button type="button" onClick={onOff} aria-label="집중 모드 끄기" className="border-2 border-[#1a110e] bg-black/30 px-1.5 py-0.5 text-xs font-black text-white">
+              ✕
+            </button>
+          ) : null
+        }
+      />
+      {!small && (
+        <button type="button" onClick={() => setMixOpen((o) => !o)} className="mt-3 w-full border-t-2 border-white/15 pt-2 text-left text-xs font-black text-white/80">
+          {mixOpen ? "▾" : "▸"} 🎧 백색소음 섞어 듣기
+        </button>
+      )}
+      {!small && mixOpen && (
         <div className="mt-2">
           <NoiseMixer />
         </div>
