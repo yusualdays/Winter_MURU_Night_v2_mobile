@@ -15,7 +15,7 @@ const BOX = "border-4 border-[#1a110e] shadow-[4px_4px_0_0_rgba(0,0,0,0.4)]";
 const BTN = `${BOX} px-3 py-1.5 text-sm font-black active:translate-y-0.5 active:shadow-none`;
 
 export const SOUNDS = [
-  { id: "fire", icon: "🔥", name: "장작불" },
+  { id: "fire", icon: "🔥", name: "장작불 소리" },
   { id: "kettle", icon: "🫖", name: "찻물 끓는 소리" },
   { id: "rain", icon: "🌧️", name: "빗소리" },
   { id: "wind", icon: "🍃", name: "바람·풍경 소리" },
@@ -195,7 +195,8 @@ function loadVols() {
     return { fire: 0, kettle: 0, rain: 0, wind: 0 };
   }
 }
-export function NoiseMixer() {
+// light: 크림색 설정창용 (거실과 같은 모양) / 아니면 어두운 창용
+export function NoiseMixer({ light = false }) {
   const [vols, setVols] = useState({ fire: 0, kettle: 0, rain: 0, wind: 0 });
   useEffect(() => setVols(loadVols()), []);
   const change = (id, v) => {
@@ -208,9 +209,41 @@ export function NoiseMixer() {
     Object.entries(next).forEach(([k, val]) => setVolume(k, val));
   };
   const any = Object.values(vols).some((v) => v > 0);
+  if (light) {
+    return (
+      <div className="flex flex-col gap-3">
+        {SOUNDS.map((s) => (
+          <div key={s.id} className="flex items-center gap-2">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center border-2 border-[#2b1d1a] bg-[#efe0c0] text-lg">{s.icon}</span>
+            <div className="min-w-0 flex-1">
+              <p className="flex items-center justify-between text-xs font-bold text-[#2b1d1a]">
+                <span>{s.name}</span>
+                <span className="tabular-nums text-[#5b3b2a]">{vols[s.id] === 0 ? "🔇" : `${vols[s.id]}%`}</span>
+              </p>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={vols[s.id]}
+                onChange={(e) => change(s.id, Number(e.target.value))}
+                onPointerUp={(e) => e.currentTarget.blur()}
+                aria-label={`${s.name} 볼륨`}
+                className="mt-1 h-6 w-full cursor-pointer accent-[#c8323a] [@media(pointer:fine)]:h-1.5"
+              />
+            </div>
+          </div>
+        ))}
+        {any && (
+          <button type="button" onClick={() => SOUNDS.forEach((s) => change(s.id, 0))} className="self-end text-xs font-bold text-[#5b3b2a] underline">
+            모두 끄기
+          </button>
+        )}
+      </div>
+    );
+  }
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs font-black text-amber-200">🎧 백색소음 믹서 <span className="font-bold text-white/50">(음원 파일 없이 브라우저가 직접 만든 소리)</span></p>
+      <p className="text-xs font-black text-amber-200">🎧 백색소음 믹서</p>
       {SOUNDS.map((s) => (
         <label key={s.id} className="flex items-center gap-2 text-sm text-white">
           <span className="w-28 shrink-0 font-bold">{s.icon} {s.name}</span>

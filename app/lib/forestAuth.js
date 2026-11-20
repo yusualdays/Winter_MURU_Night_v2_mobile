@@ -4,6 +4,11 @@
 //  ※ Firebase 콘솔 → Authentication → 로그인 방법에서 "익명"과 "이메일/비밀번호"를 켜야 해요
 import { getAuth, signInAnonymously, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 import { firebaseApp } from "./firebase";
+import { partyData } from "../data";
+
+// 🔐 관리자(주인장) UID — data.js adminUid
+export const ADMIN_UID = partyData?.adminUid || "";
+export const isAdminUser = (u) => !!u && !u.isAnonymous && !!ADMIN_UID && u.uid === ADMIN_UID;
 
 let auth = null;
 function getA() {

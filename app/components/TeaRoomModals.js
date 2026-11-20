@@ -7,6 +7,7 @@ import { partyData } from "../data";
 import PixelModal from "./PixelModal";
 import { NoiseMixer } from "./FocusMode";
 import { DayeonSprite } from "./TeaNpc";
+import { VolumeRow } from "./RoomSettings";
 
 // ☕ 찻집 벽면 오브젝트 창 모음
 //  - CounterModal  : 카운터 앞 → [🍵 차림표 보기] [🍡 다식·말차 만들기] [💬 다연에게 말 걸기]
@@ -39,54 +40,105 @@ export function CounterModal({ open, onClose, onPick }) {
 }
 
 // ---------------- 🎵 스피커: BGM + 백색소음 ----------------
-// 찻집 BGM (data.js teaHouseBgm, 없으면 bgmFile) — 페이지 하나에 오디오 하나
+// 찻집 BGM (data.js teaHouseBgm + teaHouseBgmTitle) — 페이지 하나에 오디오 하나. 비워 두면 BGM 칸이 안 보여요
+//  - 켜 두면(기본) 찻집에 들어와 화면을 한 번 누른 뒤부터 반복 재생 · 켜기/끄기·소리 크기는 이 기기에 기억 (teaBgmOn, teaBgmVol)
+//  - 라디오(스피커) 창과 ⚙️ 찻집 설정 두 곳에서 조절해요
 let bgm = null;
-function getBgm() {
-  if (typeof window === "undefined") return null;
+const bgmListeners = new Set();
+const notifyBgm = () => bgmListeners.forEach((f) => f());
+function readPref() {
+  try {
+    const on = localStorage.getItem("teaBgmOn") !== "0";
+    const v = Number(localStorage.getItem("teaBgmVol") ?? 40);
+    return { on, vol: Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 40 };
+  } catch {
+    return { on: true, vol: 40 };
+  }
+}
+const BGM_SRC = partyData.teaHouseBgm || ""; // 비어 있으면 찻집 BGM 없음 (칸도 숨겨요)
+export function getBgm() {
+  if (typeof window === "undefined" || !BGM_SRC) return null;
   if (!bgm) {
-    bgm = new Audio(partyData.teaHouseBgm || partyData.bgmFile || "/bgm.mp3");
+    bgm = new Audio(BGM_SRC);
     bgm.loop = true;
-    bgm.volume = 0.4;
+    bgm.volume = readPref().vol / 100;
+    bgm.addEventListener("play", notifyBgm);
+    bgm.addEventListener("pause", notifyBgm);
   }
   return bgm;
 }
-export function SpeakerModal({ open, onClose }) {
+export const BGM_TITLE = partyData.teaHouseBgmTitle || "찻집 BGM";
+
+// 찻집에 들어오면: 켜 둔 상태면 첫 터치·키 입력 뒤 재생 / 나가면 멈춤
+export function useCafeBgmAutoStart() {
+  useEffect(() => {
+    const a = getBgm();
+    if (!a) return;
+    const go = () => {
+      if (readPref().on && a.paused) a.play().catch(() => {});
+    };
+    go();
+    window.addEventListener("pointerdown", go, { once: true });
+    window.addEventListener("keydown", go, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", go);
+      window.removeEventListener("keydown", go);
+      a.pause();
+    };
+  }, []);
+}
+
+// 🎵 켜기/끄기 + 소리 크기 (⚙️ 설정: 크림색 VolumeRow · 라디오 창: dark)
+export function CafeBgmControl({ dark = false }) {
   const [playing, setPlaying] = useState(false);
   const [vol, setVol] = useState(40);
   useEffect(() => {
     const a = getBgm();
-    if (a) {
-      setPlaying(!a.paused);
-      setVol(Math.round(a.volume * 100));
-    }
-  }, [open]);
+    const sync = () => a && setPlaying(!a.paused);
+    setVol(readPref().vol);
+    sync();
+    bgmListeners.add(sync);
+    return () => bgmListeners.delete(sync);
+  }, []);
+  if (!BGM_SRC) return null;
   const toggle = () => {
     const a = getBgm();
     if (!a) return;
-    if (a.paused) a.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
-    else {
-      a.pause();
-      setPlaying(false);
-    }
+    const on = a.paused;
+    if (on) a.play().catch(() => {});
+    else a.pause();
+    try {
+      localStorage.setItem("teaBgmOn", on ? "1" : "0");
+    } catch {}
   };
   const changeVol = (v) => {
     setVol(v);
     const a = getBgm();
     if (a) a.volume = v / 100;
+    try {
+      localStorage.setItem("teaBgmVol", String(v));
+    } catch {}
   };
+  if (!dark) return <VolumeRow icon="🎵" label={BGM_TITLE} playing={playing} onToggle={toggle} volume={vol} onVolume={changeVol} />;
+  return (
+    <div className="border-2 border-white/15 bg-black/20 p-3">
+      <p className="mb-2 truncate text-xs font-black text-amber-200">🎵 {BGM_TITLE}</p>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={toggle} className={`${BTN} shrink-0 ${playing ? "bg-[#6e4530] text-white" : "bg-amber-400 text-[#2b1d1a]"}`}>
+          {playing ? "⏸ 끄기" : "▶ 켜기"}
+        </button>
+        <input type="range" min="0" max="100" value={vol} onChange={(e) => changeVol(Number(e.target.value))} className="h-2 min-w-0 flex-1 accent-amber-400" aria-label="BGM 소리" />
+        <span className="w-8 text-right text-xs tabular-nums text-white/60">{vol}</span>
+      </div>
+    </div>
+  );
+}
+
+export function SpeakerModal({ open, onClose }) {
   return (
     <PixelModal open={open} onClose={onClose} label="🎵 스피커" title="BGM & 백색소음 설정" width={420}>
       <div className="flex flex-col gap-4">
-        <div className="border-2 border-white/15 bg-black/20 p-3">
-          <p className="mb-2 text-xs font-black text-amber-200">🎵 찻집 BGM <span className="font-bold text-white/50">(나에게만 들려요)</span></p>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={toggle} className={`${BTN} ${playing ? "bg-[#6e4530] text-white" : "bg-amber-400 text-[#2b1d1a]"}`}>
-              {playing ? "⏸ 끄기" : "▶ 켜기"}
-            </button>
-            <input type="range" min="0" max="100" value={vol} onChange={(e) => changeVol(Number(e.target.value))} className="h-2 min-w-0 flex-1 accent-amber-400" />
-            <span className="w-8 text-right text-xs tabular-nums text-white/60">{vol}</span>
-          </div>
-        </div>
+        <CafeBgmControl dark />
         <div className="border-2 border-white/15 bg-black/20 p-3">
           <NoiseMixer />
         </div>

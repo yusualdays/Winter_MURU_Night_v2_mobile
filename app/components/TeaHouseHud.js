@@ -9,6 +9,9 @@ import { isHost, inSchedule, scheduleText } from "../lib/rooms";
 import PixelModal from "./PixelModal";
 import { OrderBar } from "./TeaTable";
 import { FocusToggle, FocusPanel, NoiseMixer } from "./FocusMode";
+import { adminLogin, isAdminUser, ADMIN_UID, logout as adminLogout } from "../lib/forestAuth";
+import { CafeBgmControl, useCafeBgmAutoStart } from "./TeaRoomModals";
+import { SettingsPopup, Section, ToggleRow, L_INPUT, L_BTN, L_BTN_MAIN } from "./RoomSettings";
 
 // ☕ 찻집 화면 위 UI 모음
 //  - ⚙️ 설정: 🎧 백색소음 · 🔑 사장님 인증 (🪟 통창 풍경은 접속한 날짜의 계절로 자동) · 🔓 테스트용 강제 오픈
@@ -90,17 +93,36 @@ const BOX = "border-4 border-[#1a110e] shadow-[4px_4px_0_0_rgba(0,0,0,0.35)]";
 const BTN = `${BOX} px-3 py-1.5 text-sm font-black active:translate-y-0.5 active:shadow-none disabled:opacity-50`;
 const INPUT = "w-full border-4 border-[#1a110e] bg-[#fdf6e3] px-3 py-2 text-sm text-[#2b1d1a] outline-none placeholder:text-[#2b1d1a]/40 focus:border-amber-400";
 
-// ---------------- ⚙️ 설정 창 ----------------
-// title: 창 제목 (전시회에서도 같이 써요), noise: 백색소음 믹서 보이기, top: 맨 위에 덧붙일 칸, onOpenOwner가 없으면 [📋 사장님 관리] 버튼을 숨겨요, children: 맨 아래 덧붙일 칸
-// ownerToggle: 사장님 모드 켜기·끄기 칸 (찻집에서만 true — 전시실·무해림에서는 숨겨요)
-export function SettingsPanel({ api, onOpenOwner, title = "⚙️ 찻집 설정", noise = true, top = null, ownerToggle = false, children }) {
+// ---------------- ⚙️ 설정 창 (거실과 같은 크림색 모양 — RoomSettings.js) ----------------
+// 방마다 SettingsPopup 안에 넣어 써요
+//  noise: 백색소음 믹서 · top: 맨 위에 덧붙일 칸 · ownerToggle: 사장님 모드 켜기·끄기 (찻집에서만)
+//  onOpenOwner가 없으면 [📋 사장님 관리] 버튼을 숨겨요 · children: 맨 아래 덧붙일 칸
+//  🔓 거실·전시회 미리 열기는 사장님 모드에서만 보여요
+export function SettingsPanel({ api, onOpenOwner, noise = true, top = null, ownerToggle = false, children }) {
   const [pin, setPin] = useState("");
-  const [showPin, setShowPin] = useState(false); // 손님 눈에 잘 안 띄게: 작은 "·" 를 눌러야 비밀번호 칸이 열려요
+  const [showPin, setShowPin] = useState(false); // 손님 눈에 잘 안 띄게: 작은 "·" 를 눌러야 로그인 칸이 열려요
   const [pinMsg, setPinMsg] = useState("");
+  const [email, setEmail] = useState("");
   const ownerPin = partyData?.ownerPin;
 
   const login = (e) => {
     e.preventDefault();
+    // 🔐 관리자 UID가 있으면 이메일·비밀번호 로그인으로만 (비밀번호가 코드에 안 남아요)
+    if (ADMIN_UID) {
+      setPinMsg("");
+      adminLogin(email.trim(), pin)
+        .then((u) => {
+          if (!isAdminUser(u)) {
+            adminLogout();
+            return setPinMsg("관리자 계정이 아니에요.");
+          }
+          api.setOwner(true);
+          setPin("");
+          api.showToast("사장님 모드가 켜졌어요! 앞치마를 둘렀어요", "🍵");
+        })
+        .catch(() => setPinMsg("로그인하지 못했어요."));
+      return;
+    }
     if (!ownerPin) return setPinMsg("data.js에 ownerPin(사장님 비밀번호)을 먼저 적어 주세요.");
     if (pin.trim() === String(ownerPin)) {
       api.setOwner(true);
@@ -111,78 +133,57 @@ export function SettingsPanel({ api, onOpenOwner, title = "⚙️ 찻집 설정"
   };
 
   return (
-    <div className="max-h-[80vh] w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto bg-[#2b1d1a] p-1 shadow-[6px_6px_0_0_rgba(0,0,0,0.35)]">
-      <div className="border-4 border-[#f5e6c8] p-3 text-white">
-        <p className="font-black text-amber-300">{title}</p>
+    <div className="text-[#2b1d1a]">
+      {top}
 
-        {/* 🎧 백색소음 믹서 (나만 들려요) — 전시회에서는 끄고 top(조명·음악)으로 바꿔요 */}
-        {noise && (
-          <div className="mt-3">
-            <NoiseMixer />
-          </div>
-        )}
-        {top}
+      {/* 🎧 백색소음 */}
+      {noise && (
+        <Section title="🎧 백색소음">
+          <NoiseMixer light />
+        </Section>
+      )}
 
-        {/* 🔓 테스트용 강제 오픈 (호스트·사장님) */}
-        {(isHost(api.nickname) || api.isOwner) && (
-          <label className="mt-4 flex cursor-pointer items-center justify-between gap-3 border-2 border-white/20 bg-black/20 px-3 py-2">
-            <span className="text-sm font-bold">
-              🔓 거실·전시회 미리 열기 <span className="block text-[11px] font-normal text-white/60">테스트용 · 오픈 기간 {scheduleText() || "제한 없음"} · 지금 {inSchedule() ? "오픈 중" : "준비중"}</span>
-            </span>
-            <input type="checkbox" checked={api.forceOpen} onChange={(e) => api.changeForceOpen(e.target.checked)} className="h-5 w-5 shrink-0 accent-amber-400" />
-          </label>
-        )}
-
-        {/* 🔑 사장님 모드 (찻집 설정에서만 · 손님에겐 아주 작게) */}
-        {ownerToggle && api.isOwner && (
-        <div className="mt-4 border-t-4 border-dashed border-white/15 pt-3">
-          {api.isOwner ? (
-            <>
-              <p className="text-sm font-bold text-lime-300">🍵 사장님 모드 켜짐</p>
-              <div className="mt-2 flex gap-2">
+      {/* 🔑 사장님 모드 (사장님에게만 보여요) */}
+      {api.isOwner && (
+        <Section title="🍵 사장님 모드">
+          <div className="flex flex-col gap-3">
+            <ToggleRow icon="🔓" label="거실·전시회·무해림 미리 열기" sub={`테스트용 · 오픈 기간 ${scheduleText() || "제한 없음"} · 지금 ${inSchedule() ? "오픈 중" : "준비중"}`} checked={api.forceOpen} onChange={api.changeForceOpen} />
+            {ownerToggle && (
+              <div className="flex gap-2">
                 {onOpenOwner && (
-                  <button type="button" onClick={onOpenOwner} className={`${BTN} flex-1 bg-amber-400 text-[#2b1d1a]`}>
+                  <button type="button" onClick={onOpenOwner} className={`${L_BTN_MAIN} flex-1`}>
                     📋 사장님 관리
                   </button>
                 )}
-                <button type="button" onClick={() => api.setOwner(false)} className={`${BTN} bg-[#6e4530] text-white`}>
-                  끄기
+                <button type="button" onClick={() => api.setOwner(false)} className={L_BTN}>
+                  사장님 모드 끄기
                 </button>
               </div>
-            </>
-          ) : (
-            <form onSubmit={login}>
-              <p className="text-sm font-bold">🔑 사장님 인증</p>
-              <div className="mt-1.5 flex gap-2">
-                <input type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value)} placeholder="비밀번호" className={INPUT} />
-                <button type="submit" className={`${BTN} shrink-0 bg-amber-400 text-[#2b1d1a]`}>
-                  인증
-                </button>
-              </div>
-              {pinMsg && <p className="mt-1 text-xs text-rose-300">{pinMsg}</p>}
-            </form>
-          )}
-        </div>
-        )}
-        {children}
-        {ownerToggle && !api.isOwner && (
-          <div className="mt-3 flex justify-end">
-            {showPin ? (
-              <form onSubmit={login} className="flex w-full gap-1.5">
-                <input type="password" inputMode="numeric" autoFocus value={pin} onChange={(e) => setPin(e.target.value)} aria-label="관리" className="min-w-0 flex-1 border-2 border-white/15 bg-black/30 px-2 py-1 text-xs text-white outline-none" />
-                <button type="submit" className="shrink-0 border-2 border-white/15 px-2 text-xs text-white/50">
-                  확인
-                </button>
-              </form>
-            ) : (
-              <button type="button" onClick={() => setShowPin(true)} aria-label="관리" className="px-1 text-xs leading-none text-white/20 hover:text-white/40">
-                ·
-              </button>
             )}
           </div>
-        )}
-        {ownerToggle && !api.isOwner && showPin && pinMsg && <p className="mt-1 text-right text-[11px] text-rose-300/80">{pinMsg}</p>}
-      </div>
+        </Section>
+      )}
+      {children}
+
+      {/* 손님에게는 오른쪽 아래 흐린 점 하나만 (찻집에서만) */}
+      {ownerToggle && !api.isOwner && (
+        <div className="mt-3 flex justify-end">
+          {showPin ? (
+            <form onSubmit={login} className="flex w-full flex-wrap gap-1.5">
+              {ADMIN_UID && <input type="email" autoFocus value={email} onChange={(e) => setEmail(e.target.value)} aria-label="관리 이메일" className={`${L_INPUT} min-w-0 flex-1 py-1 text-xs`} />}
+              <input type="password" inputMode={ADMIN_UID ? undefined : "numeric"} autoFocus={!ADMIN_UID} value={pin} onChange={(e) => setPin(e.target.value)} aria-label="관리" className={`${L_INPUT} min-w-0 flex-1 py-1 text-xs`} />
+              <button type="submit" className={`${L_BTN} shrink-0 px-2 py-1`}>
+                확인
+              </button>
+              {pinMsg && <p className="w-full text-right text-[11px] text-[#a8433a]">{pinMsg}</p>}
+            </form>
+          ) : (
+            <button type="button" onClick={() => setShowPin(true)} aria-label="관리" className="px-1 text-xs leading-none text-[#2b1d1a]/20 hover:text-[#2b1d1a]/40">
+              ·
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -398,6 +399,7 @@ function GatheringCard({ gathering }) {
 
 // ---------------- 합치기 ----------------
 export default function TeaHouseHud({ tea, api }) {
+  useCafeBgmAutoStart(); // 🎵 찻집 BGM: 켜 둔 상태면 첫 터치 뒤 재생
   const [panelOpen, setPanelOpen] = useState(false);
   const [ownerOpen, setOwnerOpen] = useState(false);
   const atShareTable = api.mySeat?.group === "share";
@@ -418,32 +420,19 @@ export default function TeaHouseHud({ tea, api }) {
       {/* 자리에 앉으면: 아래쪽 미니 주문 바 (차 · 다식 · 📖 집중 모드) */}
       {api.mySeat && <OrderBar seat={api.mySeat} order={tea.orders[api.mySeat.id]} api={api} extra={<FocusToggle compact focus={api.focus} setFocus={changeFocus} />} />}
 
-      {/* ⚙️ 오른쪽 위 설정 */}
-      <div className="safe-top safe-right fixed z-40 flex flex-col items-end gap-2">
-        <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setPanelOpen((o) => !o)}
-          aria-label="찻집 설정"
-          aria-expanded={panelOpen}
-          className="flex h-12 w-12 items-center justify-center border-4 border-[#1a110e] bg-[#f5e6c8] text-2xl shadow-[3px_3px_0_0_rgba(0,0,0,0.4)] active:translate-y-0.5 active:shadow-none"
-        >
-          ⚙️
-        </button>
-        </div>
-        {api.focus && !panelOpen && <FocusPanel onOff={() => changeFocus(false)} prop={api.focusProp} onProp={api.setFocusProp} />}
-        {panelOpen && (
-          <SettingsPanel
-            tea={tea}
-            api={api}
-            ownerToggle
-            onOpenOwner={() => {
-              setPanelOpen(false);
-              setOwnerOpen(true);
-            }}
-          />
-        )}
-      </div>
+      {/* ⚙️ 오른쪽 위 설정 (거실과 같은 모양) */}
+      <SettingsPopup open={panelOpen} setOpen={setPanelOpen} title="⚙️ 찻집 설정" below={api.focus ? <FocusPanel onOff={() => changeFocus(false)} prop={api.focusProp} onProp={api.setFocusProp} /> : null}>
+        <SettingsPanel
+          tea={tea}
+          api={api}
+          ownerToggle
+          top={<CafeBgmControl />}
+          onOpenOwner={() => {
+            setPanelOpen(false);
+            setOwnerOpen(true);
+          }}
+        />
+      </SettingsPopup>
 
       {api.isOwner && <OwnerPanel open={ownerOpen} onClose={() => setOwnerOpen(false)} tea={tea} api={api} />}
     </>

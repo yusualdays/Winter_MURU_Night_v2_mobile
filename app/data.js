@@ -9,6 +9,13 @@ export const partyData = {
   shopOpen: false,
   // 🔑 사장님 비밀번호 — 찻집 ⚙️ 설정의 [사장님 인증]에 이 번호를 넣으면 사장님 모드가 켜져요 (꼭 바꿔 주세요!)
   ownerPin: "1234",
+  // 🔐 관리자(주인장) 계정 UID — 여기에 적으면 비밀번호(ownerPin) 대신 "관리자 이메일 로그인"으로만 사장님 모드가 켜져요
+  //    Firebase 콘솔 → Authentication → 사용자 → 내 계정의 "사용자 UID"를 복사해 붙여 넣어요 (비워 두면 예전처럼 ownerPin)
+  adminUid: "",
+  // 🎵 찻집 BGM (내가 만든 음악) — mp3를 public 폴더에 올리고 주소와 제목을 적어요 (예: "/cafe_bgm.mp3")
+  //    비워 두면 찻집에는 BGM이 없어요 (설정창에도 안 보여요)
+  teaHouseBgm: "",
+  teaHouseBgmTitle: "",
   // 🍵 군산 온라인 찻집 차림표 (카운터 근처 [🍵 차림표 보기])
   //   id: 영어·숫자로 겹치지 않게 (사장님 메뉴 상태·손님 투표·피드백이 이 id로 저장돼요)
   //   story: 메뉴에 담긴 이야기 / price: 예정 가격 (비워 둬도 돼요)

@@ -9,6 +9,7 @@ import { getMyId, getLook } from "../lib/session";
 import { DEFAULT_LOOK, normalizeLook } from "../lib/pixelCharacter";
 import { ROOMS, rememberFrom, takeArrival, lastExitOf, inZone, isRoomOpen, getForceOpen, setForceOpen, scheduleText, getOwnerLocal, setOwnerLocal } from "../lib/rooms";
 import GreetToast from "./GreetToast";
+import { watchUser, isAdminUser, ADMIN_UID, logout } from "../lib/forestAuth";
 import Avatar, { AVATAR_WIDTH, AVATAR_HEIGHT } from "./Avatar";
 import TeaChat from "./TeaChat";
 import InteractButton from "./InteractButton";
@@ -278,6 +279,17 @@ export default function SimpleRoom({
   const setOwner = useCallback((on) => {
     setOwnerLocal(on);
     setIsOwner(!!on);
+    if (!on && ADMIN_UID) logout().catch(() => {}); // 끄면 관리자 로그인도 같이 끝
+  }, []);
+  // 🔐 관리자 UID가 정해져 있으면: 관리자 계정으로 로그인한 사람만 사장님 모드 (브라우저에 "켜짐"만 적어 둔 건 무시)
+  useEffect(() => {
+    if (!ADMIN_UID) return;
+    return watchUser((u) => {
+      if (!isAdminUser(u)) {
+        setOwnerLocal(false);
+        setIsOwner(false);
+      }
+    });
   }, []);
 
   // 3) 내 위치를 0.1초마다 보내기
