@@ -68,4 +68,6 @@ export const forestData = {
   // 주인장 나무 팻말 (처음) — 전시 마지막에 ⚙️ 사장님 모드로 다시 써요
   hostSign: "아직 잘 모르겠는 나",
   hostName: "무해림",
+  // 🎵 숲 배경 음악 — 음악 파일을 public/forest/ 에 넣고 파일 이름을 적어요 (없으면 음악 없이 새소리만)
+  bgm: { src: "/forest/bgm.mp3", title: "For Madmen Only" },
 };

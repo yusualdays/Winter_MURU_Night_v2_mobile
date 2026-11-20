@@ -17,6 +17,7 @@ import { forestData } from "../spaceData";
 //  - 원하는 자리에 멈춰 [🌱 여기에 나무 심기] → 한 줄 + 나무 종류 고르기 → 그 자리에 나무가 자라요 (한 사람당 한 그루, 고쳐 쓰기·뽑기 가능)
 //  - 나무가 늘수록 길이 오른쪽으로 길어져요
 //  - 🍵 숲 중간 벤치: 가까이 가면 [🍵 야차하기] → 벤치에 앉아 차 고르고 마시기 (야차 = 야외에서 차 마시기). 차 종류는 ⚙️ 사장님 모드에서 바꿔요
+//  - 🎵 배경 음악: spaceData forestData.bgm (public/forest/bgm.mp3) — ⚙️에서 켜기/끄기·소리 크기
 //  - Firebase forest/yachaTeas = ["보리차", ...]
 //  - 입구 서문 팻말 (처음 오면 "!") · 주인장 나무(林, 두 그루) · 숲길 끝 표시
 //  - 전시 마무리: ⚙️ → 주인장(호스트·사장님)이 "주인장 나무 팻말 다시 쓰기" → 처음 팻말 위에 새 문장이 걸려요
@@ -53,6 +54,8 @@ const INTRO_ID = "intro";
 const PLANT_ID = "plant";
 const SEEN_KEY = "forestIntroSeen";
 const BIRDS_KEY = "forestBirds";
+const BGM_KEY = "forestBgm"; // 켜기/끄기
+const BGM_VOL_KEY = "forestBgmVol"; // 0~100
 
 const keyOf = (name = "") => (name.trim() || "손님").replace(/[.#$[\]/]/g, "_").slice(0, 40);
 const fmt = (ms) => {
@@ -227,6 +230,65 @@ function PlantForm({ initial, onSubmit, onCancel }) {
   );
 }
 
+// ---------------- 🎵 숲 배경 음악 ----------------
+//  forestData.bgm.src 파일이 있으면 숲에 들어와 화면을 한 번 누른 뒤부터 조용히 반복 재생 (⚙️에서 켜기/끄기 · 소리 크기)
+function useForestBgm() {
+  const src = forestData.bgm?.src;
+  const audioRef = useRef(null);
+  const [ready, setReady] = useState(false);
+  const [on, setOnState] = useState(true);
+  const [vol, setVolState] = useState(45);
+  useEffect(() => {
+    if (!src) return;
+    try {
+      if (localStorage.getItem(BGM_KEY) === "0") setOnState(false);
+      const v = localStorage.getItem(BGM_VOL_KEY);
+      if (v !== null && !Number.isNaN(Number(v))) setVolState(Math.max(0, Math.min(100, Number(v))));
+    } catch {}
+    const a = new Audio(src);
+    a.loop = true;
+    a.preload = "auto";
+    a.addEventListener("canplay", () => setReady(true), { once: true });
+    a.addEventListener("error", () => setReady(false), { once: true });
+    audioRef.current = a;
+    return () => {
+      a.pause();
+      a.src = "";
+    };
+  }, [src]);
+  // 켜져 있으면 첫 터치·키 입력 뒤 재생 (브라우저 규칙)
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a || !ready) return;
+    a.volume = (vol / 100) * 0.8;
+    if (!on) {
+      a.pause();
+      return;
+    }
+    const go = () => a.play().catch(() => {});
+    go();
+    window.addEventListener("pointerdown", go, { once: true });
+    window.addEventListener("keydown", go, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", go);
+      window.removeEventListener("keydown", go);
+    };
+  }, [ready, on, vol]);
+  const setOn = (v) => {
+    setOnState(v);
+    try {
+      localStorage.setItem(BGM_KEY, v ? "1" : "0");
+    } catch {}
+  };
+  const setVol = (v) => {
+    setVolState(v);
+    try {
+      localStorage.setItem(BGM_VOL_KEY, String(v));
+    } catch {}
+  };
+  return { ready, on, setOn, vol, setVol, title: forestData.bgm?.title ?? "숲의 음악" };
+}
+
 // ---------------- 🍵 야차 (벤치에 앉으면) ----------------
 //  차 종류는 ⚙️ 사장님 모드에서 그때그때 바꿔요 (Firebase forest/yachaTeas = ["보리차", ...])
 const DEFAULT_TEAS = ["보리차", "녹차", "유자차", "오미자차"];
@@ -339,7 +401,7 @@ function YachaTeaEditor({ teas }) {
 }
 
 // ---------------- ⚙️ 설정 (새소리 · 주인장 팻말 다시 쓰기) ----------------
-function ForestSettings({ api, birds, onBirds, host, count, teas }) {
+function ForestSettings({ api, birds, onBirds, host, count, teas, bgm }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(host.rewritten ?? "");
   const [msg, setMsg] = useState("");
@@ -359,6 +421,19 @@ function ForestSettings({ api, birds, onBirds, host, count, teas }) {
         🐦 조용한 새소리
         <input type="checkbox" checked={birds} onChange={(e) => onBirds(e.target.checked)} className="h-5 w-5 accent-amber-400" />
       </label>
+      {bgm.ready && (
+        <div className="mt-2 border-4 border-[#1a110e] bg-[#2b1d1a] px-3 py-2 text-sm font-bold text-white">
+          <label className="flex items-center justify-between gap-2">
+            <span className="min-w-0 truncate">🎵 {bgm.title}</span>
+            <input type="checkbox" checked={bgm.on} onChange={(e) => bgm.setOn(e.target.checked)} className="h-5 w-5 shrink-0 accent-amber-400" />
+          </label>
+          <label className="mt-1.5 flex items-center gap-2">
+            <span className="w-6 text-center">{bgm.vol === 0 ? "🔇" : bgm.vol < 40 ? "🔈" : "🔊"}</span>
+            <input type="range" min="0" max="100" value={bgm.vol} onChange={(e) => bgm.setVol(Number(e.target.value))} className="h-2 min-w-0 flex-1 accent-amber-400" aria-label="음악 소리" />
+            <span className="w-8 text-right text-xs tabular-nums text-white/60">{bgm.vol}</span>
+          </label>
+        </div>
+      )}
     </div>
   );
   return (
@@ -387,7 +462,7 @@ function ForestSettings({ api, birds, onBirds, host, count, teas }) {
 }
 
 // ---------------- 화면 위 UI ----------------
-function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBirds, teas, benchX }) {
+function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBirds, teas, benchX, bgm }) {
   const fx = api.feet?.x ?? -9999;
   // 가장 가까운 나무 (주인장 나무 포함)
   let near = null;
@@ -413,7 +488,7 @@ function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBi
 
   return (
     <>
-      <ForestSettings api={api} birds={birds} onBirds={onBirds} host={host} count={trees.length + 1} teas={teas} />
+      <ForestSettings api={api} birds={birds} onBirds={onBirds} host={host} count={trees.length + 1} teas={teas} bgm={bgm} />
       <YachaPanel api={api} teas={teas} />
       {/* ⏮ 숲 끝 → 입구로 한 번에 */}
       {atEnd && !api.mySeat && (
@@ -455,6 +530,7 @@ function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBi
 export default function ForestPage() {
   const { trees, host } = useForest();
   const teas = useYachaTeas();
+  const bgm = useForestBgm();
   const benchX0 = benchXOf(trees);
   const benchX = benchX0;
   const maxX = trees.reduce((m, t) => Math.max(m, t.x), Math.max(HOST_X, benchX0));
@@ -575,6 +651,7 @@ export default function ForestPage() {
             onBirds={changeBirds}
             teas={teas}
             benchX={benchX}
+            bgm={bgm}
             onPlant={(x) => {
               setPlantAt({ x });
               api.openDetail(PLANT_ID);
