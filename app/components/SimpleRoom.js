@@ -629,7 +629,9 @@ export default function SimpleRoom({
     const sh = mapH * scale;
     const cx = (pos.x + AVATAR_WIDTH / 2) * scale;
     const cy = (pos.y + AVATAR_HEIGHT * 0.6) * scale;
-    camX = sw <= vp.w ? (vp.w - sw) / 2 : clamp(vp.w / 2 - cx, vp.w - sw, 0);
+    // 휴대폰: 오른쪽에 동그란 버튼(😊 💬 E)이 있어서, 지도 오른쪽 끝(전시실 통로 등)이 버튼에 가리지 않게 조금 더 밀어 볼 수 있어요
+    const rightRoom = isTouch ? 96 : 0;
+    camX = sw <= vp.w ? (vp.w - sw) / 2 : clamp(vp.w / 2 - cx, vp.w - sw - rightRoom, 0);
     camY = sh <= vp.h ? (vp.h - sh) / 2 : clamp(vp.h * 0.42 - cy, vp.h - sh - 120, 60);
   }
 
@@ -644,11 +646,18 @@ export default function SimpleRoom({
     const rect = el.getBoundingClientRect();
     const x = clamp((e.clientX - rect.left) / scale, 0, mapW);
     const y = clamp((e.clientY - rect.top) / scale, 0, mapH);
+    walkTo(x, y);
+    setTapFx({ x, y, id: Date.now() });
+  };
+  // 🧭 (x, y)로 걸어가기 — 장애물을 피해서 가는 길 찾기 (못 가는 곳이면 가장 가까운 갈 수 있는 곳까지)
+  const walkTo = (x, y) => {
     pressedKeys.current.clear();
     stuckRef.current = 0;
-    // 🧭 장애물을 피해서 가는 길 찾기 (못 가는 곳을 누르면 가장 가까운 갈 수 있는 곳까지)
     const p = posRef.current;
     const path = p ? findPath({ x: p.x + FEET.offsetX + FEET.width / 2, y: p.y + FEET.offsetY + FEET.height / 2 }, { x, y }, feetFree, mapW, mapH) : [];
+    // 누른 곳이 지도 끝(통로)처럼 딱 맞게 갈 수 없는 곳이면, 마지막엔 그쪽으로 한 번 더 밀어 붙여요 (통로에 발이 닿도록)
+    const last = path[path.length - 1];
+    if (last && Math.hypot(last.x - x, last.y - y) > 4) path.push({ x, y });
     if (path.length) {
       targetRef.current = path[0];
       pathRef.current = path.slice(1);
@@ -656,7 +665,12 @@ export default function SimpleRoom({
       targetRef.current = { x, y };
       pathRef.current = [];
     }
-    setTapFx({ x, y, id: Date.now() });
+  };
+  // 통로 팻말을 누르면 → 그 통로로 걸어가서 다음 방으로 (휴대폰에서 구석까지 안 가도 돼요)
+  const walkToExit = (ex) => {
+    if (openIdRef.current || seatIdRef.current) return;
+    const z = ex.zone;
+    walkTo((z.x + z.w / 2) * mapW, (z.y + z.h / 2) * mapH);
   };
   useEffect(() => {
     if (!tapFx) return;
@@ -759,11 +773,14 @@ export default function SimpleRoom({
             if (open && ex.paintedSign) return null; // 배경 그림에 팻말이 그려져 있으면, 열려 있을 땐 그림 팻말만
             return (
               <div key={ex.id ?? ex.to} className="pointer-events-none absolute flex w-0 flex-col items-center" style={{ left: ex.sign.x * mapW, top: ex.sign.y * mapH, zIndex: 2400 }}>
-                <span
-                  className={`shrink-0 whitespace-nowrap border-4 border-[#2b1d1a] px-3 py-1 text-xl font-black shadow-[3px_3px_0_0_rgba(0,0,0,0.35)] ${open ? "bg-[#f5e6c8] text-[#2b1d1a]" : "bg-[#fde68a] text-[#7c2d12]"}`}
+                <button
+                  type="button"
+                  onClick={() => walkToExit(ex)}
+                  aria-label={`${ROOMS[ex.to]?.name ?? "다음 방"}(으)로 가기`}
+                  className={`pointer-events-auto shrink-0 whitespace-nowrap border-4 border-[#2b1d1a] px-3 py-1 text-xl font-black shadow-[3px_3px_0_0_rgba(0,0,0,0.35)] active:translate-y-0.5 ${open ? "bg-[#f5e6c8] text-[#2b1d1a]" : "bg-[#fde68a] text-[#7c2d12]"}`}
                 >
                   {open ? ex.label ?? ROOMS[ex.to]?.name : "🚧 준비중"}
-                </span>
+                </button>
                 {/* 팻말 기둥 */}
                 <span className="h-6 w-2.5 shrink-0 bg-[#6e4530]" />
               </div>

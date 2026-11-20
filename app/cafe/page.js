@@ -151,15 +151,16 @@ const SPOTS_DURING_TALK = SPOTS.filter((sp) => sp.id !== "counter" && sp.id !== 
 //  paintedSign: 배경 그림에 팻말이 있으면 true (열려 있을 땐 그림 팻말만, 준비중일 때만 코드 팻말)
 const EXITS = [
   { id: "up", to: "livingRoom", zone: { x: PASSAGE.x + 0.015, y: PASSAGE.top, w: PASSAGE.w - 0.03, h: 0.05 }, sign: { x: 0.508, y: 0.005 }, label: "⬆ 🛋️ 거실" },
-  { id: "exRight", to: "exhibitionRoom", zone: { x: 0.97, y: 0.8, w: 0.03, h: 0.2 }, sign: { x: 0.9, y: 0.77 }, label: "🖼️ 전시실 ➜" },
+  // 전시실 통로: 휴대폰에서도 조금만 다가가면 넘어가도록 넓게 (팻말을 눌러도 걸어가요)
+  { id: "exRight", to: "exhibitionRoom", zone: { x: 0.885, y: 0.8, w: 0.115, h: 0.2 }, sign: { x: 0.9, y: 0.77 }, label: "🖼️ 전시실 ➜" },
 ];
 
 // 시작 위치 (발 가운데) — 어디서 왔는지에 따라
 const SPAWNS = {
   default: { x: 0.55, y: 0.6 }, // 처음 입장 (가운데)
   livingRoom: { x: 0.508, y: 0.34 }, // 거실에서 내려옴 → 위쪽 통로 앞
-  "exhibitionRoom:exRight": { x: 0.88, y: 0.88 }, // 전시회에서 돌아옴 → 오른쪽 아래 통로 앞
-  exhibitionRoom: { x: 0.88, y: 0.88 },
+  "exhibitionRoom:exRight": { x: 0.83, y: 0.87 }, // 전시회에서 돌아옴 → 오른쪽 아래 통로 앞 (통로 칸 바로 왼쪽)
+  exhibitionRoom: { x: 0.83, y: 0.87 },
 };
 
 const pct = (r) => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` });

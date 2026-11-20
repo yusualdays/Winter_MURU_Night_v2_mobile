@@ -702,6 +702,9 @@ export default function LivingRoom() {
     };
     const p = posRef.current;
     const path = p ? findPath({ x: p.x + FEET.offsetX + FEET.width / 2, y: p.y + FEET.offsetY + FEET.height / 2 }, { x, y }, feetFree, w, h) : [];
+    // 누른 곳이 지도 끝(통로)처럼 딱 맞게 갈 수 없는 곳이면, 마지막엔 그쪽으로 한 번 더 밀어 붙여요 (통로에 발이 닿도록)
+    const last = path[path.length - 1];
+    if (last && Math.hypot(last.x - x, last.y - y) > 4) path.push({ x, y });
     if (path.length) {
       targetRef.current = path[0];
       pathRef.current = path.slice(1);
