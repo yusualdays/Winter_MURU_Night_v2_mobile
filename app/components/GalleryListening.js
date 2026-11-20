@@ -7,7 +7,8 @@ import { useImgOk, craftSrc } from "./CraftImg";
 //  - 재생목록은 app/spaceData.js 의 galleryData.listening.playlists 에 유튜브 링크를 적어요
 //    (재생목록 링크 https://www.youtube.com/playlist?list=... 또는 영상 링크 https://youtu.be/... 모두 돼요)
 //  - 손님이 직접 링크를 붙여 넣어 들을 수도 있어요
-//  - 음악은 "나만" 들려요. 유튜브 규칙에 따라 화면 아래에 가장 작은 크기(200×200) 영상 플레이어가 떠요
+//  - 고르면 유튜브가 새 창(휴대폰은 유튜브 앱)으로 열려요. 전시실의 LP는 돌아가는 모습만 보여 줘요
+//    (아래 MiniPlayer는 지금 안 써요 — 다시 전시실 안 플레이어로 바꾸고 싶으면 page.js에서 다시 붙이면 돼요)
 //  - 청음실을 벗어나 전시회 안을 돌아다녀도 계속 재생돼요 (전시회를 나가면 멈춰요)
 //  - 🎨 그림 파일 public/craft/gallery_listening.png (가로:세로 = 2:1, 투명 배경)을 넣으면 코드 그림 대신 그 그림이 보여요
 
@@ -162,16 +163,19 @@ export function ListeningPicker({ playlists = [], playing, onPlay, onStop }) {
     const embed = toEmbed(url);
     if (!embed) return setMsg("유튜브 재생목록이나 영상 링크를 넣어 주세요.");
     setMsg("");
+    // 유튜브(앱이 있으면 앱)를 새 창으로 열어요 — 누른 순간 바로 열어야 팝업 차단에 안 걸려요
+    const raw = url.trim();
+    window.open(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`, "_blank", "noopener,noreferrer");
     onPlay({ title, embed });
   };
   return (
     <div>
-      <p className="text-sm leading-relaxed text-amber-50/90">LP 한 장을 골라 올려 보세요. 음악은 나에게만 들리고, 화면 왼쪽 아래 작은 플레이어로 재생돼요.</p>
+      <p className="text-sm leading-relaxed text-amber-50/90">LP 한 장을 골라 보세요. 유튜브가 새 창(휴대폰은 유튜브 앱)으로 열려요. 음악을 튼 채로 이 창으로 돌아와 전시를 둘러보세요.</p>
 
       {playing && (
         <div className="mt-3 flex items-center gap-2 border-4 border-[#1a110e] bg-[#2b1d1a] px-3 py-2">
           <span className="text-xl">💿</span>
-          <p className="min-w-0 flex-1 truncate text-sm font-bold text-[#e5c76b]">지금 듣는 중 · {playing.title}</p>
+          <p className="min-w-0 flex-1 truncate text-sm font-bold text-[#e5c76b]">LP 돌아가는 중 · {playing.title}</p>
           <button type="button" onClick={onStop} className="shrink-0 border-4 border-[#1a110e] bg-[#6e4530] px-3 py-1 text-sm font-black text-white">
             ⏹ 끄기
           </button>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { SettingsPanel } from "./TeaHouseHud";
 
 // 🖼️ 전시회 화면 위 UI — 오른쪽 위 ⚙️ 설정 (찻집과 같은 모양)
-//  - 💡 조명 (나에게만 보여요) · 🎵 음악 소리 (청음실 유튜브) · 🔓 미리 열기(호스트·사장님) · 🔑 사장님 인증
+//  - 💡 조명 (나에게만 보여요) · 🔓 미리 열기(호스트·사장님) · 🔑 사장님 인증
 //  - 📖 방명록 바로 열기 (책상까지 안 걸어가도 돼요)
 export const LIGHTS = [
   { id: "day", icon: "☀️", name: "환하게" },
@@ -12,7 +12,7 @@ export const LIGHTS = [
   { id: "spot", icon: "🔦", name: "밤 전시" },
 ];
 
-export default function GalleryHud({ api, guestbookCount = 0, onOpenGuestbook, light, onLight, volume, onVolume, playing }) {
+export default function GalleryHud({ api, guestbookCount = 0, onOpenGuestbook, light, onLight }) {
   const [open, setOpen] = useState(false);
   const top = (
     <>
@@ -35,16 +35,6 @@ export default function GalleryHud({ api, guestbookCount = 0, onOpenGuestbook, l
         </div>
       </div>
 
-      {/* 🎵 음악 소리 */}
-      <div className="mt-4">
-        <p className="text-xs font-black text-amber-200">🎵 청음실 음악 소리</p>
-        <label className="mt-1.5 flex items-center gap-2 text-sm text-white">
-          <span className="w-6 text-center">{volume === 0 ? "🔇" : volume < 40 ? "🔈" : "🔊"}</span>
-          <input type="range" min="0" max="100" value={volume} onChange={(e) => onVolume(Number(e.target.value))} className="h-2 min-w-0 flex-1 accent-amber-400" aria-label="음악 소리" />
-          <span className="w-8 text-right text-xs tabular-nums text-white/60">{volume}</span>
-        </label>
-        <p className="mt-1 text-[11px] text-white/50">{playing ? `💿 지금: ${playing.title}` : "청음실(아래 가운데)에서 LP를 골라 틀어 보세요"}</p>
-      </div>
     </>
   );
   return (

@@ -7,7 +7,7 @@ import { galleryData } from "../spaceData";
 import GalleryGuestbook, { useGuestbook } from "../components/GalleryGuestbook";
 import GalleryHud from "../components/GalleryHud";
 import { GuideBoard, GuideContent, GUIDE_SEEN_KEY } from "../components/GalleryGuide";
-import { ListeningCorner, ListeningPicker, MiniPlayer } from "../components/GalleryListening";
+import { ListeningCorner, ListeningPicker } from "../components/GalleryListening";
 
 // 🖼️ 전시회 (exhibitionRoom) — 찻집 오른쪽 아래 통로로 와요
 //  - 배경 그림: public/gallery_bg.png (4:3) — 아래 좌표는 모두 이 그림 기준 0~1 비율. 주소 끝에 ?debug=1 → 장애물·버튼 위치 색칠
@@ -186,7 +186,7 @@ function GalleryScene({ playing, light, guideAlert, onOpenGuide }) {
 
 export default function GalleryPage() {
   const guestbook = useGuestbook();
-  const [playing, setPlaying] = useState(null); // 🎧 지금 듣는 음악 { title, embed } (나만 들려요, 전시회 안에서는 계속 재생)
+  const [playing, setPlaying] = useState(null); // 🎧 마지막으로 고른 LP { title, embed } — 전시실 LP가 돌아가요 (음악은 유튜브 새 창에서)
   const [light, setLight] = useState("warm"); // 💡 조명 (기본: 은은하게)
   const [guideAlert, setGuideAlert] = useState(false); // 📜 처음 왔으면 안내판 위 "!"
   const openRef = useRef(null); // SimpleRoom의 openDetail (onEnter에서 받아요)
@@ -197,26 +197,17 @@ export default function GalleryPage() {
     } catch {}
   };
   const openGuide = () => openRef.current?.(GUIDE_ID);
-  const [volume, setVolume] = useState(70); // 🎵 음악 소리
   useEffect(() => {
     try {
       const l = localStorage.getItem("galleryLight");
       if (["day", "warm", "spot"].includes(l)) setLight(l);
       if (!localStorage.getItem(GUIDE_SEEN_KEY)) setGuideAlert(true);
-      const v = Number(localStorage.getItem("galleryVolume"));
-      if (localStorage.getItem("galleryVolume") !== null && v >= 0 && v <= 100) setVolume(v);
     } catch {}
   }, []);
   const changeLight = (l) => {
     setLight(l);
     try {
       localStorage.setItem("galleryLight", l);
-    } catch {}
-  };
-  const changeVolume = (v) => {
-    setVolume(v);
-    try {
-      localStorage.setItem("galleryVolume", String(v));
     } catch {}
   };
   return (
@@ -237,8 +228,7 @@ export default function GalleryPage() {
       }}
       hud={(api) => (
         <>
-          <GalleryHud api={api} guestbookCount={guestbook.length} onOpenGuestbook={() => api.openDetail(GUESTBOOK_ID)} light={light} onLight={changeLight} volume={volume} onVolume={changeVolume} playing={playing} />
-          <MiniPlayer playing={playing} volume={volume} onStop={() => setPlaying(null)} />
+          <GalleryHud api={api} guestbookCount={guestbook.length} onOpenGuestbook={() => api.openDetail(GUESTBOOK_ID)} light={light} onLight={changeLight} />
         </>
       )}
       renderModals={(openId, close, api) => [
@@ -252,7 +242,7 @@ export default function GalleryPage() {
             onPlay={(p) => {
               setPlaying(p);
               close();
-              api.showToast(`${p.title} — 음악을 틀었어요`, "🎧");
+              api.showToast(`${p.title} — 유튜브에서 열었어요`, "🎧");
             }}
             onStop={() => setPlaying(null)}
           />
