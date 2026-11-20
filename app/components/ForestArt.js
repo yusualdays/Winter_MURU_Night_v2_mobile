@@ -338,9 +338,13 @@ export function IntroBoard({ x, groundY, alert, onOpen, title, edition }) {
 }
 
 // 숲길 끝 (새싹 + 작은 팻말)
-export function TrailEnd({ x, groundY, count }) {
+export function TrailEnd({ x, groundY, count, onToStart }) {
   return (
-    <div className="pointer-events-none absolute flex flex-col items-center" style={{ left: x - 110, top: groundY - 150, width: 220 }}>
+    <div className="absolute flex flex-col items-center" style={{ left: x - 110, top: groundY - 190, width: 220 }}>
+      {/* ⏮ 입구로 가는 표지판 (누르면 숲 처음으로) */}
+      <button type="button" onClick={onToStart} className="mb-1 flex items-center gap-1 border-[3px] px-2 py-0.5 text-[15px] font-black text-[#2b1d1a] shadow-[2px_2px_0_0_rgba(0,0,0,0.3)] hover:brightness-110" style={{ background: "#d9b98a", borderColor: OUT, clipPath: "polygon(10% 0, 100% 0, 100% 100%, 10% 100%, 0 50%)", paddingLeft: 18 }}>
+        ⏮ 숲 입구로
+      </button>
       <div className="border-[3px] px-2 py-1 text-center text-[16px] font-black leading-snug text-[#2b1d1a] shadow-[2px_2px_0_0_rgba(0,0,0,0.3)]" style={{ background: "#e9cf9f", borderColor: OUT }}>
         🌱 지금까지 {count}그루
         <br />

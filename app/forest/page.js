@@ -32,10 +32,19 @@ const PATH_BOTTOM = 1110;
 const WALK_TOP = 0.8; // 발이 다닐 수 있는 범위 (비율)
 const WALK_BOTTOM = 0.92;
 const INTRO_X = 380; // 서문 팻말
+const START_X = 150; // 숲 입구 (처음 시작 자리)
 const HOST_X = 860; // 주인장 나무
-const BENCH_X = 1200; // 🍵 야차 벤치 (주인장 나무 다음, 숲 중간 쉼터)
+const BENCH_PREF_X = 1200; // 🍵 야차 벤치 자리 (주인장 나무 다음, 숲 중간 쉼터) — 이미 나무가 있으면 빈자리로 옮겨요
 const BENCH_FLOOR = 1000; // 벤치 다리가 닿는 높이 (길 안쪽 가장자리)
 const FIRST_PLANT_X = 1440; // 이보다 오른쪽부터 심을 수 있어요
+const BENCH_GAP = 280; // 벤치와 나무 사이 (팻말·야차 창이 겹치지 않게)
+// 벤치 자리: 기본 자리에서 오른쪽으로, 나무와 BENCH_GAP 이상 떨어진 첫 자리
+function benchXOf(trees) {
+  for (let x = BENCH_PREF_X; x < BENCH_PREF_X + 20000; x += 20) {
+    if (Math.abs(x - HOST_X) >= BENCH_GAP && trees.every((t) => Math.abs(t.x - x) >= BENCH_GAP)) return x;
+  }
+  return BENCH_PREF_X;
+}
 const MIN_GAP = 260; // 나무 사이 최소 간격
 const READ_RADIUS = 150; // 이만큼 가까우면 팻말 문장이 떠요
 const MAX_LEN = 40;
@@ -77,7 +86,7 @@ function useForest() {
 }
 
 // ---------------- 🗺️ 숲 그림 ----------------
-function ForestScene({ mapW, trees, nearKey, myKey, introAlert, onOpenIntro, benchBusy }) {
+function ForestScene({ mapW, trees, nearKey, myKey, introAlert, onOpenIntro, benchBusy, benchX, onToStart }) {
   const now = Date.now();
   return (
     <div className="absolute inset-0">
@@ -85,7 +94,7 @@ function ForestScene({ mapW, trees, nearKey, myKey, introAlert, onOpenIntro, ben
       <ForestBackdrop mapW={mapW} mapH={MAP_H} groundY={GROUND_Y} pathTop={PATH_TOP} pathBottom={PATH_BOTTOM} count={trees.length} />
       <IntroBoard x={INTRO_X} groundY={GROUND_Y + 20} alert={introAlert} onOpen={onOpenIntro} title={forestData.title.split("—")[1]?.trim() ?? forestData.title} edition={forestData.edition} />
       <HostTree x={HOST_X} groundY={GROUND_Y} near={nearKey === "__host"} />
-      <TeaBench x={BENCH_X} floorY={BENCH_FLOOR} busy={benchBusy} />
+      <TeaBench x={benchX} floorY={BENCH_FLOOR} busy={benchBusy} />
       {trees.map((t) => (
         <ForestTree
           key={t.key}
@@ -99,7 +108,7 @@ function ForestScene({ mapW, trees, nearKey, myKey, introAlert, onOpenIntro, ben
           size={0.9 + ((Math.round(t.x) * 7) % 5) / 20}
         />
       ))}
-      <TrailEnd x={mapW - 260} groundY={GROUND_Y + 10} count={trees.length + 1} />
+      <TrailEnd x={mapW - 260} groundY={GROUND_Y + 10} count={trees.length + 1} onToStart={onToStart} />
       <ForestGrade />
     </div>
   );
@@ -378,7 +387,7 @@ function ForestSettings({ api, birds, onBirds, host, count, teas }) {
 }
 
 // ---------------- 화면 위 UI ----------------
-function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBirds, teas }) {
+function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBirds, teas, benchX }) {
   const fx = api.feet?.x ?? -9999;
   // 가장 가까운 나무 (주인장 나무 포함)
   let near = null;
@@ -395,7 +404,10 @@ function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBi
     }
   }
   const myTree = trees.find((t) => t.key === myKey);
-  const tooClose = [HOST_X, BENCH_X, ...trees.map((t) => t.x)].some((x) => Math.abs(x - fx) < MIN_GAP);
+  // ← 왼쪽으로 돌아가는 중에는 팻말을 숨겨요 (내 나무만 보여요)
+  if (near && api.dir === "left" && near.key !== myKey) near = null;
+  const atEnd = fx > mapW - 700;
+  const tooClose = [HOST_X, ...trees.map((t) => t.x)].some((x) => Math.abs(x - fx) < MIN_GAP) || Math.abs(benchX - fx) < BENCH_GAP;
   const canPlant = !myTree && fx >= FIRST_PLANT_X && fx <= mapW - 140 && !tooClose;
   const owner = api.isOwner || isHost(api.nickname);
 
@@ -403,6 +415,14 @@ function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBi
     <>
       <ForestSettings api={api} birds={birds} onBirds={onBirds} host={host} count={trees.length + 1} teas={teas} />
       <YachaPanel api={api} teas={teas} />
+      {/* ⏮ 숲 끝 → 입구로 한 번에 */}
+      {atEnd && !api.mySeat && (
+        <div className="safe-top fixed left-1/2 top-3 z-30 -translate-x-1/2 sm:top-auto sm:bottom-24">
+          <button type="button" onClick={() => api.teleport(START_X, 0.86 * MAP_H)} className="whitespace-nowrap border-4 border-[#1a110e] bg-[#f3e2bd] px-4 py-2 font-black text-[#2b1d1a] shadow-[4px_4px_0_0_rgba(0,0,0,0.45)] active:translate-y-0.5 active:shadow-none">
+            ⏮ 숲 입구로 돌아가기
+          </button>
+        </div>
+      )}
       <ReadingCard
         near={api.mySeat ? null : near}
         host={host}
@@ -435,7 +455,9 @@ function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBi
 export default function ForestPage() {
   const { trees, host } = useForest();
   const teas = useYachaTeas();
-  const maxX = trees.reduce((m, t) => Math.max(m, t.x), HOST_X);
+  const benchX0 = benchXOf(trees);
+  const benchX = benchX0;
+  const maxX = trees.reduce((m, t) => Math.max(m, t.x), Math.max(HOST_X, benchX0));
   const mapW = Math.max(BASE_W, Math.round(maxX + EXTRA_W));
   const [nickname, setNickname] = useState("");
   const [introAlert, setIntroAlert] = useState(false);
@@ -483,7 +505,7 @@ export default function ForestPage() {
       { x: 0, y: 0, w: 1, h: WALK_TOP }, // 하늘·풀밭 (길 위쪽)
       { x: 0, y: WALK_BOTTOM, w: 1, h: 1 - WALK_BOTTOM }, // 길 아래쪽
       { x: 1 - 40 / mapW, y: 0, w: 40 / mapW, h: 1 }, // 오른쪽 끝
-      { x: (BENCH_X - 170) / mapW, y: WALK_TOP, w: 340 / mapW, h: (BENCH_FLOOR + 8) / MAP_H - WALK_TOP }, // 🍵 벤치 (앞으로는 지나갈 수 있어요)
+      { x: (benchX - 170) / mapW, y: WALK_TOP, w: 340 / mapW, h: (BENCH_FLOOR + 8) / MAP_H - WALK_TOP }, // 🍵 벤치 (앞으로는 지나갈 수 있어요)
     ],
     [mapW]
   );
@@ -491,19 +513,19 @@ export default function ForestPage() {
   // 🍵 야차 벤치 두 자리 — 앞·옆 어디서 다가가도 [🍵 야차하기]
   const seats = [-1, 1].map((d, i) => ({
     id: `yacha${i + 1}`,
-    x: (BENCH_X + d * 72) / mapW,
+    x: (benchX + d * 72) / mapW,
     y: (BENCH_FLOOR - 40) / MAP_H, // 발끝 자리 (엉덩이가 앉는 판에 닿게 조금 위)
     dir: "down",
     legs: true,
     icon: "🍵",
     label: "야차하기",
     stands: [
-      { x: (BENCH_X + d * 72) / mapW, y: 0.885 },
-      { x: (BENCH_X + d * 205) / mapW, y: 0.835 },
+      { x: (benchX + d * 72) / mapW, y: 0.885 },
+      { x: (benchX + d * 205) / mapW, y: 0.835 },
     ],
   }));
   const exits = [{ id: "back", to: "teaHouse", zone: { x: 0, y: WALK_TOP, w: R(80), h: WALK_BOTTOM - WALK_TOP }, label: "⬅ ☕ 찻집" }];
-  const spawns = { default: { x: R(150), y: 0.86 }, teaHouse: { x: R(150), y: 0.86 } };
+  const spawns = { default: { x: R(START_X), y: 0.86 }, teaHouse: { x: R(START_X), y: 0.86 } };
 
   const markSeen = () => {
     setIntroAlert(false);
@@ -552,6 +574,7 @@ export default function ForestPage() {
             birds={birds}
             onBirds={changeBirds}
             teas={teas}
+            benchX={benchX}
             onPlant={(x) => {
               setPlantAt({ x });
               api.openDetail(PLANT_ID);
@@ -580,7 +603,7 @@ export default function ForestPage() {
         </PixelModal>,
       ]}
     >
-      <ForestScene mapW={mapW} trees={trees} nearKey={null} myKey={myKey} introAlert={introAlert} onOpenIntro={() => openRef.current?.(INTRO_ID)} benchBusy={false} />
+      <ForestScene mapW={mapW} trees={trees} nearKey={null} myKey={myKey} introAlert={introAlert} onOpenIntro={() => openRef.current?.(INTRO_ID)} benchBusy={false} benchX={benchX} onToStart={() => apiRef.current?.teleport(START_X, 0.86 * MAP_H)} />
     </SimpleRoom>
   );
 }
@@ -600,7 +623,7 @@ function IntroContent({ onSeen, onClose }) {
             <p key={i}>{line}</p>
           ))}
         </div>
-        <p className="mt-4 text-right text-sm font-black">— 무해림 드림</p>
+        {forestData.signature && <p className="mt-4 text-right text-sm font-black">{forestData.signature}</p>}
       </div>
       <p className="mt-3 text-xs leading-relaxed text-amber-50/70">{forestData.note}</p>
       <button type="button" onClick={onClose} className="mt-4 w-full border-4 border-[#1a110e] bg-amber-400 py-2.5 font-black text-[#2b1d1a] shadow-[4px_4px_0_0_rgba(0,0,0,0.4)] active:translate-y-0.5 active:shadow-none">
