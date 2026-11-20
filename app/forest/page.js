@@ -108,7 +108,7 @@ function ReadingCard({ near, host, mine, canRemove, onEdit, onRemove }) {
       <div className="pointer-events-auto border-[5px] border-[#2b1d1a] bg-[#f3e2bd] px-5 py-4 text-center text-[#2b1d1a] shadow-[6px_6px_0_0_rgba(0,0,0,0.35)]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f, 6px 6px 0 0 rgba(0,0,0,.35)" }}>
         {isHostTree ? (
           <>
-            <p className="text-xs font-black tracking-widest text-[#7c2d12]">🍵 무해림의 나무</p>
+            <p className="text-xs font-black tracking-widest text-[#7c2d12]"> 무해임의 나무</p>
             {host.rewritten ? (
               <>
                 <p className="mt-2 text-sm text-[#2b1d1a]/50">
@@ -127,7 +127,7 @@ function ReadingCard({ near, host, mine, canRemove, onEdit, onRemove }) {
           </>
         ) : (
           <>
-            <p className="text-base font-bold">나에게 무해림은</p>
+            <p className="text-base font-bold">나에게 무해임은</p>
             <p className="mt-1 break-words text-2xl font-black leading-snug">{near.text}</p>
             <p className="mt-1 text-base font-bold">이다.</p>
             <p className="mt-2 text-sm font-black text-[#7c2d12]">
@@ -169,7 +169,7 @@ function PlantForm({ initial, onSubmit, onCancel }) {
     >
       <p className="text-sm leading-relaxed text-amber-50/90">{initial ? "팻말을 고쳐 써요. 나무 자리는 그대로예요." : "이 자리에 당신의 나무를 심어요. 팻말에 한 줄을 남겨 주세요."}</p>
       <div className="mt-3 border-[5px] border-[#2b1d1a] bg-[#f3e2bd] p-4 text-[#2b1d1a]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f" }}>
-        <p className="font-bold">나에게 무해림은</p>
+        <p className="font-bold">나에게 무해임은</p>
         <input
           value={text}
           autoFocus
@@ -178,7 +178,7 @@ function PlantForm({ initial, onSubmit, onCancel }) {
             setText(e.target.value);
             setMsg("");
           }}
-          placeholder="겨울에 꺼내 마시는 따뜻한 보리차"
+          placeholder="여러분이 생각하는 나 예시 적기"
           className="mt-1 w-full border-b-4 border-dashed border-[#2b1d1a]/40 bg-transparent py-1 text-xl font-black outline-none placeholder:font-bold placeholder:text-[#2b1d1a]/30 focus:border-[#b45309]"
         />
         <div className="mt-1 flex items-center justify-between">
