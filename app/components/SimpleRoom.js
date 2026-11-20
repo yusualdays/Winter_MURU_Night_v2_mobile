@@ -46,6 +46,8 @@ import { EMOTE_KEYS } from "./EmoteBubble";
 //  playAction("drinking" | "eating" | "pouring"): 내 아바타 모션 (Firebase users/{ID}.action 으로 모두에게)
 //  exits의 paintedSign: true면 열려 있을 땐 코드 팻말을 숨기고(배경 그림 팻말 사용), 준비중일 때만 "🚧 준비중" 팻말
 //  spots의 radius: 버튼이 뜨는 거리 (맵 기준 px, 기본 90)
+//  sideScroll: true → 옆으로 긴 지도(무해림 숲길)용 카메라. 화면 높이에 맞추고 내 캐릭터를 따라 좌우로 움직여요
+//  hud api의 feet: 내 발 가운데 위치 { x, y } (맵 px) — 걸을 때마다 바뀌어요
 const SPEED = 320;
 const SYNC_INTERVAL = 100;
 const EMOTE_MS = 3000;
@@ -88,6 +90,7 @@ export default function SimpleRoom({
   seats = [],
   hud,
   onSeatLeave,
+  sideScroll = false,
 }) {
   const router = useRouter();
   const [nickname, setNickname] = useState(null);
@@ -619,9 +622,10 @@ export default function SimpleRoom({
 
   // 11) 화면 배율 + 카메라 (휴대폰은 내 캐릭터를 따라가요)
   const fitScale = Math.min(vp.w / mapW, vp.h / mapH);
-  const cameraMode = fitScale < CAMERA_FIT_BELOW;
-  const scale = cameraMode ? Math.max(CAMERA_ZOOM, vp.w / mapW) : fitScale;
-  const uiBoost = cameraMode ? UI_BOOST : 1;
+  const cameraMode = sideScroll || fitScale < CAMERA_FIT_BELOW;
+  // 옆으로 긴 숲길: 높이에 맞추되, 좁은 휴대폰에서도 맵 760px 폭은 보이게
+  const scale = sideScroll ? Math.min(vp.h / mapH, vp.w / 760) : cameraMode ? Math.max(CAMERA_ZOOM, vp.w / mapW) : fitScale;
+  const uiBoost = sideScroll ? (isTouch ? 1.3 : 1) : cameraMode ? UI_BOOST : 1;
   let camX = (vp.w - mapW * scale) / 2;
   let camY = (vp.h - mapH * scale) / 2;
   if (cameraMode && pos) {
@@ -712,6 +716,7 @@ export default function SimpleRoom({
   // 방마다 덧붙이는 화면 UI(hud)·상세 창(renderModals)에 넘겨주는 도구 모음
   const hudApi = {
         openDetail,
+        feet: pos ? { x: pos.x + FEET.offsetX + FEET.width / 2, y: pos.y + FEET.offsetY + FEET.height / 2 } : null,
         nickname,
         myId,
         isOwner,

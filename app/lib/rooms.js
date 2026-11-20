@@ -1,7 +1,8 @@
 // 공간(방) 사이 이동 도우미 + 오픈 기간
 //   입장 → ☕ 군산 온라인 찻집(teaHouse, /cafe)
 //            ├ 위쪽 가운데 통로        → 🛋️ 거실(livingRoom, /living-room)
-//            └ 카운터·다구 선반 사이 길 → 🖼️ 전시회(exhibitionRoom, /gallery)
+//            ├ 카운터·다구 선반 사이 길 → 🖼️ 전시회(exhibitionRoom, /gallery)
+//            └ 오른쪽 아래 통로        → 🌳 무해림(forest, /forest) — 옆으로 걷는 숲길 기획전
 //  - 어느 방(어느 통로)에서 왔는지 기억해 두면, 도착한 방에서 그 통로 앞에 서서 시작해요
 //  - 거실·전시회는 data.js의 eventSchedule 기간에만 열려요 (호스트는 테스트용으로 강제 오픈 가능)
 import { partyData } from "../data";
@@ -10,10 +11,11 @@ export const ROOMS = {
   teaHouse: { href: "/cafe", name: "☕ 군산 온라인 찻집" },
   livingRoom: { href: "/living-room", name: "🛋️ 거실" },
   exhibitionRoom: { href: "/gallery", name: "🖼️ 전시회" },
+  forest: { href: "/forest", name: "🌳 무해림" },
 };
 
 // 기간이 정해진 방
-export const LOCKABLE_ROOMS = ["livingRoom", "exhibitionRoom"];
+export const LOCKABLE_ROOMS = ["livingRoom", "exhibitionRoom", "forest"];
 
 // ---------- 방 이동 기억 ----------
 // 다른 방으로 가기 전에 "지금 방"과 "지나간 통로"를 기억
