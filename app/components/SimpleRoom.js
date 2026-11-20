@@ -109,7 +109,7 @@ export default function SimpleRoom({
   const [tapFx, setTapFx] = useState(null);
   const [vp, setVp] = useState({ w: 1280, h: 720 });
   const [isTouch, setIsTouch] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false); // 왼쪽 위 설명창: 찻집에 처음 들어올 때(입장 화면에서 올 때)만
   const [leaving, setLeaving] = useState(false);
   const [arriving, setArriving] = useState(true); // 들어올 때 어두운 화면이 스르륵 밝아져요
   const [toast, setToast] = useState(null);       // 화면 위 알림 { id, text }
@@ -176,6 +176,7 @@ export default function SimpleRoom({
     setForceOpenState(getForceOpen());
     setIsOwner(getOwnerLocal());
     const from = takeArrival();
+    if (roomId === "teaHouse" && !from) setShowWelcome(true); // 다른 방에서 돌아온 거면 설명창 없이
     const s = (from && spawns[`${from}:${lastExitOf(roomId)}`]) ?? spawns[from] ?? spawns.default;
     const p = posFromFeet(s.x * mapW, s.y * mapH);
     const start = { x: clamp(p.x, 0, mapW - AVATAR_WIDTH), y: clamp(p.y, 0, mapH - AVATAR_HEIGHT) };
