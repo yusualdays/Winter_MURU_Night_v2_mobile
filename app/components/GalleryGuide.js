@@ -15,7 +15,7 @@ export function GuideBoard({ at, alert, onOpen, mapW = 1600, mapH = 1200 }) {
   return (
     <div className="absolute" style={{ left: at.x * mapW - W / 2, top: at.y * mapH - H, width: W, height: H, zIndex: alert ? 2450 : 100 + Math.round(at.y * mapH) }}>
       <style>{`@keyframes guide-alert{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}`}</style>
-      <button type="button" onClick={onOpen} aria-label="전시 안내문 보기" className="block h-full w-full cursor-pointer bg-transparent p-0">
+      <button type="button" onClick={onOpen} aria-label="안내문 보기" className="block h-full w-full cursor-pointer bg-transparent p-0">
         <svg viewBox="0 0 28 40" width="100%" height="100%" shapeRendering="crispEdges">
           {/* 그림자 */}
           <rect x="4" y="37" width="20" height="3" fill="#00000033" />
@@ -46,7 +46,7 @@ export function GuideBoard({ at, alert, onOpen, mapW = 1600, mapH = 1200 }) {
           <button
             type="button"
             onClick={onOpen}
-            aria-label="전시 안내문 바로 보기"
+            aria-label="안내문 바로 보기"
             className="flex h-[74px] w-[58px] shrink-0 items-center justify-center border-[5px] border-[#2b1d1a] bg-[#facc15] text-[52px] font-black leading-none text-[#2b1d1a] shadow-[5px_5px_0_0_rgba(0,0,0,0.35)] hover:bg-[#fde047]"
             style={{ animation: "guide-alert 0.9s steps(3, jump-none) infinite" }}
           >

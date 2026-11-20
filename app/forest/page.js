@@ -10,7 +10,8 @@ import SimpleRoom from "../components/SimpleRoom";
 import PixelModal from "../components/PixelModal";
 import { SettingsPanel } from "../components/TeaHouseHud";
 import { SettingsPopup, VolumeRow, ToggleRow, Section, L_INPUT, L_BTN, L_BTN_MAIN } from "../components/RoomSettings";
-import { ForestBackdrop, ForestGrade, ForestTree, HostTree, EntranceSign, TrailEnd, TreeImage, TeaBench, TREE_KINDS } from "../components/ForestArt";
+import { GuideBoard } from "../components/GalleryGuide";
+import { ForestBackdrop, ForestGrade, ForestTree, HostTree, TrailEnd, TreeImage, TeaBench, TREE_KINDS } from "../components/ForestArt";
 import { forestData } from "../spaceData";
 
 // 🌳 무해림(無害林) — 찻집 오른쪽 아래 통로, 옆으로 걷는 숲길
@@ -33,7 +34,7 @@ const PATH_TOP = 950;
 const PATH_BOTTOM = 1110;
 const WALK_TOP = 0.8; // 발이 다닐 수 있는 범위 (비율)
 const WALK_BOTTOM = 0.92;
-const INTRO_X = 380; // 입구 나무 팻말
+const INTRO_X = 380; // 입구 안내판 (처음 오면 "!" → 이용안내)
 const START_X = 150; // 숲 입구 (처음 시작 자리)
 const HOST_X = 860; // 주인장 나무
 const BENCH_PREF_X = 1200; // 🍵 야차 벤치 자리 (주인장 나무 다음, 숲 중간 쉼터) — 이미 나무가 있으면 빈자리로 옮겨요
@@ -52,6 +53,8 @@ const READ_RADIUS = 150; // 이만큼 가까우면 팻말 문장이 떠요
 const MAX_LEN = forestData.maxLength ?? 100;
 
 const PLANT_ID = "plant";
+const GUIDE_ID = "guide";
+const GUIDE_SEEN_KEY = "forestGuideSeen";
 const BIRDS_KEY = "forestBirds";
 const BGM_KEY = "forestBgm"; // 켜기/끄기
 const BGM_VOL_KEY = "forestBgmVol"; // 0~100
@@ -110,13 +113,13 @@ function useAdminSecrets() {
 }
 
 // ---------------- 🗺️ 숲 그림 ----------------
-function ForestScene({ mapW, trees, nearKey, isMine, benchBusy, benchX, onToStart }) {
+function ForestScene({ mapW, trees, nearKey, isMine, benchBusy, benchX, onToStart, guideAlert, onOpenGuide }) {
   const now = Date.now();
   return (
     <div className="absolute inset-0">
       <style>{`@keyframes forest-grow{0%{transform:scale(.25,.1)}100%{transform:none}}`}</style>
       <ForestBackdrop mapW={mapW} mapH={MAP_H} groundY={GROUND_Y} pathTop={PATH_TOP} pathBottom={PATH_BOTTOM} count={trees.length} />
-      <EntranceSign x={INTRO_X} groundY={GROUND_Y + 20} title={forestData.entranceTitle} reading={forestData.entranceReading} />
+      <GuideBoard at={{ x: INTRO_X / mapW, y: (GROUND_Y + 30) / MAP_H }} alert={guideAlert} onOpen={onOpenGuide} mapW={mapW} mapH={MAP_H} />
       <HostTree x={HOST_X} groundY={GROUND_Y} near={nearKey === "__host"} />
       <TeaBench x={benchX} floorY={BENCH_FLOOR} busy={benchBusy} />
       {trees.map((t) => (
@@ -571,6 +574,7 @@ export default function ForestPage() {
   const [nickname, setNickname] = useState("");
   const [plantAt, setPlantAt] = useState(null); // { x, editing? }
   const [birds, setBirds] = useState(true);
+  const [guideAlert, setGuideAlert] = useState(false); // 📜 처음 오면 안내판 위 "!"
   const openRef = useRef(null);
   const apiRef = useRef(null);
 
@@ -578,6 +582,7 @@ export default function ForestPage() {
     try {
       setNickname(localStorage.getItem("partyNickname") ?? "");
       if (localStorage.getItem(BIRDS_KEY) === "0") setBirds(false);
+      if (!localStorage.getItem(GUIDE_SEEN_KEY)) setGuideAlert(true);
       let fid = localStorage.getItem("forestId");
       if (!fid) {
         fid = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -710,7 +715,19 @@ export default function ForestPage() {
           />
         );
       }}
+      spots={[{ id: GUIDE_ID, rect: { x: (INTRO_X - 50) / mapW, y: (GROUND_Y - 110) / MAP_H, w: 100 / mapW, h: 0.03 }, near: { x: INTRO_X / mapW, y: 0.86 }, radius: 110, icon: "📜", title: "이용안내" }]}
       renderModals={(openId, close) => [
+        <PixelModal key={GUIDE_ID} open={openId === GUIDE_ID} onClose={close} label="🌳 무해림" title={`📜 ${forestData.guide?.title ?? "이용안내"}`} width={520}>
+          <ForestGuide
+            onSeen={() => {
+              setGuideAlert(false);
+              try {
+                localStorage.setItem(GUIDE_SEEN_KEY, "1");
+              } catch {}
+            }}
+            onClose={close}
+          />
+        </PixelModal>,
         <PixelModal key={PLANT_ID} open={openId === PLANT_ID} onClose={close} label="🌳 무해림" title={plantAt?.editing ? "✏️ 고쳐 쓰기" : "🌱 나무 심기"} width={600}>
           <PlantForm
             key={`${plantAt?.x}-${!!plantAt?.editing}`}
@@ -726,7 +743,34 @@ export default function ForestPage() {
         </PixelModal>,
       ]}
     >
-      <ForestScene mapW={mapW} trees={trees} nearKey={null} isMine={isMine} benchBusy={false} benchX={benchX} onToStart={() => apiRef.current?.teleport(START_X, 0.86 * MAP_H)} />
+      <ForestScene mapW={mapW} trees={trees} nearKey={null} isMine={isMine} guideAlert={guideAlert} onOpenGuide={() => openRef.current?.(GUIDE_ID)} benchBusy={false} benchX={benchX} onToStart={() => apiRef.current?.teleport(START_X, 0.86 * MAP_H)} />
     </SimpleRoom>
+  );
+}
+
+// 📜 무해림 이용안내 (spaceData forestData.guide)
+function ForestGuide({ onSeen, onClose }) {
+  useEffect(() => {
+    onSeen?.(); // 한 번 열어 보면 "!" 끄기
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const steps = forestData.guide?.steps ?? [];
+  return (
+    <div>
+      <ul className="flex flex-col gap-2">
+        {steps.map((s, i) => (
+          <li key={i} className="flex items-start gap-3 border-4 border-[#1a110e] bg-[#2b1d1a] px-3 py-2 text-[#f5e6c8]">
+            <span className="text-xl leading-none">{s.icon}</span>
+            <span className="min-w-0">
+              <span className="block font-black">{s.title}</span>
+              {s.desc && <span className="block text-xs leading-relaxed text-white/70">{s.desc}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <button type="button" onClick={onClose} className="mt-4 w-full border-4 border-[#1a110e] bg-amber-400 py-2.5 font-black text-[#2b1d1a] shadow-[4px_4px_0_0_rgba(0,0,0,0.4)] active:translate-y-0.5 active:shadow-none">
+        숲길 걷기 ▶
+      </button>
+    </div>
   );
 }
