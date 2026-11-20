@@ -6,7 +6,7 @@ export const cafeData = {
   // 차림표 메뉴는 data.js의 teaMenu에 있어요 (사장님 메뉴 상태·투표·피드백이 메뉴 id로 저장돼요)
   menu: partyData?.teaMenu?.items ?? [],
   // 메뉴판 아래 한 줄 인사
-  note: "천천히 쉬다 가세요. 위쪽 통로는 🛋️ 거실, 왼쪽·오른쪽 아래 통로는 🖼️ 전시회예요.",
+  note: "천천히 쉬다 가세요. 위쪽 통로는 🛋️ 거실, 카운터와 다구 선반 사이 길은 🖼️ 전시회예요.",
 };
 
 export const galleryData = {

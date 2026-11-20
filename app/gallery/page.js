@@ -9,7 +9,7 @@ import GalleryHud from "../components/GalleryHud";
 import { GuideBoard, GuideContent, GUIDE_SEEN_KEY } from "../components/GalleryGuide";
 import { ListeningCorner, ListeningPicker } from "../components/GalleryListening";
 
-// 🖼️ 전시회 (exhibitionRoom) — 찻집 오른쪽 아래 통로로 와요
+// 🖼️ 전시회 (exhibitionRoom) — 찻집 카운터와 다구 선반 사이 길로 와요
 //  - 배경 그림: public/gallery_bg.png (4:3) — 아래 좌표는 모두 이 그림 기준 0~1 비율. 주소 끝에 ?debug=1 → 장애물·버튼 위치 색칠
 //  - 작품은 app/spaceData.js의 galleryData.artworks (앞 4개 = 벽 액자, 5·6번째 = 유리 진열장, 최대 6개)
 //    image를 넣으면 그림 속 액자 안에 내 그림이 들어가고, 비워 두면 배경에 그려진 그림이 그대로 보여요
@@ -17,7 +17,7 @@ import { ListeningCorner, ListeningPicker } from "../components/GalleryListening
 //  - 📜 입구 옆 전시 안내문 (components/GalleryGuide.js, 내용은 spaceData galleryData.guide) — 첫 방문이면 "!"
 //  - 🎧 아래 가운데 청음실: LP 플레이어 + 음반 거치대 → 유튜브 재생목록 (components/GalleryListening.js, 목록은 spaceData galleryData.listening)
 //  - 오른쪽 위 ⚙️ → 전시회 설정 (components/GalleryHud.js)
-//  - 왼쪽 문(왼쪽 벽 가운데) → ☕ 찻집 (오른쪽 아래 통로 앞으로 돌아가요)
+//  - 왼쪽 문(왼쪽 벽 가운데) → ☕ 찻집 (카운터와 다구 선반 사이 길로 돌아가요)
 //  - data.js의 eventSchedule 기간에만 들어올 수 있어요
 const MAP_W = 1600;
 const MAP_H = 1200;
@@ -110,8 +110,8 @@ const SPOTS = [
 const EXITS = [{ id: "out", to: "teaHouse", zone: { x: 0, y: DOOR.y + 0.01, w: 0.03, h: DOOR.h - 0.02 }, label: "⬅ ☕ 찻집으로" }];
 
 const SPAWNS = {
-  default: { x: 0.1, y: 0.635 },
-  teaHouse: { x: 0.1, y: 0.635 }, // 찻집에서 오면 → 왼쪽 문 앞
+  default: { x: 0.09, y: 0.595 },
+  teaHouse: { x: 0.09, y: 0.595 }, // 찻집에서 오면 → 왼쪽 문 앞
 };
 
 const pct = (r) => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` });

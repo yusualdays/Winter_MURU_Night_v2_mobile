@@ -15,7 +15,7 @@ import { cafeData } from "../spaceData";
 // ☕ 군산 온라인 찻집 (teaHouse) — 입장하면 가장 먼저 오는 곳
 //  - 배경 그림: public/teahouse_bg.png (2400x1792, 통창 유리는 투명) — 아래 좌표는 모두 이 그림 기준 0~1 비율
 //    (x: 왼쪽→오른쪽, y: 위→아래). 주소 끝에 ?debug=1 을 붙이면 장애물·자리·버튼 위치가 색칠돼 보여요 → 그림에 맞춰 숫자만 고치면 돼요
-//  - 위쪽 가운데 통로 → 🛋️ 거실 / 오른쪽 아래 통로 → 🖼️ 전시회 (data.js eventSchedule 기간에만, 기간 밖에는 "🚧 준비중")
+//  - 위쪽 가운데 통로 → 🛋️ 거실 / 카운터·다구 선반 사이 길 → 🖼️ 전시회 (data.js eventSchedule 기간에만, 기간 밖에는 "🚧 준비중")
 const MAP_W = 1600;
 const MAP_H = 1200;
 const BG_IMAGE = "/teahouse_bg.png";
@@ -60,7 +60,7 @@ const TALK_LINES = [
   "포스기 옆으로 오시면 차림표를 보거나, 다식·말차 만들기 미니게임을 할 수 있어요.",
   "오른쪽 위 📖 공부 집중 모드도 있고요, 창가 라디오에서 음악이랑 빗소리를 고를 수 있어요.",
   partyData.shopOpen ? "왼쪽 아래 책장엔 손님들이 남긴 책갈피가, 오른쪽 선반엔 다구 쇼룸이 있어요." : "왼쪽 아래 책장엔 손님들이 남긴 책갈피가 있어요. 마음에 드는 책을 골라 보세요!",
-  "위쪽 문은 🛋️ 거실, 오른쪽 아래 통로는 🖼️ 전시실로 이어져요. 오픈 기간에만 열려요!",
+  "위쪽 문은 🛋️ 거실, 카운터와 다구 선반 사이 길은 🖼️ 전시실로 이어져요. 오픈 기간에만 열려요!",
   "그럼 편안한 시간 보내세요. 궁금한 게 생기면 포스기 옆에서 저를 불러 주세요 😊",
 ];
 
@@ -119,7 +119,7 @@ const BLOCKERS = [
   { x: 0, y: 0, w: PASSAGE.x, h: WALL_BOTTOM }, // 위쪽 벽 (통로 왼쪽)
   { x: PASSAGE.x + PASSAGE.w, y: 0, w: 1 - PASSAGE.x - PASSAGE.w, h: WALL_BOTTOM }, // 위쪽 벽 (통로 오른쪽)
   { x: 0, y: 0, w: 0.01, h: 1 }, // 왼쪽 끝
-  { x: 0.995, y: 0, w: 0.005, h: 0.78 }, // 오른쪽 끝 (전시실 통로 위까지)
+  { x: 0.995, y: 0, w: 0.005, h: 1 }, // 오른쪽 끝
   ...COUNTER_PARTS, // 카운터 + 주방
   ...DUO_TABLES.map((t) => ({ x: t.x - 0.09, y: t.top - 0.01, w: 0.18, h: t.bottom - t.top })), // 2인 테이블 + 양쪽 의자 (상판 위는 못 밟아요, 의자 아래 파란 점에서 앉아요)
   { x: 0.318, y: 0.745, w: 0.368, h: 0.14 }, // 단체석 테이블 (상판 끝부터)
@@ -151,16 +151,17 @@ const SPOTS_DURING_TALK = SPOTS.filter((sp) => sp.id !== "counter" && sp.id !== 
 //  paintedSign: 배경 그림에 팻말이 있으면 true (열려 있을 땐 그림 팻말만, 준비중일 때만 코드 팻말)
 const EXITS = [
   { id: "up", to: "livingRoom", zone: { x: PASSAGE.x + 0.015, y: PASSAGE.top, w: PASSAGE.w - 0.03, h: 0.05 }, label: "⬆ 🛋️ 거실" },
-  // 전시실 통로: 휴대폰에서도 조금만 다가가면 넘어가도록 넓게 (팻말을 눌러도 걸어가요)
-  { id: "exRight", to: "exhibitionRoom", zone: { x: 0.885, y: 0.8, w: 0.115, h: 0.2 }, label: "🖼️ 전시실 ➜" },
+  // 🖼️ 전시실: 카운터(오른쪽)와 다구 선반 사이 길 → 오른쪽 끝에 닿으면 넘어가요
+  { id: "exGap", to: "exhibitionRoom", zone: { x: 0.955, y: 0.49, w: 0.045, h: 0.08 }, label: "🖼️ 전시실 ➜" },
+  // 오른쪽 아래 통로: 새 공간 자리 (아직 연결 안 함)
 ];
 
 // 시작 위치 (발 가운데) — 어디서 왔는지에 따라
 const SPAWNS = {
   default: { x: 0.55, y: 0.6 }, // 처음 입장 (가운데)
   livingRoom: { x: 0.508, y: 0.34 }, // 거실에서 내려옴 → 위쪽 통로 앞
-  "exhibitionRoom:exRight": { x: 0.83, y: 0.87 }, // 전시회에서 돌아옴 → 오른쪽 아래 통로 앞 (통로 칸 바로 왼쪽)
-  exhibitionRoom: { x: 0.83, y: 0.87 },
+  "exhibitionRoom:exGap": { x: 0.92, y: 0.528 }, // 전시회에서 돌아옴 → 카운터와 다구 선반 사이 길
+  exhibitionRoom: { x: 0.92, y: 0.528 },
 };
 
 const pct = (r) => ({ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` });
@@ -302,7 +303,7 @@ export default function CafePage() {
     <SimpleRoom
       roomId="teaHouse"
       roomName="☕ 군산 온라인 찻집"
-      welcome="위쪽 문 = 🛋️ 거실 · 오른쪽 아래 통로 = 🖼️ 전시실"
+      welcome="위쪽 문 = 🛋️ 거실 · 카운터와 다구 선반 사이 길 = 🖼️ 전시실"
       mapW={MAP_W}
       mapH={MAP_H}
       outside="#3b2a20"

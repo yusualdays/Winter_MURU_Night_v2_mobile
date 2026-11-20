@@ -1,7 +1,7 @@
 // 공간(방) 사이 이동 도우미 + 오픈 기간
 //   입장 → ☕ 군산 온라인 찻집(teaHouse, /cafe)
 //            ├ 위쪽 가운데 통로        → 🛋️ 거실(livingRoom, /living-room)
-//            └ 왼쪽·오른쪽 아래 통로   → 🖼️ 전시회(exhibitionRoom, /gallery)
+//            └ 카운터·다구 선반 사이 길 → 🖼️ 전시회(exhibitionRoom, /gallery)
 //  - 어느 방(어느 통로)에서 왔는지 기억해 두면, 도착한 방에서 그 통로 앞에 서서 시작해요
 //  - 거실·전시회는 data.js의 eventSchedule 기간에만 열려요 (호스트는 테스트용으로 강제 오픈 가능)
 import { partyData } from "../data";
