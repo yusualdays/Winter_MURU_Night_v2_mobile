@@ -944,7 +944,6 @@ export default function LivingRoom() {
             className="pointer-events-none absolute z-[4] flex flex-col items-center justify-end"
             style={{ left: CAFE_DOOR.x * mapSize.w, top: (CAFE_DOOR.y - 0.05) * mapSize.h, width: CAFE_DOOR.w * mapSize.w, height: (CAFE_DOOR.h + 0.05) * mapSize.h }}
           >
-            <span className="mb-1 border-4 border-[#1a110e] bg-[#f5e6c8] px-3 py-0.5 text-lg font-black text-[#2b1d1a] shadow-[3px_3px_0_0_rgba(0,0,0,0.35)]">⬇ ☕ 찻집으로</span>
             <span className="h-3 w-full bg-[#1a110e]/40" />
           </div>
 

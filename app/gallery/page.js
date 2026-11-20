@@ -170,10 +170,6 @@ function GalleryScene({ playing, light, guideAlert, onOpenGuide }) {
       <GuideBoard at={GUIDE_AT} alert={guideAlert} onOpen={onOpenGuide} mapW={MAP_W} mapH={MAP_H} />
       <Lighting mode={light} />
 
-      {/* 📖 방명록 책상 팻말 */}
-      <div className="pointer-events-none absolute -translate-x-1/2 whitespace-nowrap border-4 border-[#2b1d1a] bg-[#f5e6c8] px-2 py-0.5 text-base font-black text-[#2b1d1a] shadow-[3px_3px_0_0_rgba(0,0,0,0.35)]" style={{ left: `${(DESK.x + DESK.w / 2) * 100}%`, top: `${(DESK.y - 0.045) * 100}%`, zIndex: 50 }}>
-        📖 방명록
-      </div>
 
 
       {debug && (

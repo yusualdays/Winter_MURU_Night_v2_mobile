@@ -150,9 +150,9 @@ const SPOTS_DURING_TALK = SPOTS.filter((sp) => sp.id !== "counter" && sp.id !== 
 // ---------------- 🚪 통로 (zone = 발이 닿으면 이동하는 경계) ----------------
 //  paintedSign: 배경 그림에 팻말이 있으면 true (열려 있을 땐 그림 팻말만, 준비중일 때만 코드 팻말)
 const EXITS = [
-  { id: "up", to: "livingRoom", zone: { x: PASSAGE.x + 0.015, y: PASSAGE.top, w: PASSAGE.w - 0.03, h: 0.05 }, sign: { x: 0.508, y: 0.005 }, label: "⬆ 🛋️ 거실" },
+  { id: "up", to: "livingRoom", zone: { x: PASSAGE.x + 0.015, y: PASSAGE.top, w: PASSAGE.w - 0.03, h: 0.05 }, label: "⬆ 🛋️ 거실" },
   // 전시실 통로: 휴대폰에서도 조금만 다가가면 넘어가도록 넓게 (팻말을 눌러도 걸어가요)
-  { id: "exRight", to: "exhibitionRoom", zone: { x: 0.885, y: 0.8, w: 0.115, h: 0.2 }, sign: { x: 0.9, y: 0.77 }, label: "🖼️ 전시실 ➜" },
+  { id: "exRight", to: "exhibitionRoom", zone: { x: 0.885, y: 0.8, w: 0.115, h: 0.2 }, label: "🖼️ 전시실 ➜" },
 ];
 
 // 시작 위치 (발 가운데) — 어디서 왔는지에 따라
