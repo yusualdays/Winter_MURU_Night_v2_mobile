@@ -78,6 +78,7 @@ export default function SimpleRoom({
   roomId,
   roomName,
   welcome,
+  welcomeTitle, // 환영 제목을 바꾸고 싶을 때 (예: 무해림 "어서 오세요.")
   mapW = 1600,
   mapH = 1200,
   outside = "#2b1d1a",
@@ -108,7 +109,7 @@ export default function SimpleRoom({
   const [tapFx, setTapFx] = useState(null);
   const [vp, setVp] = useState({ w: 1280, h: 720 });
   const [isTouch, setIsTouch] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);
+  const [showWelcome, setShowWelcome] = useState(false); // 왼쪽 위 설명창: 찻집에 처음 들어올 때(입장 화면에서 올 때)만
   const [leaving, setLeaving] = useState(false);
   const [arriving, setArriving] = useState(true); // 들어올 때 어두운 화면이 스르륵 밝아져요
   const [toast, setToast] = useState(null);       // 화면 위 알림 { id, text }
@@ -175,6 +176,7 @@ export default function SimpleRoom({
     setForceOpenState(getForceOpen());
     setIsOwner(getOwnerLocal());
     const from = takeArrival();
+    if (roomId === "teaHouse" && !from) setShowWelcome(true); // 다른 방에서 돌아온 거면 설명창 없이
     const s = (from && spawns[`${from}:${lastExitOf(roomId)}`]) ?? spawns[from] ?? spawns.default;
     const p = posFromFeet(s.x * mapW, s.y * mapH);
     const start = { x: clamp(p.x, 0, mapW - AVATAR_WIDTH), y: clamp(p.y, 0, mapH - AVATAR_HEIGHT) };
@@ -758,7 +760,7 @@ export default function SimpleRoom({
         }`}
       >
         <h1 className="text-base font-bold text-amber-100">
-          {nickname}님, {roomName}에 오신 걸 환영해요!
+          {welcomeTitle ?? `${nickname}님, ${roomName}에 오신 걸 환영해요!`}
         </h1>
         <p className="mt-0.5 text-xs text-amber-100/80">
           {isTouch ? "가고 싶은 곳을 터치하면 걸어가요 · " : "방향키·W·A·S·D 또는 바닥 클릭으로 이동 · E키 = 살펴보기 · Enter = 말풍선 · "}

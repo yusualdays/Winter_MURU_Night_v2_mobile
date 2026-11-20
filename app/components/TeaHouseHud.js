@@ -92,8 +92,10 @@ const INPUT = "w-full border-4 border-[#1a110e] bg-[#fdf6e3] px-3 py-2 text-sm t
 
 // ---------------- ⚙️ 설정 창 ----------------
 // title: 창 제목 (전시회에서도 같이 써요), noise: 백색소음 믹서 보이기, top: 맨 위에 덧붙일 칸, onOpenOwner가 없으면 [📋 사장님 관리] 버튼을 숨겨요, children: 맨 아래 덧붙일 칸
-export function SettingsPanel({ api, onOpenOwner, title = "⚙️ 찻집 설정", noise = true, top = null, children }) {
+// ownerToggle: 사장님 모드 켜기·끄기 칸 (찻집에서만 true — 전시실·무해림에서는 숨겨요)
+export function SettingsPanel({ api, onOpenOwner, title = "⚙️ 찻집 설정", noise = true, top = null, ownerToggle = false, children }) {
   const [pin, setPin] = useState("");
+  const [showPin, setShowPin] = useState(false); // 손님 눈에 잘 안 띄게: 작은 "·" 를 눌러야 비밀번호 칸이 열려요
   const [pinMsg, setPinMsg] = useState("");
   const ownerPin = partyData?.ownerPin;
 
@@ -131,7 +133,8 @@ export function SettingsPanel({ api, onOpenOwner, title = "⚙️ 찻집 설정"
           </label>
         )}
 
-        {/* 🔑 사장님 인증 */}
+        {/* 🔑 사장님 모드 (찻집 설정에서만 · 손님에겐 아주 작게) */}
+        {ownerToggle && api.isOwner && (
         <div className="mt-4 border-t-4 border-dashed border-white/15 pt-3">
           {api.isOwner ? (
             <>
@@ -160,7 +163,25 @@ export function SettingsPanel({ api, onOpenOwner, title = "⚙️ 찻집 설정"
             </form>
           )}
         </div>
+        )}
         {children}
+        {ownerToggle && !api.isOwner && (
+          <div className="mt-3 flex justify-end">
+            {showPin ? (
+              <form onSubmit={login} className="flex w-full gap-1.5">
+                <input type="password" inputMode="numeric" autoFocus value={pin} onChange={(e) => setPin(e.target.value)} aria-label="관리" className="min-w-0 flex-1 border-2 border-white/15 bg-black/30 px-2 py-1 text-xs text-white outline-none" />
+                <button type="submit" className="shrink-0 border-2 border-white/15 px-2 text-xs text-white/50">
+                  확인
+                </button>
+              </form>
+            ) : (
+              <button type="button" onClick={() => setShowPin(true)} aria-label="관리" className="px-1 text-xs leading-none text-white/20 hover:text-white/40">
+                ·
+              </button>
+            )}
+          </div>
+        )}
+        {ownerToggle && !api.isOwner && showPin && pinMsg && <p className="mt-1 text-right text-[11px] text-rose-300/80">{pinMsg}</p>}
       </div>
     </div>
   );
@@ -415,6 +436,7 @@ export default function TeaHouseHud({ tea, api }) {
           <SettingsPanel
             tea={tea}
             api={api}
+            ownerToggle
             onOpenOwner={() => {
               setPanelOpen(false);
               setOwnerOpen(true);

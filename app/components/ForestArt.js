@@ -340,16 +340,11 @@ export function IntroBoard({ x, groundY, alert, onOpen, title, edition }) {
 // 숲길 끝 (새싹 + 작은 팻말)
 export function TrailEnd({ x, groundY, count, onToStart }) {
   return (
-    <div className="absolute flex flex-col items-center" style={{ left: x - 110, top: groundY - 190, width: 220 }}>
+    <div className="absolute flex flex-col items-center" style={{ left: x - 110, top: groundY - 128, width: 220 }}>
       {/* ⏮ 입구로 가는 표지판 (누르면 숲 처음으로) */}
       <button type="button" onClick={onToStart} className="mb-1 flex items-center gap-1 border-[3px] px-2 py-0.5 text-[15px] font-black text-[#2b1d1a] shadow-[2px_2px_0_0_rgba(0,0,0,0.3)] hover:brightness-110" style={{ background: "#d9b98a", borderColor: OUT, clipPath: "polygon(10% 0, 100% 0, 100% 100%, 10% 100%, 0 50%)", paddingLeft: 18 }}>
         ⏮ 숲 입구로
       </button>
-      <div className="border-[3px] px-2 py-1 text-center text-[16px] font-black leading-snug text-[#2b1d1a] shadow-[2px_2px_0_0_rgba(0,0,0,0.3)]" style={{ background: "#e9cf9f", borderColor: OUT }}>
-        🌱 지금까지 {count}그루
-        <br />
-        <span className="text-[13px] font-bold text-[#2b1d1a]/70">다음 나무는 여기서부터 자라요</span>
-      </div>
       <div className="h-8 w-[6px]" style={{ background: "#6b4226", borderLeft: `2px solid ${OUT}`, borderRight: `2px solid ${OUT}` }} />
       <svg viewBox="0 0 12 10" width="60" height="50" shapeRendering="crispEdges">
         <rect x="5" y="4" width="2" height="6" fill="#4c7230" />
@@ -404,6 +399,28 @@ export function TeaBench({ x, floorY, busy }) {
       {[0, 1, 2].map((i) => (
         <span key={i} className="absolute h-5 w-[6px] rounded-full bg-white/70" style={{ left: `${44 + i * 4}%`, top: "26%", animation: `yacha-steam ${busy ? 2 : 3.2}s ${i * 0.7}s ease-out infinite`, opacity: 0 }} />
       ))}
+    </div>
+  );
+}
+
+// 🪧 입구 나무 팻말 — 「無害林」 + 「없을 무 · 해할 해 · 수풀 림」 (설명 없이 이것만)
+export function EntranceSign({ x, groundY, title, reading }) {
+  const W = 260;
+  const H = 230;
+  return (
+    <div className="pointer-events-none absolute" style={{ left: x - W / 2, top: groundY - H, width: W, height: H }}>
+      {/* 기둥 */}
+      <span className="absolute bottom-0 left-1/2 h-[52%] w-4 -translate-x-1/2" style={{ background: "#5e4027", border: `3px solid ${OUT}` }} />
+      {/* 나무 판 */}
+      <span
+        className="absolute inset-x-0 top-0 flex h-[58%] flex-col items-center justify-center border-[5px] text-center"
+        style={{ background: "#a9825a", borderColor: OUT, boxShadow: "inset 0 0 0 4px #8a6440, inset 0 6px 0 4px #b9926a, 4px 4px 0 0 rgba(0,0,0,.3)", filter: "saturate(.85)" }}
+      >
+        <span className="text-[44px] font-black leading-none tracking-[0.12em] text-[#2b1d1a]" style={{ textShadow: "0 2px 0 rgba(255,236,200,.35)" }}>
+          {title}
+        </span>
+        <span className="mt-2 text-[15px] font-bold tracking-wide text-[#2b1d1a]/80">{reading}</span>
+      </span>
     </div>
   );
 }

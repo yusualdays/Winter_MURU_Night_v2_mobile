@@ -4,7 +4,7 @@ import { useState } from "react";
 import { SettingsPanel } from "./TeaHouseHud";
 
 // 🖼️ 전시회 화면 위 UI — 오른쪽 위 ⚙️ 설정 (찻집과 같은 모양)
-//  - 💡 조명 (나에게만 보여요) · 🔓 미리 열기(호스트·사장님) · 🔑 사장님 인증
+//  - 💡 조명 (나에게만 보여요) · 🔓 미리 열기(호스트·사장님)
 //  - 📖 방명록 바로 열기 (책상까지 안 걸어가도 돼요)
 export const LIGHTS = [
   { id: "day", icon: "☀️", name: "환하게" },

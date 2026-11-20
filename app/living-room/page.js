@@ -146,7 +146,7 @@ export default function LivingRoom() {
   const [arriving, setArriving] = useState(true);
   const [ownerMode, setOwnerMode] = useState(false); // 🍵 찻집에서 사장님 인증을 했으면 앞치마 // 들어올 때 어두운 화면이 스르륵 밝아져요
 
-  const [showWelcome, setShowWelcome] = useState(true); // 환영 문구 (8초 뒤 사라짐)
+  const [showWelcome, setShowWelcome] = useState(false); // 환영 문구 — 거실에서는 안 보여요 (찻집 첫 입장 때만)
   const [mapSize, setMapSize] = useState(null); // { w, h }
   const [hasBackground, setHasBackground] = useState(false);
   const [vp, setVp] = useState({ w: 1280, h: 720 }); // 화면(뷰포트) 크기
