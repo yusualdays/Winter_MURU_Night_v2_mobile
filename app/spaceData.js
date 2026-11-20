@@ -56,13 +56,13 @@ export const forestData = {
   entranceReading: "없을 무 · 해할 해 · 수풀 림",
   // 주인장 대사
   greeting: "어서 오세요.",
-  plantGuide: "편하게 한 그루 심고 가세요.",
+  plantGuide: "나만의 나무를 심어보세요.",
   // 나무 심기 입력창 안내
-  placeholder: "고민도, 축하할 일도, 아무 말이나 괜찮아요.",
+  placeholder: "당신의 나무에 마음을 남겨보세요..",
   maxLength: 100,
   // 주인장 나무 팻말 (처음 문장) — ⚙️ 관리(사장님 모드)에서 바꿀 수 있어요
-  hostSign: "아직 잘 모르겠는 나",
-  hostName: "무해림",
+  hostSign: "무해임의 숲, 무해임",
+  hostName: "무해임",
   // 🔐 관리자 계정 UID (Firebase 콘솔 → Authentication → 사용자 → 사용자 UID 복사) — 비밀 나무를 읽을 수 있는 사람
   adminUid: "",
   // 🎵 숲 배경 음악 — 음악 파일을 public/forest/ 에 넣고 파일 이름을 적어요 (없으면 음악 없이 새소리만)
