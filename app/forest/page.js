@@ -8,7 +8,7 @@ import { startBirds, stopBirds } from "../lib/birdsong";
 import SimpleRoom from "../components/SimpleRoom";
 import PixelModal from "../components/PixelModal";
 import { SettingsPanel } from "../components/TeaHouseHud";
-import { ForestBackdrop, ForestTree, HostTree, IntroBoard, TrailEnd, TreeShape, TREE_KINDS } from "../components/ForestArt";
+import { ForestBackdrop, ForestGrade, ForestTree, HostTree, IntroBoard, TrailEnd, TreeImage, TeaBench, TREE_KINDS } from "../components/ForestArt";
 import { forestData } from "../spaceData";
 
 // 🌳 무해림(無害林) — 제1회 기획전 「무해림 — 당신이 심은 나무」 (찻집 오른쪽 아래 통로)
@@ -16,6 +16,8 @@ import { forestData } from "../spaceData";
 //  - 나무 가까이 가면 화면 위에 그 팻말 문장이 크게 떠요 ("나에게 무해림은 ___이다. — 닉네임")
 //  - 원하는 자리에 멈춰 [🌱 여기에 나무 심기] → 한 줄 + 나무 종류 고르기 → 그 자리에 나무가 자라요 (한 사람당 한 그루, 고쳐 쓰기·뽑기 가능)
 //  - 나무가 늘수록 길이 오른쪽으로 길어져요
+//  - 🍵 숲 중간 벤치: 가까이 가면 [🍵 야차하기] → 벤치에 앉아 차 고르고 마시기 (야차 = 야외에서 차 마시기). 차 종류는 ⚙️ 사장님 모드에서 바꿔요
+//  - Firebase forest/yachaTeas = ["보리차", ...]
 //  - 입구 서문 팻말 (처음 오면 "!") · 주인장 나무(林, 두 그루) · 숲길 끝 표시
 //  - 전시 마무리: ⚙️ → 주인장(호스트·사장님)이 "주인장 나무 팻말 다시 쓰기" → 처음 팻말 위에 새 문장이 걸려요
 //  - Firebase: forest/trees/{닉네임} = { nickname, byId, text, kind, x, createdAt, updatedAt } · forest/host = { rewritten, rewrittenAt }
@@ -30,9 +32,11 @@ const PATH_BOTTOM = 1110;
 const WALK_TOP = 0.8; // 발이 다닐 수 있는 범위 (비율)
 const WALK_BOTTOM = 0.92;
 const INTRO_X = 380; // 서문 팻말
-const HOST_X = 820; // 주인장 나무
-const FIRST_PLANT_X = 1120; // 이보다 오른쪽부터 심을 수 있어요
-const MIN_GAP = 170; // 나무 사이 최소 간격
+const HOST_X = 860; // 주인장 나무
+const BENCH_X = 1200; // 🍵 야차 벤치 (주인장 나무 다음, 숲 중간 쉼터)
+const BENCH_FLOOR = 1000; // 벤치 다리가 닿는 높이 (길 안쪽 가장자리)
+const FIRST_PLANT_X = 1440; // 이보다 오른쪽부터 심을 수 있어요
+const MIN_GAP = 260; // 나무 사이 최소 간격
 const READ_RADIUS = 150; // 이만큼 가까우면 팻말 문장이 떠요
 const MAX_LEN = 40;
 
@@ -73,14 +77,15 @@ function useForest() {
 }
 
 // ---------------- 🗺️ 숲 그림 ----------------
-function ForestScene({ mapW, trees, nearKey, myKey, introAlert, onOpenIntro }) {
+function ForestScene({ mapW, trees, nearKey, myKey, introAlert, onOpenIntro, benchBusy }) {
   const now = Date.now();
   return (
     <div className="absolute inset-0">
       <style>{`@keyframes forest-grow{0%{transform:scale(.25,.1)}100%{transform:none}}`}</style>
-      <ForestBackdrop mapW={mapW} mapH={MAP_H} groundY={GROUND_Y} pathTop={PATH_TOP} pathBottom={PATH_BOTTOM} />
+      <ForestBackdrop mapW={mapW} mapH={MAP_H} groundY={GROUND_Y} pathTop={PATH_TOP} pathBottom={PATH_BOTTOM} count={trees.length} />
       <IntroBoard x={INTRO_X} groundY={GROUND_Y + 20} alert={introAlert} onOpen={onOpenIntro} title={forestData.title.split("—")[1]?.trim() ?? forestData.title} edition={forestData.edition} />
       <HostTree x={HOST_X} groundY={GROUND_Y} near={nearKey === "__host"} />
+      <TeaBench x={BENCH_X} floorY={BENCH_FLOOR} busy={benchBusy} />
       {trees.map((t) => (
         <ForestTree
           key={t.key}
@@ -95,6 +100,7 @@ function ForestScene({ mapW, trees, nearKey, myKey, introAlert, onOpenIntro }) {
         />
       ))}
       <TrailEnd x={mapW - 260} groundY={GROUND_Y + 10} count={trees.length + 1} />
+      <ForestGrade />
     </div>
   );
 }
@@ -108,7 +114,7 @@ function ReadingCard({ near, host, mine, canRemove, onEdit, onRemove }) {
       <div className="pointer-events-auto border-[5px] border-[#2b1d1a] bg-[#f3e2bd] px-5 py-4 text-center text-[#2b1d1a] shadow-[6px_6px_0_0_rgba(0,0,0,0.35)]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f, 6px 6px 0 0 rgba(0,0,0,.35)" }}>
         {isHostTree ? (
           <>
-            <p className="text-xs font-black tracking-widest text-[#7c2d12]"> 무해임의 나무</p>
+            <p className="text-xs font-black tracking-widest text-[#7c2d12]">🍵 무해림의 나무</p>
             {host.rewritten ? (
               <>
                 <p className="mt-2 text-sm text-[#2b1d1a]/50">
@@ -127,7 +133,7 @@ function ReadingCard({ near, host, mine, canRemove, onEdit, onRemove }) {
           </>
         ) : (
           <>
-            <p className="text-base font-bold">나에게 무해임은</p>
+            <p className="text-base font-bold">나에게 무해림은</p>
             <p className="mt-1 break-words text-2xl font-black leading-snug">{near.text}</p>
             <p className="mt-1 text-base font-bold">이다.</p>
             <p className="mt-2 text-sm font-black text-[#7c2d12]">
@@ -169,7 +175,7 @@ function PlantForm({ initial, onSubmit, onCancel }) {
     >
       <p className="text-sm leading-relaxed text-amber-50/90">{initial ? "팻말을 고쳐 써요. 나무 자리는 그대로예요." : "이 자리에 당신의 나무를 심어요. 팻말에 한 줄을 남겨 주세요."}</p>
       <div className="mt-3 border-[5px] border-[#2b1d1a] bg-[#f3e2bd] p-4 text-[#2b1d1a]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f" }}>
-        <p className="font-bold">나에게 무해임은</p>
+        <p className="font-bold">나에게 무해림은</p>
         <input
           value={text}
           autoFocus
@@ -178,7 +184,7 @@ function PlantForm({ initial, onSubmit, onCancel }) {
             setText(e.target.value);
             setMsg("");
           }}
-          placeholder="여러분이 생각하는 나 예시 적기"
+          placeholder="겨울에 꺼내 마시는 따뜻한 보리차"
           className="mt-1 w-full border-b-4 border-dashed border-[#2b1d1a]/40 bg-transparent py-1 text-xl font-black outline-none placeholder:font-bold placeholder:text-[#2b1d1a]/30 focus:border-[#b45309]"
         />
         <div className="mt-1 flex items-center justify-between">
@@ -192,9 +198,9 @@ function PlantForm({ initial, onSubmit, onCancel }) {
       <div className="mt-1.5 grid grid-cols-3 gap-2 sm:grid-cols-6">
         {TREE_KINDS.map((k, i) => (
           <button key={i} type="button" onClick={() => setKind(i)} aria-pressed={kind === i} className={`flex flex-col items-center border-4 p-1 ${kind === i ? "border-amber-400 bg-[#3b2a20]" : "border-[#1a110e] bg-[#2b1d1a]"}`}>
-            <svg viewBox="0 0 32 48" width="44" height="66" shapeRendering="crispEdges">
-              <TreeShape kind={i} />
-            </svg>
+            <span className="flex h-[66px] items-end justify-center">
+              <TreeImage kind={i} height={66} maxWidth={70} />
+            </span>
             <span className="mt-0.5 text-[11px] font-bold text-white/80">{k.name}</span>
           </button>
         ))}
@@ -212,8 +218,119 @@ function PlantForm({ initial, onSubmit, onCancel }) {
   );
 }
 
+// ---------------- 🍵 야차 (벤치에 앉으면) ----------------
+//  차 종류는 ⚙️ 사장님 모드에서 그때그때 바꿔요 (Firebase forest/yachaTeas = ["보리차", ...])
+const DEFAULT_TEAS = ["보리차", "녹차", "유자차", "오미자차"];
+function useYachaTeas() {
+  const [teas, setTeas] = useState(DEFAULT_TEAS);
+  useEffect(() => {
+    if (!db) return;
+    return onValue(ref(db, "forest/yachaTeas"), (snap) => {
+      const v = snap.val();
+      const list = Array.isArray(v) ? v : v && typeof v === "object" ? Object.values(v) : null;
+      setTeas(list && list.filter(Boolean).length ? list.filter(Boolean) : DEFAULT_TEAS);
+    });
+  }, []);
+  return teas;
+}
+
+function YachaPanel({ api, teas }) {
+  const seated = !!api.mySeat && String(api.mySeat.id).startsWith("yacha");
+  const [tea, setTea] = useState(null);
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (seated && !startedRef.current) {
+      startedRef.current = true;
+      setTea(null);
+    }
+    if (!seated) startedRef.current = false;
+  }, [seated]);
+  if (!seated) return null;
+  return (
+    <div className="pointer-events-none fixed left-1/2 top-[15%] z-30 w-[min(460px,92vw)] -translate-x-1/2">
+      <div className="pointer-events-auto border-[5px] border-[#2b1d1a] bg-[#f3e2bd] px-4 py-3 text-center text-[#2b1d1a]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f, 6px 6px 0 0 rgba(0,0,0,.35)" }}>
+        {!tea ? (
+          <div className="flex flex-wrap justify-center gap-2">
+            {teas.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => {
+                  setTea(t);
+                  api.playAction("pouring");
+                }}
+                className="border-4 border-[#2b1d1a] bg-[#e9cf9f] px-3 py-1.5 text-sm font-black active:translate-y-0.5"
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex justify-center gap-2">
+            <button type="button" onClick={() => api.playAction("drinking")} className="border-4 border-[#2b1d1a] bg-amber-400 px-4 py-1.5 font-black active:translate-y-0.5">
+              🍵 {tea} 한 모금
+            </button>
+            <button type="button" onClick={() => setTea(null)} className="border-4 border-[#2b1d1a] bg-[#e9cf9f] px-3 py-1.5 text-sm font-black">
+              다른 차
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 🍵 사장님: 야차 차 종류 바꾸기
+function YachaTeaEditor({ teas }) {
+  const [list, setList] = useState(teas);
+  const [add, setAdd] = useState("");
+  const [msg, setMsg] = useState("");
+  useEffect(() => setList(teas), [teas]);
+  const save = (next) => {
+    setList(next);
+    if (!db) return;
+    set(ref(db, "forest/yachaTeas"), next.length ? next : null)
+      .then(() => setMsg("차 종류를 바꿨어요 🍵"))
+      .catch(() => setMsg("저장하지 못했어요 (Firebase 규칙 확인)"));
+  };
+  return (
+    <div className="mt-4 border-t-4 border-dashed border-white/15 pt-3">
+      <p className="text-xs font-black text-amber-200">🍵 야차 벤치 차 종류</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {list.map((t, i) => (
+          <span key={t + i} className="flex items-center gap-1 border-2 border-[#1a110e] bg-[#f5e6c8] py-0.5 pl-2 pr-1 text-sm font-bold text-[#2b1d1a]">
+            {t}
+            <button type="button" aria-label={`${t} 빼기`} onClick={() => save(list.filter((_, j) => j !== i))} className="px-1 font-black text-rose-700">
+              ✕
+            </button>
+          </span>
+        ))}
+      </div>
+      <form
+        className="mt-2 flex gap-1.5"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const v = add.trim().slice(0, 12);
+          if (!v || list.includes(v)) return;
+          save([...list, v]);
+          setAdd("");
+        }}
+      >
+        <input value={add} onChange={(e) => setAdd(e.target.value)} maxLength={12} placeholder="예: 대추차" className="min-w-0 flex-1 border-4 border-[#1a110e] bg-[#fdf6e3] px-2 py-1 text-sm text-[#2b1d1a] outline-none" />
+        <button type="submit" className="shrink-0 border-4 border-[#1a110e] bg-amber-400 px-3 py-1 text-sm font-black text-[#2b1d1a]">
+          ＋ 추가
+        </button>
+      </form>
+      <button type="button" onClick={() => save(DEFAULT_TEAS)} className="mt-1.5 text-[11px] font-bold text-white/60 underline">
+        처음 차 목록으로 되돌리기
+      </button>
+      {msg && <p className="mt-1 text-xs font-bold text-lime-300">{msg}</p>}
+    </div>
+  );
+}
+
 // ---------------- ⚙️ 설정 (새소리 · 주인장 팻말 다시 쓰기) ----------------
-function ForestSettings({ api, birds, onBirds, host, count }) {
+function ForestSettings({ api, birds, onBirds, host, count, teas }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(host.rewritten ?? "");
   const [msg, setMsg] = useState("");
@@ -242,6 +359,7 @@ function ForestSettings({ api, birds, onBirds, host, count }) {
       </button>
       {open && (
         <SettingsPanel api={api} title="⚙️ 무해림 설정" noise={false} top={top}>
+          {api.isOwner && <YachaTeaEditor teas={teas} />}
           {canHost && (
             <div className="mt-4 border-t-4 border-dashed border-white/15 pt-3">
               <p className="text-xs font-black text-amber-200">🍵 전시 마무리 — 주인장 나무 팻말 다시 쓰기</p>
@@ -260,7 +378,7 @@ function ForestSettings({ api, birds, onBirds, host, count }) {
 }
 
 // ---------------- 화면 위 UI ----------------
-function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBirds }) {
+function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBirds, teas }) {
   const fx = api.feet?.x ?? -9999;
   // 가장 가까운 나무 (주인장 나무 포함)
   let near = null;
@@ -277,15 +395,16 @@ function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBi
     }
   }
   const myTree = trees.find((t) => t.key === myKey);
-  const tooClose = [HOST_X, ...trees.map((t) => t.x)].some((x) => Math.abs(x - fx) < MIN_GAP);
+  const tooClose = [HOST_X, BENCH_X, ...trees.map((t) => t.x)].some((x) => Math.abs(x - fx) < MIN_GAP);
   const canPlant = !myTree && fx >= FIRST_PLANT_X && fx <= mapW - 140 && !tooClose;
   const owner = api.isOwner || isHost(api.nickname);
 
   return (
     <>
-      <ForestSettings api={api} birds={birds} onBirds={onBirds} host={host} count={trees.length + 1} />
+      <ForestSettings api={api} birds={birds} onBirds={onBirds} host={host} count={trees.length + 1} teas={teas} />
+      <YachaPanel api={api} teas={teas} />
       <ReadingCard
-        near={near}
+        near={api.mySeat ? null : near}
         host={host}
         mine={near && near.key === myKey}
         canRemove={near && near.key !== "__host" && (near.key === myKey || owner)}
@@ -296,7 +415,7 @@ function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBi
         }}
       />
       {/* 🌱 심기 버튼 (아래 가운데) */}
-      {!myTree && fx > 0 && (
+      {!myTree && fx > 0 && !api.mySeat && (
         <div className="safe-bottom fixed bottom-32 left-1/2 z-30 -translate-x-1/2 sm:bottom-6">
           {canPlant ? (
             <button type="button" onClick={() => onPlant(fx)} className="whitespace-nowrap border-4 border-[#1a110e] bg-amber-400 px-5 py-2.5 text-lg font-black text-[#2b1d1a] shadow-[4px_4px_0_0_rgba(0,0,0,0.45)] active:translate-y-0.5 active:shadow-none">
@@ -315,6 +434,7 @@ function ForestHud({ api, trees, host, mapW, myKey, onPlant, onEdit, birds, onBi
 
 export default function ForestPage() {
   const { trees, host } = useForest();
+  const teas = useYachaTeas();
   const maxX = trees.reduce((m, t) => Math.max(m, t.x), HOST_X);
   const mapW = Math.max(BASE_W, Math.round(maxX + EXTRA_W));
   const [nickname, setNickname] = useState("");
@@ -363,10 +483,25 @@ export default function ForestPage() {
       { x: 0, y: 0, w: 1, h: WALK_TOP }, // 하늘·풀밭 (길 위쪽)
       { x: 0, y: WALK_BOTTOM, w: 1, h: 1 - WALK_BOTTOM }, // 길 아래쪽
       { x: 1 - 40 / mapW, y: 0, w: 40 / mapW, h: 1 }, // 오른쪽 끝
+      { x: (BENCH_X - 170) / mapW, y: WALK_TOP, w: 340 / mapW, h: (BENCH_FLOOR + 8) / MAP_H - WALK_TOP }, // 🍵 벤치 (앞으로는 지나갈 수 있어요)
     ],
     [mapW]
   );
   const spots = [{ id: INTRO_ID, rect: { x: R(INTRO_X - 120), y: 0.56, w: R(240), h: 0.04 }, near: { x: R(INTRO_X), y: 0.86 }, radius: 150, icon: "📜", title: "서문 읽기" }];
+  // 🍵 야차 벤치 두 자리 — 앞·옆 어디서 다가가도 [🍵 야차하기]
+  const seats = [-1, 1].map((d, i) => ({
+    id: `yacha${i + 1}`,
+    x: (BENCH_X + d * 72) / mapW,
+    y: (BENCH_FLOOR - 40) / MAP_H, // 발끝 자리 (엉덩이가 앉는 판에 닿게 조금 위)
+    dir: "down",
+    legs: true,
+    icon: "🍵",
+    label: "야차하기",
+    stands: [
+      { x: (BENCH_X + d * 72) / mapW, y: 0.885 },
+      { x: (BENCH_X + d * 205) / mapW, y: 0.835 },
+    ],
+  }));
   const exits = [{ id: "back", to: "teaHouse", zone: { x: 0, y: WALK_TOP, w: R(80), h: WALK_BOTTOM - WALK_TOP }, label: "⬅ ☕ 찻집" }];
   const spawns = { default: { x: R(150), y: 0.86 }, teaHouse: { x: R(150), y: 0.86 } };
 
@@ -395,12 +530,13 @@ export default function ForestPage() {
       welcome="오른쪽으로 걸으며 사람들이 심은 나무를 만나 보세요 · 원하는 자리에서 🌱 나무 심기 · 왼쪽 끝 = ☕ 찻집"
       mapW={mapW}
       mapH={MAP_H}
-      outside="linear-gradient(#7fb6de 50%, #6f8f45 50%)"
+      outside="linear-gradient(#5f7682 50%, #4f6b47 50%)"
       sideScroll
       blockers={blockers}
       spots={spots}
       exits={exits}
       spawns={spawns}
+      seats={seats}
       onEnter={({ openDetail }) => {
         openRef.current = openDetail;
       }}
@@ -415,6 +551,7 @@ export default function ForestPage() {
             myKey={keyOf(api.nickname)}
             birds={birds}
             onBirds={changeBirds}
+            teas={teas}
             onPlant={(x) => {
               setPlantAt({ x });
               api.openDetail(PLANT_ID);
@@ -443,7 +580,7 @@ export default function ForestPage() {
         </PixelModal>,
       ]}
     >
-      <ForestScene mapW={mapW} trees={trees} nearKey={null} myKey={myKey} introAlert={introAlert} onOpenIntro={() => openRef.current?.(INTRO_ID)} />
+      <ForestScene mapW={mapW} trees={trees} nearKey={null} myKey={myKey} introAlert={introAlert} onOpenIntro={() => openRef.current?.(INTRO_ID)} benchBusy={false} />
     </SimpleRoom>
   );
 }

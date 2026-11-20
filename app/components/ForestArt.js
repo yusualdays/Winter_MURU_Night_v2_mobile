@@ -1,10 +1,41 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 // 🌳 무해림 숲길 그림 (모두 코드로 그린 픽셀아트 — 그림 파일이 필요 없어요)
 //  - ForestBackdrop: 하늘 · 구름 · 먼 산 · 풀밭 · 오솔길 (지도 폭만큼 옆으로 길게)
 //  - ForestTree: 손님 나무 6종 (kind 0~5) + 팻말
 //  - HostTree: 주인장 나무 — 林처럼 나란히 선 두 그루
 //  - IntroBoard: 입구 서문 팻말 · TrailEnd: 숲길 끝 표시
+//  🎨 그림 파일이 public/forest/ 에 있으면 그 그림을, 없으면 코드 그림을 써요
+//    bg_sky.png (하늘, 가로로 이어 붙여요) · forest_tree_1~6.png (1 느티 · 2 소나무 · 3 자작 · 4 감 · 5 단풍 · 6 벚나무)
+
+// 그림 파일이 있는지 (한 번 확인하면 기억해요)
+const imgCache = {};
+export function useForestImg(name) {
+  const src = `/forest/${name}.png`;
+  const [ok, setOk] = useState(imgCache[src]);
+  useEffect(() => {
+    if (imgCache[src] !== undefined) return setOk(imgCache[src]);
+    const im = new Image();
+    im.onload = () => setOk((imgCache[src] = true));
+    im.onerror = () => setOk((imgCache[src] = false));
+    im.src = src;
+  }, [src]);
+  return ok ? src : null;
+}
+const treeFile = (kind) => `forest_tree_${(kind % 6) + 1}`;
+
+// 나무 그림 한 장 (그림 파일 → 없으면 코드 그림) — 바닥 가운데 맞춤
+export function TreeImage({ kind = 0, height, maxWidth }) {
+  const src = useForestImg(treeFile(kind));
+  if (src) return <img src={src} alt="" draggable={false} style={{ height, width: "auto", maxWidth, imageRendering: "pixelated", objectFit: "contain", objectPosition: "bottom", filter: "saturate(.78) brightness(.9)" }} />;
+  return (
+    <svg viewBox="0 0 32 48" height={height} width={(height * 2) / 3} shapeRendering="crispEdges">
+      <TreeShape kind={kind} />
+    </svg>
+  );
+}
 
 export const TREE_KINDS = [
   { name: "둥근 느티나무" },
@@ -47,31 +78,85 @@ function Cloud({ x, y, s = 1, delay = 0 }) {
 }
 
 // 하늘·산·풀밭·길 (지도 전체) — groundY: 나무가 서는 높이, pathTop/pathBottom: 길 (모두 맵 px)
-export function ForestBackdrop({ mapW, mapH, groundY, pathTop, pathBottom }) {
-  const clouds = [];
-  for (let i = 0, x = 120; x < mapW; i++, x += 520 + ((i * 137) % 260)) {
-    clouds.push(<Cloud key={i} x={x} y={60 + ((i * 97) % 260)} s={0.8 + ((i * 53) % 10) / 10} delay={-((i * 7) % 18)} />);
+// 🌲 깊은 숲 무늬 (코드로 그린 나무줄기 줄 — 그림 파일 forest_far / forest_mid가 생기면 바꿔요)
+//  seed로 줄기 위치를 정해요 (매번 같은 모양)
+function trunkRow({ w, h, n, minW, maxW, trunk, edge, leaf, leafHi, seed, canopyY, fern }) {
+  let r = seed;
+  const rnd = () => ((r = (r * 9301 + 49297) % 233280) / 233280);
+  let body = "";
+  for (let i = 0; i < n; i++) {
+    const tw = Math.round(minW + rnd() * (maxW - minW));
+    const x = Math.round((i / n) * w + rnd() * (w / n - tw));
+    body += `<rect x="${x}" y="0" width="${tw}" height="${h}" fill="${trunk}"/><rect x="${x}" y="0" width="${Math.max(2, Math.round(tw / 5))}" height="${h}" fill="${edge}"/>`;
+    // 가지
+    const by = Math.round(canopyY + rnd() * h * 0.25);
+    const dir = rnd() > 0.5 ? 1 : -1;
+    body += `<rect x="${dir > 0 ? x + tw : x - 40}" y="${by}" width="40" height="${Math.max(3, Math.round(tw / 6))}" fill="${trunk}"/>`;
   }
+  // 위쪽 잎 덩어리
+  for (let i = 0; i < n * 3; i++) {
+    const cw = Math.round(60 + rnd() * 120);
+    const ch = Math.round(30 + rnd() * 60);
+    const x = Math.round(rnd() * (w - cw));
+    const y = Math.round(rnd() * canopyY);
+    const R = (a) => Math.round(a);
+    body += `<rect x="${x}" y="${R(y + ch * 0.35)}" width="${cw}" height="${R(ch * 0.65)}" fill="${leaf}"/>`;
+    body += `<rect x="${R(x + cw * 0.12)}" y="${R(y + ch * 0.12)}" width="${R(cw * 0.76)}" height="${R(ch * 0.5)}" fill="${leaf}"/>`;
+    body += `<rect x="${R(x + cw * 0.3)}" y="${y}" width="${R(cw * 0.4)}" height="${R(ch * 0.3)}" fill="${leaf}"/>`;
+    body += `<rect x="${R(x + cw * 0.3)}" y="${y}" width="${R(cw * 0.25)}" height="5" fill="${leafHi}"/><rect x="${R(x + cw * 0.12)}" y="${R(y + ch * 0.12)}" width="${R(cw * 0.2)}" height="5" fill="${leafHi}"/>`;
+    body += `<rect x="${R(x + cw * 0.05)}" y="${R(y + ch - 4)}" width="${R(cw * 0.9)}" height="4" fill="${trunk}" opacity=".35"/>`;
+  }
+  if (fern) {
+    for (let i = 0; i < n * 2; i++) {
+      const fw = Math.round(30 + rnd() * 50);
+      const x = Math.round(rnd() * (w - fw));
+      body += `<rect x="${x}" y="${h - 22}" width="${fw}" height="22" fill="${fern}"/><rect x="${x + 6}" y="${h - 30}" width="${Math.round(fw / 2)}" height="8" fill="${fern}"/>`;
+    }
+  }
+  return enc(`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" shape-rendering="crispEdges">${body}</svg>`);
+}
+const FAR_TREES = trunkRow({ w: 700, h: 760, n: 9, minW: 10, maxW: 22, trunk: "#71878a", edge: "#7f9598", leaf: "#6a8481", leafHi: "#7d9693", seed: 7, canopyY: 260 });
+const MID_TREES = trunkRow({ w: 900, h: 900, n: 6, minW: 26, maxW: 46, trunk: "#2b362f", edge: "#3b4a40", leaf: "#2d4434", leafHi: "#3d5a43", seed: 21, canopyY: 300, fern: "#33503a" });
+const MEADOW = enc(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="48" shape-rendering="crispEdges"><rect width="96" height="48" fill="#4f6b47"/><rect x="8" y="4" width="4" height="10" fill="#5e7c52"/><rect x="12" y="8" width="4" height="6" fill="#5e7c52"/><rect x="40" y="24" width="4" height="10" fill="#45603f"/><rect x="70" y="6" width="4" height="10" fill="#5e7c52"/><rect x="24" y="38" width="3" height="3" fill="#c9d3c3"/><rect x="84" y="32" width="3" height="3" fill="#b9c6d6"/></svg>`
+);
+const EARTH = enc(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="32" shape-rendering="crispEdges"><rect width="128" height="32" fill="#7b6b55"/><rect x="10" y="8" width="8" height="4" fill="#6d5e4a"/><rect x="50" y="20" width="12" height="4" fill="#8a7a62"/><rect x="90" y="6" width="6" height="4" fill="#64564400"/><rect x="104" y="22" width="8" height="4" fill="#6d5e4a"/></svg>`
+);
+
+// 하늘·숲·풀밭·길 (지도 전체) — groundY: 나무가 서는 높이, pathTop/pathBottom: 길 (모두 맵 px)
+//  count: 심어진 나무 수 → 많을수록 안개가 걷히고 뒤쪽 숲이 짙어져요
+export function ForestBackdrop({ mapW, mapH, groundY, pathTop, pathBottom, count = 0 }) {
+  const grow = Math.min(1, count / 20); // 0 → 1 (나무 20그루면 다 자란 숲)
   return (
     <div className="absolute inset-0 overflow-hidden">
-      <style>{`@keyframes forest-cloud{to{transform:translateX(60px)}}@keyframes forest-bird{0%{transform:translate(0,0)}100%{transform:translate(900px,-120px)}}`}</style>
-      {/* 하늘 — 군산의 탁 트인 하늘 */}
-      <div className="absolute inset-0" style={{ background: "linear-gradient(#7fb6de 0%, #a9d0ea 35%, #d9ebf0 60%, #f4e6c6 74%)" }} />
-      {clouds}
-      {/* 날아가는 새 몇 마리 */}
-      {[0, 1].map((i) => (
-        <div key={i} className="absolute text-[#2b1d1a]/60" style={{ left: 300 + i * 1400, top: 300 + i * 60, fontSize: 26, animation: `forest-bird ${28 + i * 9}s linear ${-i * 11}s infinite` }}>
-          ˇ ˇ
-        </div>
-      ))}
-      {/* 먼 산 · 가까운 언덕 */}
-      <div className="absolute left-0 right-0" style={{ top: groundY - 300, height: 160, backgroundImage: HILLS_FAR, backgroundRepeat: "repeat-x", backgroundSize: "640px 160px" }} />
-      <div className="absolute left-0 right-0" style={{ top: groundY - 150, height: 140, backgroundImage: HILLS_NEAR, backgroundRepeat: "repeat-x", backgroundSize: "480px 140px" }} />
+      {/* 흐린 하늘 (비 온 뒤 저녁) */}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(#5f7682 0%, #7d929a 30%, #a3b3b2 60%, #b9c4bb 76%)" }} />
+      {/* 먼 숲 (안개 속) */}
+      <div className="absolute left-0 right-0" style={{ top: groundY - 760, height: 760, backgroundImage: FAR_TREES, backgroundRepeat: "repeat-x", backgroundSize: "700px 760px", opacity: 0.45 + grow * 0.4 }} />
+      {/* 안개 1 */}
+      <div className="absolute left-0 right-0" style={{ top: groundY - 520, height: 520, background: `linear-gradient(rgba(190,204,204,0), rgba(190,204,204,${0.75 - grow * 0.35}))` }} />
+      {/* 가까운 숲줄기 (나무가 늘수록 진해져요) */}
+      <div className="absolute left-0 right-0" style={{ top: groundY - 900 + 10, height: 900, backgroundImage: MID_TREES, backgroundRepeat: "repeat-x", backgroundSize: "900px 900px", opacity: 0.18 + grow * 0.72 }} />
+      {/* 위쪽 나뭇가지 그늘 */}
+      <div className="absolute inset-x-0 top-0 h-[260px]" style={{ background: "linear-gradient(rgba(30,44,36,.55), rgba(30,44,36,0))" }} />
+      {/* 안개 2 (숲과 풀밭 사이) */}
+      <div className="absolute left-0 right-0" style={{ top: groundY - 160, height: 200, background: "linear-gradient(rgba(200,212,210,0), rgba(200,212,210,.45), rgba(200,212,210,0))" }} />
       {/* 풀밭 */}
-      <div className="absolute left-0 right-0" style={{ top: groundY - 20, bottom: 0, backgroundImage: GRASS, backgroundSize: "96px 48px", borderTop: `6px solid #5a7836` }} />
-      {/* 오솔길 */}
-      <div className="absolute left-0 right-0" style={{ top: pathTop, height: pathBottom - pathTop, backgroundImage: PATH, backgroundSize: "128px 32px", borderTop: "6px solid #8a6038", borderBottom: "6px solid #8a6038", boxShadow: "inset 0 6px 0 #c9a06f" }} />
+      <div className="absolute left-0 right-0" style={{ top: groundY - 14, bottom: 0, backgroundImage: MEADOW, backgroundSize: "96px 48px", borderTop: "6px solid #435c3d" }} />
+      {/* 오솔길 (흐릿한 흙길) */}
+      <div className="absolute left-0 right-0" style={{ top: pathTop, height: pathBottom - pathTop, backgroundImage: EARTH, backgroundSize: "128px 32px", borderTop: "6px solid #5f523f", borderBottom: "6px solid #5f523f", opacity: 0.92 }} />
     </div>
+  );
+}
+
+// 🌫️ 숲 전체에 얹는 저녁빛·안개 (나무·팻말 위, 캐릭터 아래)
+export function ForestGrade() {
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(rgba(60,90,100,.22), rgba(40,70,70,.12))", mixBlendMode: "multiply" }} />
+      <div className="pointer-events-none absolute inset-x-0" style={{ top: 700, height: 300, background: "linear-gradient(rgba(205,215,212,0), rgba(205,215,212,.18), rgba(205,215,212,0))" }} />
+    </>
   );
 }
 
@@ -181,14 +266,12 @@ export function Plank({ label, highlight = false, wide = false }) {
 
 // 손님 나무 한 그루 — x: 바닥 가운데 (맵 px), groundY: 바닥 높이
 export function ForestTree({ x, groundY, kind, label, fresh, mine, near, size = 1 }) {
-  const W = 220 * size;
-  const H = 330 * size;
+  const W = 400 * size;
+  const H = 380 * size;
   return (
     <div className="pointer-events-none absolute" style={{ left: x - W / 2, top: groundY - H, width: W, height: H + 70 }}>
-      <div className="absolute inset-x-0 top-0" style={{ height: H, transformOrigin: "50% 100%", animation: fresh ? "forest-grow 1.6s steps(6, end)" : undefined, filter: near ? "drop-shadow(0 0 10px rgba(255,236,170,.9))" : undefined }}>
-        <svg viewBox="0 0 32 48" width="100%" height="100%" shapeRendering="crispEdges">
-          <TreeShape kind={kind} />
-        </svg>
+      <div className="absolute inset-x-0 top-0 flex items-end justify-center" style={{ height: H, transformOrigin: "50% 100%", animation: fresh ? "forest-grow 1.6s steps(6, end)" : undefined, filter: near ? "drop-shadow(0 0 10px rgba(255,236,170,.9))" : undefined }}>
+        <TreeImage kind={kind} height={H} maxWidth={W} />
       </div>
       <div className="absolute left-1/2 -translate-x-1/2" style={{ top: H - 34 }}>
         <Plank label={label} highlight={mine || near} />
@@ -199,17 +282,17 @@ export function ForestTree({ x, groundY, kind, label, fresh, mine, near, size = 
 
 // 주인장 나무 — 林: 나란히 선 두 그루
 export function HostTree({ x, groundY, near }) {
-  const W = 420;
-  const H = 400;
+  const W = 620;
+  const H = 440;
   return (
     <div className="pointer-events-none absolute" style={{ left: x - W / 2, top: groundY - H, width: W, height: H + 70 }}>
       <div className="absolute inset-x-0 top-0 flex items-end justify-center" style={{ height: H, filter: near ? "drop-shadow(0 0 12px rgba(255,236,170,.9))" : undefined }}>
-        <svg viewBox="0 0 32 48" width={230} height={H} shapeRendering="crispEdges" style={{ marginRight: -40 }}>
-          <TreeShape kind={0} />
-        </svg>
-        <svg viewBox="0 0 32 48" width={210} height={H * 0.92} shapeRendering="crispEdges">
-          <TreeShape kind={1} />
-        </svg>
+        <div style={{ marginRight: -70, display: "flex", alignItems: "flex-end" }}>
+          <TreeImage kind={0} height={H} maxWidth={360} />
+        </div>
+        <div style={{ display: "flex", alignItems: "flex-end" }}>
+          <TreeImage kind={1} height={H * 0.92} maxWidth={340} />
+        </div>
       </div>
       <div className="absolute left-1/2 -translate-x-1/2" style={{ top: H - 34 }}>
         <Plank label="🍵 무해림의 나무" highlight={near} wide />
@@ -269,6 +352,54 @@ export function TrailEnd({ x, groundY, count }) {
         <rect x="1" y="2" width="4" height="3" fill="#6b9a45" />
         <rect x="7" y="0" width="4" height="4" fill="#80a352" />
       </svg>
+    </div>
+  );
+}
+
+// 🍵 야차 벤치 (숲 중간, 앞에서 본 나무 벤치 + 찻쟁반) — x: 가운데, floorY: 벤치 다리가 닿는 높이 (맵 px)
+export function TeaBench({ x, floorY, busy }) {
+  const W = 340;
+  const H = 170;
+  return (
+    <div className="pointer-events-none absolute" style={{ left: x - W / 2, top: floorY - H, width: W, height: H }}>
+      <style>{`@keyframes yacha-steam{0%{opacity:0;transform:translateY(0) scaleX(1)}30%{opacity:.8}100%{opacity:0;transform:translateY(-34px) scaleX(1.6)}}`}</style>
+      <svg viewBox="0 0 60 30" width="100%" height="100%" shapeRendering="crispEdges" style={{ filter: "saturate(.85) brightness(.92)" }}>
+        {/* 그림자 */}
+        <rect x="4" y="28" width="52" height="2" fill="#00000030" />
+        {/* 등받이 */}
+        <rect x="5" y="2" width="50" height="11" fill="#2b1d1a" />
+        <rect x="6" y="3" width="48" height="4" fill="#8a6440" />
+        <rect x="6" y="3" width="48" height="1" fill="#a57b52" />
+        <rect x="6" y="8" width="48" height="4" fill="#7a5636" />
+        <rect x="6" y="8" width="48" height="1" fill="#946b47" />
+        {/* 등받이 기둥 */}
+        <rect x="8" y="2" width="3" height="16" fill="#2b1d1a" />
+        <rect x="49" y="2" width="3" height="16" fill="#2b1d1a" />
+        {/* 앉는 판 */}
+        <rect x="2" y="16" width="56" height="6" fill="#2b1d1a" />
+        <rect x="3" y="17" width="54" height="2" fill="#a57b52" />
+        <rect x="3" y="19" width="54" height="2" fill="#7a5636" />
+        {/* 다리 */}
+        <rect x="6" y="22" width="3" height="7" fill="#2b1d1a" />
+        <rect x="51" y="22" width="3" height="7" fill="#2b1d1a" />
+        <rect x="7" y="22" width="1" height="6" fill="#6b4a2e" />
+        <rect x="52" y="22" width="1" height="6" fill="#6b4a2e" />
+        {/* 찻쟁반 (가운데) */}
+        <rect x="24" y="15" width="12" height="2" fill="#2b1d1a" />
+        <rect x="25" y="15" width="10" height="1" fill="#c9a06f" />
+        {/* 다관 */}
+        <rect x="25" y="11" width="5" height="4" fill="#2b1d1a" />
+        <rect x="26" y="12" width="3" height="3" fill="#8b5e3c" />
+        <rect x="27" y="10" width="1" height="1" fill="#2b1d1a" />
+        <rect x="30" y="12" width="1" height="1" fill="#2b1d1a" />
+        {/* 찻잔 두 개 */}
+        <rect x="31" y="13" width="2" height="2" fill="#e8e2d0" />
+        <rect x="33.5" y="13" width="2" height="2" fill="#e8e2d0" />
+      </svg>
+      {/* 김 */}
+      {[0, 1, 2].map((i) => (
+        <span key={i} className="absolute h-5 w-[6px] rounded-full bg-white/70" style={{ left: `${44 + i * 4}%`, top: "26%", animation: `yacha-steam ${busy ? 2 : 3.2}s ${i * 0.7}s ease-out infinite`, opacity: 0 }} />
+      ))}
     </div>
   );
 }

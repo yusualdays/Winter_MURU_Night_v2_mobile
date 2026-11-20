@@ -36,6 +36,7 @@ import { EMOTE_KEYS } from "./EmoteBubble";
 //  onEnter  : 방에 들어왔을 때 한 번 ({ openDetail }) — 예: 첫 방문이면 안내 창 열기
 //  seats    : 앉을 수 있는 자리 [{ id, x, y, dir, stand: {x,y}, label }]
 //             x,y = 앉았을 때 엉덩이 자리(캐릭터 아래 가운데), stand = 의자 옆 서는 자리 (모두 0~1 비율)
+//             icon: 버튼 아이콘 (기본 🪑) · label: 버튼 글씨 (기본 "앉기")
 //             stands: [{x,y}, ...] → 서는 자리를 여러 개 (상하좌우 어디서든 앉기, 일어나면 다가온 자리로)
 //             legs: true → 다리를 자르지 않고 의자 앞으로 늘어뜨려요 (앞이 트인 벤치). 이때 x,y = 발끝 자리
 //  hud(api) : 화면 위에 덧붙일 UI (설정 창·배너 등). api = { nickname, myId, isOwner, setOwner,
@@ -705,7 +706,7 @@ export default function SimpleRoom({
       nearIcon = "🚫";
       nearTitle = `${takenSeats[st.id]}님 자리예요`;
     } else {
-      nearIcon = "🪑";
+      nearIcon = st.icon ?? "🪑";
       nearTitle = st.label ?? "앉기";
     }
   } else if (near) {
