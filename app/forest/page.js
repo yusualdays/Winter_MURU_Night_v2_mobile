@@ -163,9 +163,11 @@ function ReadingCard({ near, host, mine, canRemove, onEdit, onRemove, secretText
                 ✏️ 고쳐 쓰기
               </button>
             )}
-            <button type="button" onClick={onRemove} className="border-4 border-[#2b1d1a] bg-[#6e4530] px-3 py-1 text-sm font-black text-white">
-              🪓 나무 뽑기
-            </button>
+            {canRemove && (
+              <button type="button" onClick={onRemove} className="border-4 border-[#2b1d1a] bg-[#6e4530] px-3 py-1 text-sm font-black text-white">
+                🪓 나무 뽑기
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -535,7 +537,6 @@ function ForestHud({ api, trees, host, mapW, isMine, onPlant, onEdit, birds, onB
   const atEnd = fx > mapW - 700;
   const tooClose = [HOST_X, ...trees.map((t) => t.x)].some((x) => Math.abs(x - fx) < MIN_GAP) || Math.abs(benchX - fx) < BENCH_GAP;
   const canPlant = !myTree && fx >= FIRST_PLANT_X && fx <= mapW - 140 && !tooClose;
-  const owner = api.isOwner || isHost(api.nickname);
 
   return (
     <>
@@ -553,7 +554,7 @@ function ForestHud({ api, trees, host, mapW, isMine, onPlant, onEdit, birds, onB
         near={api.mySeat ? null : near}
         host={host}
         mine={near && near.key !== "__host" && isMine(near)}
-        canRemove={near && near.key !== "__host" && (isMine(near) || owner || admin.isAdmin)}
+        canRemove={near && near.key !== "__host" && api.isOwner} // 🪓 나무 뽑기는 사장님 인증한 주인장만
         secretText={near && near.secret ? admin.secrets[near.key] : null}
         onEdit={() => onEdit(near)}
         onRemove={() => {
