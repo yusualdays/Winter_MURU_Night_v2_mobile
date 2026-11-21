@@ -128,6 +128,26 @@ const EARTH = enc(
 //  count: 심어진 나무 수 → 많을수록 안개가 걷히고 뒤쪽 숲이 짙어져요
 export function ForestBackdrop({ mapW, mapH, groundY, pathTop, pathBottom, count = 0 }) {
   const grow = Math.min(1, count / 20); // 0 → 1 (나무 20그루면 다 자란 숲)
+  // 🎨 그림 배경 (public/forest/forest_far · forest_mid · forest_ground) — 셋 다 있으면 그림으로
+  const far = useForestImg("forest_far");
+  const mid = useForestImg("forest_mid");
+  const ground = useForestImg("forest_ground");
+  if (far && mid && ground) {
+    const H = 960; // 먼 숲·가까운 숲 높이 (맵 px)
+    const GT = 788; // 풀밭+오솔길 그림 윗부분 (길이 걷는 자리에 오게)
+    return (
+      <div className="absolute inset-0 overflow-hidden" style={{ background: "#22312c" }}>
+        <div className="absolute inset-x-0 top-0" style={{ height: H, backgroundImage: `url(${far})`, backgroundRepeat: "repeat-x", backgroundSize: `auto ${H}px`, imageRendering: "pixelated" }} />
+        {/* 안개 (나무가 늘수록 걷혀요) */}
+        <div className="absolute inset-x-0 top-0" style={{ height: H, background: `linear-gradient(rgba(170,190,192,0), rgba(170,190,192,${0.35 - grow * 0.25}))` }} />
+        {/* 가까운 숲 (나무가 늘수록 진해져요) */}
+        <div className="absolute inset-x-0 top-0" style={{ height: H, backgroundImage: `url(${mid})`, backgroundRepeat: "repeat-x", backgroundSize: `auto ${H}px`, imageRendering: "pixelated", opacity: 0.45 + grow * 0.55 }} />
+        {/* 풀밭 + 오솔길 */}
+        <div className="absolute inset-x-0" style={{ top: GT, height: 451, backgroundImage: `url(${ground})`, backgroundRepeat: "repeat-x", backgroundSize: "auto 451px", imageRendering: "pixelated" }} />
+        <div className="absolute inset-x-0" style={{ top: GT + 440, bottom: 0, background: "#767848" }} />
+      </div>
+    );
+  }
   return (
     <div className="absolute inset-0 overflow-hidden">
       {/* 흐린 하늘 (비 온 뒤 저녁) */}

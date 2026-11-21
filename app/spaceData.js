@@ -75,7 +75,7 @@ export const forestData = {
   placeholder: "고민도, 축하할 일도, 아무 말이나 괜찮아요.",
   maxLength: 100,
   // 주인장 나무 팻말 (처음 문장) — ⚙️ 관리(사장님 모드)에서 바꿀 수 있어요
-  hostSign: "아직 잘 모르겠는 나",
+  hostSign: "임반장, 무해임",
   hostName: "무해림",
   // 🔐 관리자 계정 UID — data.js의 adminUid를 같이 써요 (비밀 나무를 읽을 수 있는 사람)
   adminUid: partyData?.adminUid ?? "",

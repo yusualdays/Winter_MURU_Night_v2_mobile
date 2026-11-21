@@ -27,7 +27,7 @@ import { forestData } from "../spaceData";
 //  - 왼쪽 끝 → ☕ 찻집
 
 const MAP_H = 1200;
-const BASE_W = 2200; // 처음 숲길 길이 (맵 px)
+const BASE_W = 3000; // 처음 숲길 길이 (맵 px) — 넓은 모니터에서도 양옆에 빈 곳이 안 보이게
 const EXTRA_W = 900; // 마지막 나무 뒤로 남겨 두는 길
 const GROUND_Y = 912; // 나무가 서는 높이
 const PATH_TOP = 950;
@@ -697,7 +697,7 @@ export default function ForestPage() {
       welcome="왼쪽 끝 = ☕ 찻집"
       mapW={mapW}
       mapH={MAP_H}
-      outside="linear-gradient(#37494b 50%, #4a6443 50%)"
+      outside="linear-gradient(#1a2a28 50%, #767848 50%)"
       sideScroll
       blockers={blockers}
       exits={exits}
@@ -775,9 +775,11 @@ function ForestGuide({ onSeen, onClose }) {
   const paras = String(g.text ?? "").split(/\n\s*\n/).filter((p) => p.trim());
   return (
     <div>
-      <div className="border-[5px] border-[#2b1d1a] bg-[#f3e2bd] px-6 py-6 text-left text-[#2b1d1a]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f" }}>
-        <p className="text-4xl font-black tracking-[0.15em]">{g.title}</p>
-        <div className="mt-5 flex flex-col gap-4 text-[15px] font-bold leading-relaxed">
+      {/* 갈무리 글꼴 (픽셀 게임 글꼴 · SIL OFL 무료) — public/fonts */}
+      <style>{`@font-face{font-family:Galmuri11;src:url(/fonts/Galmuri11.woff2) format("woff2");font-weight:400;font-display:swap}@font-face{font-family:Galmuri11;src:url(/fonts/Galmuri11-Bold.woff2) format("woff2");font-weight:700;font-display:swap}`}</style>
+      <div className="border-[5px] border-[#2b1d1a] bg-[#f3e2bd] px-6 py-6 text-left text-[#2b1d1a]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f", fontFamily: "Galmuri11, sans-serif" }}>
+        <p className="text-4xl font-bold tracking-[0.15em]">{g.title}</p>
+        <div className="mt-5 flex flex-col gap-4 text-[15px] leading-[1.9]">
           {paras.map((p, i) => (
             <p key={i} className="whitespace-pre-line">
               {p.trim()}
