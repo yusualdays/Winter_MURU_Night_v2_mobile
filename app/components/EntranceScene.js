@@ -142,7 +142,7 @@ export default function EntranceScene({ onEnter, disabled = false }) {
       </div>
 
       {/* 가게 */}
-      <div className="absolute bottom-[14%] left-1/2 w-[92%] max-w-[560px] -translate-x-1/2 sm:w-[52%]" style={{ aspectRatio: "132 / 90" }}>
+      <div className="absolute bottom-[14%] left-1/2 w-[92%] -translate-x-1/2 sm:w-[52%]" style={{ aspectRatio: "132 / 90", maxWidth: "min(560px, calc(50vh * 132 / 90))" }}>
         <Store snow={season === "winter"} />
         <div className="pointer-events-none absolute left-[73%] top-[56%]">
           <span className="entry-steam absolute block h-3.5 w-1.5 rounded-full bg-white/70 blur-[2px]" />
@@ -152,11 +152,12 @@ export default function EntranceScene({ onEnter, disabled = false }) {
 
       {/* 제목 */}
       <div className="absolute inset-x-0 top-[calc(var(--sat,0px)+9%)] px-4 text-center">
-        <span className="inline-block border-2 border-amber-300/60 px-2 py-0.5 text-[11px] tracking-[0.25em] text-amber-300 sm:text-xs">겨울이 무르익는 밤</span>
+        <span className="inline-block border-2 border-amber-300/60 px-2 py-0.5 text-[11px] tracking-[0.2em] text-amber-300 sm:text-xs">저녁에만 문을 여는 온라인 찻집</span>
         <h1 className="mb-1 mt-2 text-[30px] font-bold text-[#fff7e6] sm:text-[40px]" style={{ textShadow: "3px 3px 0 #2b1d1a", letterSpacing: "0.12em" }}>
           無害林
         </h1>
-        <p className="text-[13px] text-[#f1e3c6] sm:text-base">문을 열면, 따뜻한 차 한 잔이 기다려요</p>
+        {/* 한 줄 문구는 휴대폰에서만 */}
+        <p className="text-[13px] text-[#f1e3c6] sm:hidden">문을 열면, 따뜻한 차 한 잔이 기다려요</p>
       </div>
 
       {/* 입장하기 */}
