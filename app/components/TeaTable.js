@@ -145,8 +145,8 @@ function TeaCup({ at, spot }) {
 // 다식 3개 (dasik_piece_1~3.png) — 한 입 먹을 때마다 하나씩 없어져요
 function SweetsPlate({ sweets, w }) {
   const left = Math.max(0, sweets.left ?? 0);
-  const piece = Math.round(w * 0.6); // 다식 그림은 가운데에 작게 그려져 있어서 칸을 크게
-  const xs = [0.3, 0.5, 0.7];
+  const piece = Math.round(w * 0.36); // 다식 3개가 접시 안에 쏙 들어가는 크기
+  const xs = [0.34, 0.5, 0.66];
   return (
     <div className="relative h-full w-full">
       <CraftImg
@@ -155,7 +155,7 @@ function SweetsPlate({ sweets, w }) {
         fallback={<span className="absolute inset-x-0 bottom-0.5 h-[45%] rounded-[50%] border-[3px] border-[#2b1d1a] bg-white" />}
       />
       {Array.from({ length: left }, (_, i) => (
-        <div key={i} className="absolute -translate-x-1/2" style={{ left: `${xs[i] * 100}%`, bottom: w * (i === 1 ? 0.12 : 0.02), width: piece }}>
+        <div key={i} className="absolute -translate-x-1/2" style={{ left: `${xs[i] * 100}%`, bottom: w * (i === 1 ? 0.36 : 0.3), width: piece }}>
           <CraftImg
             name={`dasik_piece_${i + 1}`}
             className="w-full"

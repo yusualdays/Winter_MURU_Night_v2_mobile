@@ -23,17 +23,22 @@ const safeUrl = (u) => (/^https?:\/\//i.test((u || "").trim()) ? u.trim() : "");
 // ---------------- 카운터 ----------------
 export function CounterModal({ open, onClose, onPick }) {
   return (
-    <PixelModal open={open} onClose={onClose} label="🍵 카운터" title="무엇을 도와드릴까요?" width={400}>
-      <div className="mb-3 flex items-center gap-3 border-4 border-[#1a110e] bg-[#f5e6c8] p-3 text-[#2b1d1a]">
-        <div className="shrink-0 bg-[#d9c7a6] px-1 pt-1">
-          <DayeonSprite scale={2.5} />
+    <PixelModal open={open} onClose={onClose} label="🍵 카운터" width={400}>
+      {/* 다연이 말풍선으로 인사 */}
+      <div className="mb-4 mt-1 flex items-end gap-2">
+        <div className="shrink-0">
+          <DayeonSprite scale={3} />
         </div>
-        <p className="text-sm font-bold leading-relaxed">“어서 오세요! 차림표를 보시겠어요, 아니면 직접 만들어 보시겠어요?”</p>
+        <div className="relative mb-8 border-4 border-[#1a110e] bg-white px-4 py-2.5 text-[#2b1d1a] shadow-[4px_4px_0_0_rgba(0,0,0,0.3)]">
+          <p className="text-base font-bold leading-snug">안녕하세요. 주문하시겠어요?</p>
+          {/* 말풍선 꼬리 (다연 쪽) */}
+          <span className="absolute -left-[14px] bottom-3 border-y-[8px] border-r-[12px] border-y-transparent border-r-[#1a110e]" />
+          <span className="absolute -left-[7px] bottom-[14px] border-y-[6px] border-r-[8px] border-y-transparent border-r-white" />
+        </div>
       </div>
       <div className="flex flex-col gap-2">
-        <button type="button" onClick={() => onPick("menu")} className={`${BTN} bg-[#bbf7d0] text-left text-[#14532d]`}>🍵 차림표 보기</button>
         <button type="button" onClick={() => onPick("craft")} className={`${BTN} bg-[#fbcfe8] text-left text-[#831843]`}>🎮 미니게임 · 다식·말차 만들기</button>
-        <button type="button" onClick={() => onPick("guide")} className={`${BTN} bg-[#f5e6c8] text-left text-[#2b1d1a]`}>💬 다연에게 말 걸기 / 이용 안내</button>
+        <button type="button" onClick={() => onPick("guide")} className={`${BTN} bg-[#f5e6c8] text-left text-[#2b1d1a]`}>💬 말걸기</button>
       </div>
     </PixelModal>
   );

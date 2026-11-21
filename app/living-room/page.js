@@ -28,6 +28,7 @@ import { ROOMS, rememberFrom, inZone, isRoomOpen, getOwnerLocal } from "../lib/r
 import { EMOTE_KEYS } from "../components/EmoteBubble";
 import { ref, set, update, remove, push, onValue, onDisconnect, runTransaction, serverTimestamp } from "firebase/database";
 import { findPath } from "../lib/pathfind";
+import { hasInvite } from "../lib/invite";
 import { db } from "../lib/firebase";
 import { getMyId, getLook } from "../lib/session";
 import { DEFAULT_LOOK, normalizeLook } from "../lib/pixelCharacter";
@@ -204,7 +205,7 @@ export default function LivingRoom() {
     try {
       saved = localStorage.getItem("partyNickname");
     } catch {}
-    if (!saved) router.replace("/");
+    if (!saved || !hasInvite()) router.replace("/"); // 닉네임이 없거나 💌 초대받지 않은 기기 → 입구로
     else if (!isRoomOpen("livingRoom", saved)) router.replace(ROOMS.teaHouse.href); // 오픈 기간이 아니면 찻집으로
     else setNickname(saved);
     setOwnerMode(getOwnerLocal());

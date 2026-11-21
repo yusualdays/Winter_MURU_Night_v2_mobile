@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ref, set, update, remove, push, onValue, onDisconnect, runTransaction, serverTimestamp } from "firebase/database";
 import { findPath } from "../lib/pathfind";
+import { hasInvite } from "../lib/invite";
 import { db } from "../lib/firebase";
 import { getMyId, getLook } from "../lib/session";
 import { DEFAULT_LOOK, normalizeLook } from "../lib/pixelCharacter";
@@ -162,8 +163,8 @@ export default function SimpleRoom({
     try {
       saved = localStorage.getItem("partyNickname");
     } catch {}
-    if (!saved) {
-      router.replace("/");
+    if (!saved || !hasInvite()) {
+      router.replace("/"); // 닉네임이 없거나 💌 초대받지 않은 기기 → 입구로
       return;
     }
     // 기간이 아닌데 주소로 바로 들어오면 → 찻집으로

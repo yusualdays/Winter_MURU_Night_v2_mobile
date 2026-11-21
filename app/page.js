@@ -7,6 +7,7 @@ import { DEFAULT_LOOK, normalizeLook } from './lib/pixelCharacter';
 import { getLook, saveLook } from './lib/session';
 import { playDoorbell } from './lib/doorbell';
 import LoadingScreen from './components/LoadingScreen';
+import { acceptInviteFromUrl, acceptInviteCode, hasInvite } from './lib/invite';
 
 export default function EntranceGate() {
   const router = useRouter();
@@ -15,6 +16,21 @@ export default function EntranceGate() {
   const [look, setLook] = useState(DEFAULT_LOOK);
   const [error, setError] = useState('');
   const [entering, setEntering] = useState(false); // 거실로 들어가는 중 (로딩 화면)
+  // 💌 초대받은 기기인지 (null = 확인 중) — 초대 링크(?invite=코드)로 오면 기억해요
+  const [invited, setInvited] = useState(null);
+  const [code, setCode] = useState('');
+  const [codeMsg, setCodeMsg] = useState('');
+  useEffect(() => {
+    acceptInviteFromUrl();
+    setInvited(hasInvite());
+  }, []);
+  const submitCode = (e) => {
+    e.preventDefault();
+    if (acceptInviteCode(code)) {
+      setInvited(true);
+      setCodeMsg('');
+    } else setCodeMsg('초대 코드가 맞지 않아요. 받은 초대 링크로 다시 들어와 주세요.');
+  };
 
   // 거실 화면을 미리 준비해 두기 → 입장할 때 더 빨리 열려요
   useEffect(() => {
@@ -44,6 +60,7 @@ export default function EntranceGate() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!hasInvite()) return setInvited(false); // 💌 초대받지 않은 기기
     const name = nickname.trim();
     if (!name) return setError('닉네임을 입력해 주세요.');
     if (name.length > 12)
@@ -88,7 +105,33 @@ export default function EntranceGate() {
         <p className="mb-10 text-slate-300">
           따뜻한 집 안에서 친구들이 기다리고 있어요
         </p>
+        {invited === false ? (
+          /* 💌 초대받지 않은 기기: 초인종 대신 안내 + 초대 코드 입력 */
+          <div className="w-full max-w-sm rounded-2xl bg-slate-900/70 px-5 py-6 ring-1 ring-white/10">
+            <p className="text-3xl">💌</p>
+            <p className="mt-2 font-bold text-amber-200">초대받은 분만 들어올 수 있어요</p>
+            <p className="mt-1 text-sm text-slate-300">받은 초대 링크로 들어오거나, 초대 코드를 입력해 주세요.</p>
+            <form onSubmit={submitCode} className="mt-4 flex gap-2">
+              <input
+                value={code}
+                onChange={(e) => {
+                  setCode(e.target.value);
+                  setCodeMsg('');
+                }}
+                placeholder="초대 코드"
+                aria-label="초대 코드"
+                maxLength={40}
+                className="min-w-0 flex-1 rounded-lg bg-slate-800 px-3 py-2.5 text-white placeholder-slate-500 outline-none ring-1 ring-slate-600 focus:ring-2 focus:ring-amber-400"
+              />
+              <button type="submit" className="rounded-lg bg-amber-400 px-4 font-bold text-slate-900 hover:bg-amber-300">
+                확인
+              </button>
+            </form>
+            {codeMsg && <p className="mt-2 text-sm text-rose-400">{codeMsg}</p>}
+          </div>
+        ) : (
         <button
+          disabled={invited === null}
           onClick={() => {
             playDoorbell(); // 딩~동~
             setError('');
@@ -99,6 +142,7 @@ export default function EntranceGate() {
         >
           🔔 초인종 누르기
         </button>
+        )}
       </div>
 
       {isModalOpen && (
