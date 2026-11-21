@@ -38,7 +38,7 @@ export function TreeImage({ kind = 0, height, maxWidth }) {
 }
 
 export const TREE_KINDS = [
-  { name: "둥근 느티나무" },
+  { name: "느티나무" },
   { name: "소나무" },
   { name: "자작나무" },
   { name: "감나무" },

@@ -649,7 +649,8 @@ export default function SimpleRoom({
     const cx = (pos.x + AVATAR_WIDTH / 2) * scale;
     const cy = (pos.y + AVATAR_HEIGHT * 0.6) * scale;
     // 휴대폰: 오른쪽에 동그란 버튼(😊 💬 E)이 있어서, 지도 오른쪽 끝(전시실 통로 등)이 버튼에 가리지 않게 조금 더 밀어 볼 수 있어요
-    const rightRoom = isTouch ? 96 : 0;
+    //  (옆으로 긴 숲길은 끝 너머 빈 하늘이 보이지 않게 밀지 않아요)
+    const rightRoom = isTouch && !sideScroll ? 96 : 0;
     camX = sw <= vp.w ? (vp.w - sw) / 2 : clamp(vp.w / 2 - cx, vp.w - sw - rightRoom, 0);
     camY = sh <= vp.h ? (vp.h - sh) / 2 : clamp(vp.h * 0.42 - cy, vp.h - sh - 120, 60);
   }

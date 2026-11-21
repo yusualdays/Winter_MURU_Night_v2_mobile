@@ -211,6 +211,7 @@ function PlantForm({ initial, defaultName = "", onSubmit, onCancel }) {
             <span className="flex h-[66px] items-end justify-center">
               <TreeImage kind={i} height={66} maxWidth={70} />
             </span>
+            <span className={`mt-1 text-[11px] font-bold leading-tight ${kind === i ? "text-amber-200" : "text-white/75"}`}>{k.name}</span>
           </button>
         ))}
       </div>
@@ -531,7 +532,7 @@ function ForestHud({ api, trees, host, mapW, isMine, onPlant, onEdit, birds, onB
   if (near && api.dir === "left" && !(near.key !== "__host" && isMine(near))) near = null;
   const atEnd = fx > mapW - 700;
   const tooClose = [HOST_X, ...trees.map((t) => t.x)].some((x) => Math.abs(x - fx) < MIN_GAP) || Math.abs(benchX - fx) < BENCH_GAP;
-  const canPlant = !myTree && fx >= FIRST_PLANT_X && fx <= mapW - 140 && !tooClose;
+  const canPlant = !myTree && fx >= FIRST_PLANT_X && fx <= mapW - 60 && !tooClose; // 숲 끝까지 심을 수 있어요 (심으면 길이 더 길어져요)
 
   return (
     <>
@@ -555,7 +556,9 @@ function ForestHud({ api, trees, host, mapW, isMine, onPlant, onEdit, birds, onB
         onRemove={() => {
           if (!db || !near || !window.confirm("이 나무를 뽑을까요?")) return;
           const k = near.key;
-          remove(ref(db, `forest/trees/${k}`)).then(() => api.showToast("나무를 뽑았어요", "🪓"));
+          remove(ref(db, `forest/trees/${k}`))
+            .then(() => api.showToast("나무를 뽑았어요", "🪓"))
+            .catch(() => api.showToast("뽑지 못했어요 (관리자 로그인 확인)", "⚠️"));
           if (near.secret) remove(ref(db, `forestSecrets/${k}`)).catch(() => {}); // 내가 쓴 비밀이거나 관리자면 지워져요
         }}
       />
@@ -568,7 +571,7 @@ function ForestHud({ api, trees, host, mapW, isMine, onPlant, onEdit, birds, onB
             </button>
           ) : (
             <p className="whitespace-nowrap border-4 border-[#1a110e] bg-[#2b1d1a]/85 px-3 py-1.5 text-sm font-bold text-[#f5e6c8]">
-              {fx < FIRST_PLANT_X ? forestData.plantGuide : tooClose ? "옆 나무와 조금 떨어진 곳에 심어 주세요" : "조금 더 걸어가 주세요"}
+              {fx < FIRST_PLANT_X ? forestData.plantGuide : "옆 나무와 조금 떨어진 곳에 심어 주세요"}
             </p>
           )}
         </div>
@@ -694,7 +697,7 @@ export default function ForestPage() {
       welcome="왼쪽 끝 = ☕ 찻집"
       mapW={mapW}
       mapH={MAP_H}
-      outside="linear-gradient(#5f7682 50%, #4f6b47 50%)"
+      outside="linear-gradient(#37494b 50%, #4a6443 50%)"
       sideScroll
       blockers={blockers}
       exits={exits}
@@ -772,7 +775,7 @@ function ForestGuide({ onSeen, onClose }) {
   const paras = String(g.text ?? "").split(/\n\s*\n/).filter((p) => p.trim());
   return (
     <div>
-      <div className="border-[5px] border-[#2b1d1a] bg-[#f3e2bd] px-5 py-6 text-center text-[#2b1d1a]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f" }}>
+      <div className="border-[5px] border-[#2b1d1a] bg-[#f3e2bd] px-6 py-6 text-left text-[#2b1d1a]" style={{ boxShadow: "inset 0 0 0 4px #c9a06f" }}>
         <p className="text-4xl font-black tracking-[0.15em]">{g.title}</p>
         <div className="mt-5 flex flex-col gap-4 text-[15px] font-bold leading-relaxed">
           {paras.map((p, i) => (
