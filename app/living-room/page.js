@@ -191,7 +191,7 @@ export default function LivingRoom() {
 
   // ===== 오디오 상태 (각각 독립된 useState) =====
   const [bgmPlaying, setBgmPlaying] = useState(false);
-  const [bgmVolume, setBgmVolume] = useState(50);
+  const [bgmVolume, setBgmVolume] = useState(20); // 🎵 거실 BGM 기본 소리 크기 (0~100)
   const [firePlaying, setFirePlaying] = useState(false);
   const [fireVolume, setFireVolume] = useState(60);
 

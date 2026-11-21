@@ -96,7 +96,7 @@ const ALL_SEATS = [...TABLE_SEATS, ...SHARE_SEATS];
 
 // ---------------- 벽면 오브젝트 ----------------
 const SPEAKER = { x: 0.365, y: 0.2, w: 0.072, h: 0.12 }; // 통창 옆 라디오
-const BOARD = { x: 0.578, y: 0.08, w: 0.09, h: 0.096 }; // 📌 게시판 (위쪽 문과 茶 족자 사이 벽, public/craft/cafe_board.png)
+const BOARD = { x: 0.592, y: 0.057, w: 0.09, h: 0.096 }; // 📌 게시판 (위쪽 문과 茶 족자 사이 벽, public/craft/cafe_board.png)
 const BOOKSHELF = { x: 0.005, y: 0.655, w: 0.165, h: 0.345 };
 const TEAWARE_SHELF = { x: 0.812, y: 0.555, w: 0.183, h: 0.2 };
 

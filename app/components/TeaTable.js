@@ -59,7 +59,7 @@ function Spot({ cx, by, w, z = 0, children }) {
 function layoutFor(seat, o) {
   const hasTea = !!o.tea;
   const front = [o.sweets && "sweets", o.crafted && "crafted"].filter(Boolean);
-  const wOf = (k) => (k === "sweets" ? SIZE.plate : o.crafted?.kind === "matcha" ? SIZE.matcha : SIZE.dasik);
+  const wOf = (k) => (k === "sweets" ? SIZE.plate : o.crafted?.kind === "matcha" ? SIZE.matcha : o.crafted?.kind === "leaftea" ? SIZE.cup : SIZE.dasik);
   const L = {};
   if (seat.dir === "left" || seat.dir === "right") {
     // 2인 테이블 상판 반쪽 (가로 약 60px · 세로 약 75px)
@@ -175,7 +175,8 @@ function CraftedDish({ crafted }) {
   if (!info) return null;
   const left = Math.max(0, crafted.left ?? 0);
   const matcha = crafted.kind === "matcha";
-  const name = matcha ? (left ? "matcha_bowl_foam" : "matcha_bowl_empty") : left ? `${crafted.kind}_done` : "table_plate";
+  const leaf = crafted.kind === "leaftea"; // 🍃 내가 우린 잎차 → 찻잔
+  const name = leaf ? (left ? "table_cup_full" : "table_cup_empty") : matcha ? (left ? "matcha_bowl_foam" : "matcha_bowl_empty") : left ? `${crafted.kind}_done` : "table_plate";
   const fallback = matcha ? (
     <div className="relative h-[70%] w-full">
       <span className="absolute inset-x-0 bottom-0 h-[70%] rounded-b-full border-[3px] border-[#1a110e] bg-[#3d3a36]" />
@@ -280,7 +281,7 @@ export function OrderBar({ seat, order, api, extra = null }) {
   const useCrafted = () => {
     if (!crafted || crafted.left <= 0 || !db) return;
     set(ref(db, `teaHouse/orders/${seat.id}/crafted/left`), crafted.left - 1).catch(() => {});
-    api.playAction(crafted.kind === "matcha" ? "drinking" : "eating");
+    api.playAction(crafted.kind === "matcha" || crafted.kind === "leaftea" ? "drinking" : "eating");
   };
 
   return (
@@ -307,7 +308,7 @@ export function OrderBar({ seat, order, api, extra = null }) {
         )}
         {craftInfo && crafted.left > 0 && (
           <button type="button" onClick={useCrafted} className={`${BTN} bg-[#fde68a] text-[#78350f]`}>
-            {craftInfo.emoji} 내가 만든 {crafted.kind === "matcha" ? "말차 마시기" : "다식 먹기"} <span className="bg-[#78350f] px-1 text-[10px] text-white">{crafted.left}</span>
+            {craftInfo.emoji} 내가 만든 {crafted.kind === "matcha" ? "말차 마시기" : crafted.kind === "leaftea" ? "잎차 마시기" : "다식 먹기"} <span className="bg-[#78350f] px-1 text-[10px] text-white">{crafted.left}</span>
           </button>
         )}
         {/* 📖 공부 집중 모드 켜기/끄기 */}

@@ -31,7 +31,7 @@ export const RECIPES = {
     name: "가래떡 구이", emoji: "🍢", game: "tteok", base: "#e8b04a", light: "#fff4dc", shell: "#8a5a2b",
   },
 };
-export const CRAFT_INFO = { ...RECIPES, matcha: { name: "내가 격불한 말차", emoji: "🍵", base: "#7fb36a" } };
+export const CRAFT_INFO = { ...RECIPES, matcha: { name: "내가 격불한 말차", emoji: "🍵", base: "#7fb36a" }, leaftea: { name: "내가 우린 잎차", emoji: "🍃", base: "#c9a23a", drink: true } };
 
 // ---------------- 🔊 Web Audio 효과음 ----------------
 let ctx = null;
@@ -1201,6 +1201,234 @@ function MatchaGame({ onBack }) {
   );
 }
 
+// ---------------- 3) 🍃 잎차 우리기 ----------------
+//  ① 찻잎 넣기: 찻숟가락이 좌우로 움직여요 → 다관 위에 왔을 때 탭 (3번)
+//  ② 물 끓이기: 온도 바늘이 오르내려요 → 초록 구간(80℃ 근처)에서 탭하면 다관에 물을 부어요
+//  ③ 우리기: 찻물 색이 점점 진해져요 → 초록 구간에서 [🫖 따르기] (너무 빠르면 싱겁고, 늦으면 떫어요)
+const LEAF_SCOOPS = 3;
+const LEAF_TEMP_ZONE = [68, 80]; // 온도 바늘 초록 구간 (%)
+const LEAF_BREW_ZONE = [55, 75]; // 우림 정도 초록 구간 (%)
+const LEAF_BREW_SEC = 6; // 우림 막대가 끝까지 차는 시간
+
+function LeafTeaGame({ onBack }) {
+  const [step, setStep] = useState(0);
+  const [scoops, setScoops] = useState(0);
+  const [miss, setMiss] = useState(0);
+  const [flash, setFlash] = useState(null);
+  const [spoon, setSpoon] = useState(10);
+  const spoonRef = useRef(10);
+  const [temp, setTemp] = useState(0);
+  const tempRef = useRef(0);
+  const [brew, setBrew] = useState(0);
+  const brewRef = useRef(0);
+  const [brewing, setBrewing] = useState(false);
+  const [brewScore, setBrewScore] = useState(null); // "good" | "weak" | "bitter"
+  const [taken, setTaken] = useState(false);
+  const raf = useRef(0);
+
+  const reset = () => {
+    setStep(0); setScoops(0); setMiss(0); setFlash(null); setBrew(0); brewRef.current = 0; setBrewing(false); setBrewScore(null); setTaken(false);
+  };
+  const flashFor = (f) => {
+    setFlash(f);
+    setTimeout(() => setFlash(null), 450);
+  };
+
+  // ① 찻숟가락 좌우 (넣을수록 빨라져요)
+  useEffect(() => {
+    if (step !== 0) return;
+    const t0 = performance.now();
+    const loop = (t) => {
+      const v = 50 + 44 * Math.sin((t - t0) * (0.0018 + scoops * 0.0007));
+      spoonRef.current = v;
+      setSpoon(v);
+      raf.current = requestAnimationFrame(loop);
+    };
+    raf.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf.current);
+  }, [step, scoops]);
+  const doScoop = () => {
+    if (scoops >= LEAF_SCOOPS) return;
+    if (Math.abs(spoonRef.current - 50) <= 9) {
+      sfx.peel();
+      flashFor("good");
+      const n = scoops + 1;
+      setScoops(n);
+      if (n >= LEAF_SCOOPS) { sfx.good(); setTimeout(() => setStep(1), 600); }
+    } else {
+      sfx.bad();
+      flashFor("miss");
+      setMiss((m) => m + 1);
+    }
+  };
+
+  // ② 온도 바늘
+  useEffect(() => {
+    if (step !== 1) return;
+    const t0 = performance.now();
+    const loop = (t) => {
+      const v = 50 + 48 * Math.sin((t - t0) * 0.0026);
+      tempRef.current = v;
+      setTemp(v);
+      raf.current = requestAnimationFrame(loop);
+    };
+    raf.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf.current);
+  }, [step]);
+  const doHeat = () => {
+    const v = tempRef.current;
+    if (v >= LEAF_TEMP_ZONE[0] && v <= LEAF_TEMP_ZONE[1]) {
+      sfx.good();
+      flashFor("good");
+      pourStart();
+      setTimeout(() => { pourStop(); setStep(2); setBrewing(true); }, 900);
+    } else {
+      sfx.bad();
+      flashFor(v > LEAF_TEMP_ZONE[1] ? "hot" : "cold");
+      setMiss((m) => m + 1);
+    }
+  };
+
+  // ③ 우리기: 막대가 차올라요 (끝까지 가면 떫어져요)
+  useEffect(() => {
+    if (step !== 2 || !brewing) return;
+    const t0 = performance.now();
+    const start = brewRef.current;
+    const loop = (t) => {
+      const v = Math.min(100, start + ((t - t0) / 1000 / LEAF_BREW_SEC) * 100);
+      brewRef.current = v;
+      setBrew(v);
+      if (v < 100) raf.current = requestAnimationFrame(loop);
+    };
+    raf.current = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf.current);
+  }, [step, brewing]);
+  const doPour = () => {
+    if (!brewing) return;
+    setBrewing(false);
+    const v = brewRef.current;
+    const score = v < LEAF_BREW_ZONE[0] ? "weak" : v > LEAF_BREW_ZONE[1] ? "bitter" : "good";
+    setBrewScore(score);
+    if (score === "good") sfx.good(); else sfx.bad();
+    pourStart();
+    setTimeout(() => { pourStop(); sfx.win(); setStep(3); }, 1100);
+  };
+
+  const teaColor = mix("#f3e7a6", "#8a5a1c", Math.min(1, brew / 100)); // 연한 연둣빛 → 진한 호박색
+
+  if (step === 3) {
+    let stars = 3;
+    if (brewScore !== "good") stars--;
+    if (miss >= 3) stars--;
+    stars = Math.max(1, stars);
+    return (
+      <>
+        <Stage>
+          <div className="relative flex items-end gap-6">
+            <CraftImg name="table_teapot" className="w-28" fallback={<span className="text-6xl">🫖</span>} />
+            <div className="relative w-24">
+              <CraftImg name="table_cup_full" className="w-full" fallback={<span className="text-6xl">🍵</span>} />
+              {[0, 1].map((i) => (
+                <span key={i} className="craft-bubble absolute h-5 w-3 rounded-full bg-white/80 blur-[2px]" style={{ left: 30 + i * 18, top: -6, animationDelay: `${i * 0.5}s` }} />
+              ))}
+            </div>
+          </div>
+        </Stage>
+        <div className="mt-3">
+          <Result
+            kind="leaftea"
+            stars={stars}
+            comment={brewScore === "good" ? (stars === 3 ? "다연: “향이 정말 좋아요! 딱 알맞게 우러났어요” 🍃" : "다연: “맛있게 우러났어요!”") : brewScore === "weak" ? "다연: “조금 싱겁지만 은은하니 좋아요”" : "다연: “살짝 떫지만… 정성이 담겼어요!”"}
+            taken={taken}
+            onTake={() => { sendToTable("leaftea", stars); setTaken(true); sfx.pop(); }}
+            onAgain={reset}
+          />
+        </div>
+        <button type="button" onClick={onBack} className={`${BTN} mt-2 w-full bg-black/30 text-white`}>← 다른 게임 고르기</button>
+      </>
+    );
+  }
+
+  return (
+    <div>
+      <Steps list={["찻잎 넣기", "물 끓이기", "우리기"]} cur={step} />
+
+      {step === 0 && (
+        <>
+          <Stage onPointerDown={doScoop} className={`cursor-pointer ${flash === "good" ? "bg-emerald-200" : flash ? "bg-rose-200" : ""}`}>
+            {/* 다관 (가운데) */}
+            <div className="absolute bottom-3 left-1/2 w-32 -translate-x-1/2">
+              <CraftImg name="table_teapot" className="w-full" fallback={<span className="block text-center text-7xl">🫖</span>} />
+            </div>
+            {/* 목표 표시 (다관 입구) */}
+            <span className="absolute left-1/2 top-[38%] h-3 w-12 -translate-x-1/2 rounded-full border-2 border-dashed border-[#14532d] bg-emerald-300/40" />
+            {/* 찻숟가락 (좌우로) */}
+            <div className="pointer-events-none absolute top-3 -translate-x-1/2 text-center" style={{ left: `${spoon}%` }}>
+              <span className="block text-3xl leading-none">🥄</span>
+              <span className="block text-lg leading-none">🍃</span>
+            </div>
+            {/* 넣은 찻잎이 떨어지는 모습 */}
+            {flash === "good" && [0, 1, 2].map((i) => <span key={i} className="craft-powder absolute text-sm" style={{ left: `${46 + i * 4}%`, top: "22%", animationDelay: `${i * 0.06}s` }}>🍃</span>)}
+            {flash && <span className="pointer-events-none absolute bottom-2 left-2 text-sm font-black text-[#2b1d1a]">{flash === "good" ? "쏙! 🍃" : "앗, 흘렸어요!"}</span>}
+          </Stage>
+          <p className="my-2 text-center text-sm text-white/85">🥄 찻숟가락이 <b className="text-emerald-300">다관 위</b>에 왔을 때 탭! ({scoops}/{LEAF_SCOOPS})</p>
+          <p className="text-center text-xs font-bold text-white/60">실수 {miss}</p>
+        </>
+      )}
+
+      {step === 1 && (
+        <>
+          <Stage onPointerDown={doHeat} className={`cursor-pointer ${flash === "good" ? "bg-emerald-200" : flash ? "bg-rose-200" : ""}`}>
+            <div className="flex h-full w-full items-center justify-around px-3">
+              <div className="relative h-44 w-44">
+                <CraftImg name="pot" className="absolute inset-0 h-full w-full" fallback={<span className="flex h-full items-center justify-center text-7xl">🫕</span>} />
+                {temp > 50 && [0, 1, 2].map((i) => <span key={i} className="craft-bubble pointer-events-none absolute h-2.5 w-2.5 rounded-full border border-[#2b1d1a] bg-white/90" style={{ left: `${30 + i * 12}%`, top: "22%", animationDelay: `${i * 0.3}s` }} />)}
+              </div>
+              {/* 온도 게이지 (세로) */}
+              <div className="relative h-44 w-9 border-4 border-[#2b1d1a] bg-gradient-to-t from-sky-300 via-amber-200 to-rose-400">
+                <div className="absolute inset-x-0 bg-emerald-400/90" style={{ bottom: `${LEAF_TEMP_ZONE[0]}%`, height: `${LEAF_TEMP_ZONE[1] - LEAF_TEMP_ZONE[0]}%`, boxShadow: "0 0 0 2px #14532d inset" }} />
+                <div className="absolute -left-3 -right-3 h-1.5 bg-[#2b1d1a]" style={{ bottom: `${temp}%` }} />
+                <span className="absolute -right-11 text-xs font-black text-[#14532d]" style={{ bottom: `${LEAF_TEMP_ZONE[0] + 2}%` }}>80℃</span>
+              </div>
+            </div>
+            {flash && <span className="pointer-events-none absolute top-3 text-lg font-black text-[#2b1d1a]">{flash === "good" ? "딱 좋아요! 쪼르르~" : flash === "hot" ? "너무 뜨거워요! 찻잎이 데어요" : "아직 미지근해요 ❄️"}</span>}
+          </Stage>
+          <p className="my-2 text-center text-sm text-white/85">🔥 바늘이 <b className="text-emerald-300">초록 구간(80℃)</b>일 때 탭!</p>
+          <p className="text-center text-xs font-bold text-white/60">실수 {miss}</p>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <Stage>
+            <div className="relative flex items-end gap-5">
+              <div className="w-28">
+                <CraftImg name="table_teapot" className="w-full" fallback={<span className="text-6xl">🫖</span>} />
+              </div>
+              {/* 찻물 색 미리보기 (점점 진해져요) */}
+              <div className="relative mb-3 h-20 w-20 rounded-b-[45%] border-4 border-[#2b1d1a] bg-white">
+                <div className="absolute inset-x-1 bottom-1 top-2 rounded-b-[45%] transition-colors" style={{ background: teaColor }} />
+                {[0, 1].map((i) => <span key={i} className="craft-bubble absolute h-4 w-2.5 rounded-full bg-white/80 blur-[2px]" style={{ left: 22 + i * 18, top: -14, animationDelay: `${i * 0.5}s` }} />)}
+              </div>
+            </div>
+            {!brewing && brewScore && <span className="pointer-events-none absolute top-3 text-lg font-black text-[#2b1d1a]">{brewScore === "good" ? "향긋하게 우러났어요! 🍃" : brewScore === "weak" ? "조금 싱거워요" : "앗, 떫어졌어요!"}</span>}
+          </Stage>
+          <div className="mt-3">
+            <div className="mb-1 flex justify-between text-xs font-bold text-white/80"><span>🍃 우림 정도</span><span>{brew < LEAF_BREW_ZONE[0] ? "연해요" : brew <= LEAF_BREW_ZONE[1] ? "딱 좋아요!" : "진해요"}</span></div>
+            <div className="relative h-5 w-full border-4 border-[#1a110e] bg-black/40">
+              <div className="absolute inset-y-0 bg-emerald-400/50" style={{ left: `${LEAF_BREW_ZONE[0]}%`, width: `${LEAF_BREW_ZONE[1] - LEAF_BREW_ZONE[0]}%` }} />
+              <div className="relative h-full" style={{ width: `${brew}%`, background: teaColor }} />
+            </div>
+          </div>
+          <button type="button" onClick={doPour} disabled={!brewing} className={`${BTN} mt-3 w-full bg-amber-400 text-[#2b1d1a]`}>🫖 지금 따르기!</button>
+          <p className="mt-2 text-center text-sm text-white/85">막대가 <b className="text-emerald-300">초록 칸</b>에 있을 때 따라요</p>
+        </>
+      )}
+      <button type="button" onClick={onBack} className={`${BTN} mt-3 w-full bg-[#6e4530] text-white`}>← 다른 게임 고르기</button>
+    </div>
+  );
+}
+
 // ---------------- 체험존 모달 ----------------
 export default function TeaCraftModal({ open, onClose }) {
   const [game, setGame] = useState(null);
@@ -1210,7 +1438,8 @@ export default function TeaCraftModal({ open, onClose }) {
 
   // 🎮 미니게임 목록 (한 화면에 모두)
   const GAMES = [
-    { key: "matcha", emoji: "🍵", img: "matcha_bowl_foam", name: "말차 격불하기", bg: "bg-[#bbf7d0] text-[#14532d]" },
+    { key: "matcha", emoji: "🍵", img: "matcha_bowl_foam", name: "말차", bg: "bg-[#bbf7d0] text-[#14532d]" },
+    { key: "leaftea", emoji: "🍃", img: "table_cup_full", name: "잎차 우리기", bg: "bg-[#fef3c7] text-[#713f12]" },
     ...Object.entries(RECIPES).map(([k, r]) => ({ key: `dasik:${k}`, emoji: r.emoji, img: `${k}_done`, name: r.name.replace("군산 ", ""), bg: "bg-[#fbcfe8] text-[#831843]" })),
   ];
   const picked = GAMES.find((g) => g.key === game);
@@ -1248,6 +1477,7 @@ export default function TeaCraftModal({ open, onClose }) {
       )}
       {game?.startsWith("dasik:") && <DasikGame key={game} initialId={game.slice(6)} onBack={() => setGame(null)} />}
       {game === "matcha" && <MatchaGame onBack={() => setGame(null)} />}
+      {game === "leaftea" && <LeafTeaGame onBack={() => setGame(null)} />}
     </PixelModal>
   );
 }
