@@ -362,8 +362,14 @@ export function TrailEnd({ x, groundY, count, onToStart }) {
   return (
     <div className="absolute flex flex-col items-center" style={{ left: x - 110, top: groundY - 128, width: 220 }}>
       {/* ⏮ 입구로 가는 표지판 (누르면 숲 처음으로) */}
-      <button type="button" onClick={onToStart} className="mb-1 flex items-center gap-1 border-[3px] px-2 py-0.5 text-[15px] font-black text-[#2b1d1a] shadow-[2px_2px_0_0_rgba(0,0,0,0.3)] hover:brightness-110" style={{ background: "#d9b98a", borderColor: OUT, clipPath: "polygon(10% 0, 100% 0, 100% 100%, 10% 100%, 0 50%)", paddingLeft: 18 }}>
-        ⏮ 숲 입구로
+      <button type="button" onClick={onToStart} aria-label="숲 입구로" className="relative mb-1 h-[38px] w-[150px] hover:brightness-110">
+        {/* 왼쪽을 가리키는 나무 화살표 판 (테두리 잘림 없이 SVG로) */}
+        <svg viewBox="0 0 50 13" width="150" height="39" shapeRendering="crispEdges" className="absolute inset-0 drop-shadow-[2px_2px_0_rgba(0,0,0,0.3)]">
+          <path d="M6 0h44v13H6v-1H5v-1H4v-1H3v-1H2V8H1V5h1V4h1V3h1V2h1V1h1z" fill="#2b1d1a" />
+          <path d="M7 1h42v11H7v-1H6v-1H5V9H4V8H3V5h1V4h1V3h1V2h1z" fill="#d9b98a" />
+          <rect x="7" y="1" width="42" height="1" fill="#ead2a6" />
+        </svg>
+        <span className="relative flex h-full items-center justify-center pl-3 text-[15px] font-black text-[#2b1d1a]">⏮ 숲 입구로</span>
       </button>
       <div className="h-8 w-[6px]" style={{ background: "#6b4226", borderLeft: `2px solid ${OUT}`, borderRight: `2px solid ${OUT}` }} />
       <svg viewBox="0 0 12 10" width="60" height="50" shapeRendering="crispEdges">

@@ -11,7 +11,7 @@ import PixelModal from "../components/PixelModal";
 import { SettingsPanel } from "../components/TeaHouseHud";
 import { SettingsPopup, VolumeRow, ToggleRow, Section, L_INPUT, L_BTN, L_BTN_MAIN } from "../components/RoomSettings";
 import { GuideBoard } from "../components/GalleryGuide";
-import { ForestBackdrop, ForestGrade, ForestTree, HostTree, TrailEnd, TreeImage, TeaBench, TREE_KINDS } from "../components/ForestArt";
+import { ForestBackdrop, ForestGrade, ForestTree, TrailEnd, TreeImage, TeaBench, TREE_KINDS } from "../components/ForestArt";
 import { forestData } from "../spaceData";
 
 // 🌳 무해림(無害林) — 찻집 오른쪽 아래 통로, 옆으로 걷는 숲길
@@ -29,22 +29,23 @@ import { forestData } from "../spaceData";
 const MAP_H = 1200;
 const BASE_W = 3000; // 처음 숲길 길이 (맵 px) — 넓은 모니터에서도 양옆에 빈 곳이 안 보이게
 const EXTRA_W = 900; // 마지막 나무 뒤로 남겨 두는 길
-const GROUND_Y = 912; // 나무가 서는 높이
+const GROUND_Y = 912; // (그림 없을 때 코드 배경의 땅 높이)
+const TREE_Y = 985; // 나무·안내판이 서는 높이 — 그림 배경의 풀밭(오솔길 바로 위)
 const PATH_TOP = 950;
 const PATH_BOTTOM = 1110;
 const WALK_TOP = 0.8; // 발이 다닐 수 있는 범위 (비율)
 const WALK_BOTTOM = 0.92;
 const INTRO_X = 380; // 입구 안내판 (처음 오면 "!" → 이용안내)
 const START_X = 150; // 숲 입구 (처음 시작 자리)
-const HOST_X = 860; // 주인장 나무
+
 const BENCH_PREF_X = 1200; // 🍵 야차 벤치 자리 (주인장 나무 다음, 숲 중간 쉼터) — 이미 나무가 있으면 빈자리로 옮겨요
 const BENCH_FLOOR = 1000; // 벤치 다리가 닿는 높이 (길 안쪽 가장자리)
-const FIRST_PLANT_X = 1440; // 이보다 오른쪽부터 심을 수 있어요
+const FIRST_PLANT_X = 620; // 입구 안내판을 지나면 심을 수 있어요
 const BENCH_GAP = 280; // 벤치와 나무 사이 (팻말·야차 창이 겹치지 않게)
 // 벤치 자리: 기본 자리에서 오른쪽으로, 나무와 BENCH_GAP 이상 떨어진 첫 자리
 function benchXOf(trees) {
   for (let x = BENCH_PREF_X; x < BENCH_PREF_X + 20000; x += 20) {
-    if (Math.abs(x - HOST_X) >= BENCH_GAP && trees.every((t) => Math.abs(t.x - x) >= BENCH_GAP)) return x;
+    if (trees.every((t) => Math.abs(t.x - x) >= BENCH_GAP)) return x;
   }
   return BENCH_PREF_X;
 }
@@ -119,14 +120,13 @@ function ForestScene({ mapW, trees, nearKey, isMine, benchBusy, benchX, onToStar
     <div className="absolute inset-0">
       <style>{`@keyframes forest-grow{0%{transform:scale(.25,.1)}100%{transform:none}}`}</style>
       <ForestBackdrop mapW={mapW} mapH={MAP_H} groundY={GROUND_Y} pathTop={PATH_TOP} pathBottom={PATH_BOTTOM} count={trees.length} />
-      <GuideBoard at={{ x: INTRO_X / mapW, y: (GROUND_Y + 30) / MAP_H }} alert={guideAlert} onOpen={onOpenGuide} mapW={mapW} mapH={MAP_H} />
-      <HostTree x={HOST_X} groundY={GROUND_Y} near={nearKey === "__host"} />
+      <GuideBoard at={{ x: INTRO_X / mapW, y: (TREE_Y + 6) / MAP_H }} alert={guideAlert} onOpen={onOpenGuide} mapW={mapW} mapH={MAP_H} />
       <TeaBench x={benchX} floorY={BENCH_FLOOR} busy={benchBusy} />
       {trees.map((t) => (
         <ForestTree
           key={t.key}
           x={t.x}
-          groundY={GROUND_Y + ((Math.round(t.x) % 3) - 1) * 6}
+          groundY={TREE_Y + ((Math.round(t.x) % 3) - 1) * 4}
           kind={t.kind ?? 0}
           label={t.treeName ? `${t.secret ? "🔒 " : ""}${t.treeName}` : t.secret ? "🔒" : nameOf(t)}
           mine={isMine(t)}
@@ -135,7 +135,7 @@ function ForestScene({ mapW, trees, nearKey, isMine, benchBusy, benchX, onToStar
           size={0.9 + ((Math.round(t.x) * 7) % 5) / 20}
         />
       ))}
-      <TrailEnd x={mapW - 260} groundY={GROUND_Y + 10} count={trees.length + 1} onToStart={onToStart} />
+      <TrailEnd x={mapW - 260} groundY={TREE_Y + 4} count={trees.length + 1} onToStart={onToStart} />
       <ForestGrade />
     </div>
   );
@@ -472,38 +472,18 @@ function AdminLogin({ admin }) {
 
 function ForestSettings({ api, birds, onBirds, host, count, teas, bgm, admin }) {
   const [open, setOpen] = useState(false);
-  const current = host.text || host.rewritten || forestData.hostSign;
-  const [draft, setDraft] = useState(current);
-  const [msg, setMsg] = useState("");
   const canHost = api.isOwner;
-  useEffect(() => setDraft(current), [current]);
-  const saveHost = (text) => {
-    if (!db) return;
-    const v = text.replace(/\s+$/g, "");
-    (v.trim() ? set(ref(db, "forest/host"), { text: v.slice(0, 200), updatedAt: serverTimestamp() }) : remove(ref(db, "forest/host")))
-      .then(() => setMsg(v.trim() ? "주인장 나무 팻말을 바꿨어요 🌳" : "처음 문장으로 되돌렸어요"))
-      .catch(() => setMsg("저장하지 못했어요 (Firebase 규칙 확인)"));
-  };
   const top = (
     <div className="flex flex-col gap-4">
       {bgm.ready && <VolumeRow icon="🎵" label={bgm.title} playing={bgm.on} onToggle={() => bgm.setOn(!bgm.on)} volume={bgm.vol} onVolume={bgm.setVol} />}
       <ToggleRow icon="🐦" label="새소리" checked={birds} onChange={onBirds} />
-      <p className="text-[11px] text-[#5b3b2a]">🌳 지금 숲에 {count}그루</p>
+      <p className="text-[11px] text-[#5b3b2a]">🌳 지금 숲에 {count - 1}그루</p>
     </div>
   );
   return (
     <SettingsPopup open={open} setOpen={setOpen} title="⚙️ 무해림 설정">
       <SettingsPanel api={api} noise={false} top={top}>
         {api.isOwner && <YachaTeaEditor teas={teas} />}
-        {canHost && (
-          <Section title="🍵 주인장 나무 팻말">
-            <textarea value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={200} rows={3} className={`${L_INPUT} resize-none`} />
-            <button type="button" onClick={() => saveHost(draft)} className={`${L_BTN_MAIN} mt-1.5 w-full`}>
-              🌳 팻말 걸기
-            </button>
-            {msg && <p className="mt-1 text-xs font-bold text-[#3f6212]">{msg}</p>}
-          </Section>
-        )}
         {(canHost || admin.isAdmin) && <AdminLogin admin={admin} />}
       </SettingsPanel>
     </SettingsPopup>
@@ -516,10 +496,6 @@ function ForestHud({ api, trees, host, mapW, isMine, onPlant, onEdit, birds, onB
   // 가장 가까운 나무 (주인장 나무 포함)
   let near = null;
   let best = READ_RADIUS;
-  if (Math.abs(fx - HOST_X) < best + 60) {
-    near = { key: "__host" };
-    best = Math.abs(fx - HOST_X) - 60;
-  }
   for (const t of trees) {
     const d = Math.abs(fx - t.x);
     if (d < best) {
@@ -531,7 +507,7 @@ function ForestHud({ api, trees, host, mapW, isMine, onPlant, onEdit, birds, onB
   // ← 왼쪽으로 돌아가는 중에는 팻말을 숨겨요 (내 나무만 보여요)
   if (near && api.dir === "left" && !(near.key !== "__host" && isMine(near))) near = null;
   const atEnd = fx > mapW - 700;
-  const tooClose = [HOST_X, ...trees.map((t) => t.x)].some((x) => Math.abs(x - fx) < MIN_GAP) || Math.abs(benchX - fx) < BENCH_GAP;
+  const tooClose = trees.map((t) => t.x).some((x) => Math.abs(x - fx) < MIN_GAP) || Math.abs(benchX - fx) < BENCH_GAP;
   const canPlant = !myTree && fx >= FIRST_PLANT_X && fx <= mapW - 60 && !tooClose; // 숲 끝까지 심을 수 있어요 (심으면 길이 더 길어져요)
 
   return (
@@ -564,17 +540,13 @@ function ForestHud({ api, trees, host, mapW, isMine, onPlant, onEdit, birds, onB
       />
       {/* 🌱 심기 버튼 (아래 가운데) */}
       {!myTree && fx > 0 && !api.mySeat && (
+        canPlant && (
         <div className="safe-bottom fixed bottom-32 left-1/2 z-30 -translate-x-1/2 sm:bottom-6">
-          {canPlant ? (
             <button type="button" onClick={() => onPlant(fx)} className="whitespace-nowrap border-4 border-[#1a110e] bg-amber-400 px-5 py-2.5 text-lg font-black text-[#2b1d1a] shadow-[4px_4px_0_0_rgba(0,0,0,0.45)] active:translate-y-0.5 active:shadow-none">
               🌱 여기에 나무 심기
             </button>
-          ) : (
-            <p className="whitespace-nowrap border-4 border-[#1a110e] bg-[#2b1d1a]/85 px-3 py-1.5 text-sm font-bold text-[#f5e6c8]">
-              {fx < FIRST_PLANT_X ? forestData.plantGuide : "옆 나무와 조금 떨어진 곳에 심어 주세요"}
-            </p>
-          )}
         </div>
+        )
       )}
     </>
   );
@@ -586,7 +558,7 @@ export default function ForestPage() {
   const bgm = useForestBgm();
   const benchX0 = benchXOf(trees);
   const benchX = benchX0;
-  const maxX = trees.reduce((m, t) => Math.max(m, t.x), Math.max(HOST_X, benchX0));
+  const maxX = trees.reduce((m, t) => Math.max(m, t.x), benchX0);
   const mapW = Math.max(BASE_W, Math.round(maxX + EXTRA_W));
   const [nickname, setNickname] = useState("");
   const [plantAt, setPlantAt] = useState(null); // { x, editing? }
@@ -732,7 +704,7 @@ export default function ForestPage() {
           />
         );
       }}
-      spots={[{ id: GUIDE_ID, rect: { x: (INTRO_X - 50) / mapW, y: (GROUND_Y - 110) / MAP_H, w: 100 / mapW, h: 0.03 }, near: { x: INTRO_X / mapW, y: 0.86 }, radius: 110, icon: "📜", title: "이용안내" }]}
+      spots={[{ id: GUIDE_ID, rect: { x: (INTRO_X - 50) / mapW, y: (TREE_Y - 110) / MAP_H, w: 100 / mapW, h: 0.03 }, near: { x: INTRO_X / mapW, y: 0.86 }, radius: 110, icon: "📜", title: "이용안내" }]}
       renderModals={(openId, close) => [
         <PixelModal key={GUIDE_ID} open={openId === GUIDE_ID} onClose={close} label="🌳 무해림" title="📜 무해림 이용안내" width={520}>
           <ForestGuide
