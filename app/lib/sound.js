@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 
 const KEY = "partySound";
-const DEFAULT = { bgmOn: true, bgmVol: 30, sfxOn: true, sfxVol: 60 };
+const DEFAULT = { bgmOn: true, bgmVol: 20, sfxOn: true, sfxVol: 20 }; // 처음 소리 크기 20
 let cur = null;
 const subs = new Set();
 

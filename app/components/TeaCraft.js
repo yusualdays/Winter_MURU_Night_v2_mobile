@@ -54,7 +54,7 @@ function tone(freq, ms = 120, type = "sine", vol = 0.15, slide = 0) {
   o.type = type;
   o.frequency.setValueAtTime(freq, a.currentTime);
   if (slide) o.frequency.linearRampToValueAtTime(freq + slide, a.currentTime + ms / 1000);
-  const v = Math.max(0.0011, vol * sfxLevel() * 1.6); // 🔔 효과음 소리 크기 (모든 방 공통)
+  const v = Math.max(0.0011, vol * sfxLevel() * 3); // 🔔 효과음 소리 크기 (모든 방 공통)
   g.gain.setValueAtTime(v, a.currentTime);
   g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + ms / 1000);
   o.connect(g).connect(a.destination);
@@ -76,7 +76,7 @@ function noise(ms = 90, freq = 3500, vol = 0.25) {
   f.frequency.value = freq * (0.8 + Math.random() * 0.4);
   f.Q.value = 0.9;
   const g = a.createGain();
-  g.gain.value = vol * sfxLevel() * 1.6; // 🔔 효과음 소리 크기
+  g.gain.value = vol * sfxLevel() * 3; // 🔔 효과음 소리 크기
   src.connect(f).connect(g).connect(a.destination);
   src.start();
 }
@@ -104,7 +104,7 @@ function pourStart() {
   f.type = "lowpass";
   f.frequency.value = 900;
   const g = a.createGain();
-  g.gain.value = 0.12 * sfxLevel() * 1.6;
+  g.gain.value = 0.12 * sfxLevel() * 3;
   src.connect(f).connect(g).connect(a.destination);
   src.start();
   pourNode = src;

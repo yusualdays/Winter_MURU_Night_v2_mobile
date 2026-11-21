@@ -127,9 +127,9 @@ function startEngine() {
   }
   engine.ctx = a;
   engine.master = a.createGain();
-  engine.master.gain.value = sfxLevel(); // 🔔 효과음 소리 크기 (모든 방 공통)
+  engine.master.gain.value = sfxLevel() * 3; // 🔔 효과음 소리 크기 (모든 방 공통)
   engine.master.connect(a.destination);
-  onSound(() => engine.master && engine.master.gain.setTargetAtTime(sfxLevel(), a.currentTime, 0.1));
+  onSound(() => engine.master && engine.master.gain.setTargetAtTime(sfxLevel() * 3, a.currentTime, 0.1));
   const white = noiseBuffer(a, "white");
   const pink = noiseBuffer(a, "pink");
   const brown = noiseBuffer(a, "brown");
@@ -324,7 +324,7 @@ function beep(times = 2) {
     o.type = "square";
     o.frequency.value = 880;
     const t = a.currentTime + i * 0.25;
-    g.gain.setValueAtTime(Math.max(0.0002, 0.08 * sfxLevel() * 1.6), t); // 🔔 효과음 크기
+    g.gain.setValueAtTime(Math.max(0.0002, 0.08 * sfxLevel() * 3), t); // 🔔 효과음 크기
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
     o.connect(g).connect(a.destination);
     o.start(t);

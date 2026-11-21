@@ -84,13 +84,13 @@ export function useCafeBgmAutoStart() {
   }, []);
 }
 
-export function SpeakerModal({ open, onClose }) {
+// 🎵 스피커 (찻집 라디오 · 거실 오디오) → 소리 설정 — musicTitle: 지금 흐르는 음악 이름 (없으면 숨겨요)
+export function SpeakerModal({ open, onClose, musicTitle = BGM_SRC ? BGM_TITLE : "" }) {
   return (
     <PixelModal open={open} onClose={onClose} label="🎵 스피커" title="소리 설정" width={420}>
       <div className="bg-[#f5e6c8] p-4 text-[#2b1d1a]">
-        {BGM_SRC && <p className="mb-3 text-xs font-bold text-[#5b3b2a]">🎵 지금 흐르는 음악: {BGM_TITLE}</p>}
+        {musicTitle && <p className="mb-3 text-xs font-bold text-[#5b3b2a]">🎵 지금 흐르는 음악: {musicTitle}</p>}
         <SoundSection />
-        <p className="mt-3 text-[11px] text-[#5b3b2a]">🎧 백색소음은 날씨에 맞춰 자동으로 바뀌어요 (평소 찻물 끓는 소리 · 비 오는 날 빗소리 · 아주 추운 날 장작불 · 태풍 부는 날 바람 소리)</p>
       </div>
     </PixelModal>
   );

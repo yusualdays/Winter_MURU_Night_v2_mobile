@@ -550,7 +550,7 @@ export default function ForestPage() {
   // 🐦 새소리 = 🔔 효과음 (모든 방 공통 소리 설정)
   const [sndAll] = useSound();
   const birds = sndAll.sfxOn && sndAll.sfxVol > 0;
-  const birdVol = 0.05 * (sndAll.sfxVol / 60);
+  const birdVol = 0.05 * Math.min(2.5, sndAll.sfxVol / 20); // 효과음 20 = 예전 새소리 크기
   const [guideAlert, setGuideAlert] = useState(false); // 📜 처음 오면 안내판 위 "!"
   const openRef = useRef(null);
   const apiRef = useRef(null);

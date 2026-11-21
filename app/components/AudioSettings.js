@@ -30,7 +30,7 @@ export default function AudioSettings({
   // 🔊 소리 크기는 모든 방 공통 (배경음악 · 효과음) — lib/sound.js
   const [snd] = useSound();
   bgmVolume = snd.bgmOn ? snd.bgmVol : 0;
-  fireVolume = snd.sfxOn ? snd.sfxVol : 0; // 🔥 장작불 = 효과음
+  fireVolume = snd.sfxOn ? Math.min(100, snd.sfxVol * 3) : 0; // 🔥 장작불 = 효과음 (효과음 20 = 예전 장작불 60)
 
     // --- BGM (내 음악 파일, 화면에 플레이어 없이 소리만) ---
   //  아이폰은 <audio>의 볼륨을 바꿀 수 없어서, 소리를 "볼륨 조절기(GainNode)"에 통과시켜 조절해요

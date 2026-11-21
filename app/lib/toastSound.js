@@ -19,7 +19,7 @@ export function unlockAudio() {
 // 유리잔 한 번 "팅~"
 function clink(at, pitch) {
   const master = ctx.createGain();
-  master.gain.value = 0.35 * sfxLevel() * 1.6; // 🔔 효과음 소리 크기 (모든 방 공통)
+  master.gain.value = 0.35 * sfxLevel() * 3; // 🔔 효과음 소리 크기 (모든 방 공통)
   master.connect(ctx.destination);
 
   // 유리잔 특유의 맑은 배음들 (높은 음 여러 개를 겹치기)

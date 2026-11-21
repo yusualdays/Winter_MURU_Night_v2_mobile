@@ -17,6 +17,7 @@ import { partyData } from "../data";
 import AudioSettings from "../components/AudioSettings";
 import RoomAmbience from "../components/RoomAmbience";
 import LoadingScreen from "../components/LoadingScreen";
+import { SpeakerModal } from "../components/TeaRoomModals";
 import MobileControls from "../components/MobileControls";
 import UserActions from "../components/UserActions";
 import GreetToast from "../components/GreetToast";
@@ -1031,6 +1032,8 @@ export default function LivingRoom() {
       {/* 상세 창: 올해의 영화 / 올해의 책 (음식 설명 창은 DiningTable 안에 있어요) */}
       <MovieWall open={openId === "posters"} onClose={closeDetail} />
       <Bookshelf open={openId === "bookshelf"} onClose={closeDetail} />
+      {/* 🎵 오디오 선반 → 소리 설정 (찻집 스피커와 같아요) */}
+      <SpeakerModal open={openId === "speaker"} onClose={closeDetail} musicTitle="" />
 
       {/* 왼쪽 아래: 건배하기 버튼 + 모두의 화면에 건배 축하 */}
       <ToastParty compact={isTouch} nickname={nickname} onToast={() => setEmote({ type: "toast", id: Date.now() })} />
