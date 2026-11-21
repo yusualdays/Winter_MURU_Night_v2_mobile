@@ -116,6 +116,22 @@ const OCCLUDERS = [
 ];
 const zOf = (base) => 100 + Math.round(base * MAP_H); // 캐릭터와 같은 기준 (발 높이 + 100)
 
+// 🍡 카운터(포스기 아래)에 진열한 미니게임 메뉴 — 들어올 때마다 랜덤으로 2개
+//  그림: public/craft/*.png (미니게임 완성 그림) · size = 접시 크기 비율
+const COUNTER_MENU = [
+  { img: "bonibam_done", size: 1 },
+  { img: "gotgam_done", size: 1 },
+  { img: "tteok_done", size: 1 },
+  { img: "matcha_bowl_foam", size: 0.85 },
+  { img: "table_cup_full", size: 0.75 },
+];
+// 진열 자리 2곳 (x = 가운데, y = 바닥, w = 폭 · 지도 0~1 비율)
+const COUNTER_SLOTS = [
+  { x: 0.669, y: 0.352, w: 0.03 },
+  { x: 0.669, y: 0.396, w: 0.032 },
+];
+const COUNTER_TOP_Z = zOf(0.505) + 1; // 카운터 앞판보다 위, 카운터 앞을 지나가는 손님보다는 뒤
+
 // ---------------- 🚧 장애물 (발이 못 들어가는 네모) ----------------
 const BLOCKERS = [
   { x: 0, y: 0, w: PASSAGE.x, h: WALL_BOTTOM }, // 위쪽 벽 (통로 왼쪽)
@@ -198,6 +214,14 @@ function DebugOverlay() {
 
 // 배경 그림 + 그 위에 올리는 것들 (npcBubble: 다연의 말풍선)
 function CafeScene({ npcBubble, season, orders, debug, npcAlert, onNpcAlert, talk, onTalkNext, onTalkSkip }) {
+  // 🍡 카운터 진열: 들어올 때마다 메뉴 2개를 랜덤으로
+  const [counterPicks, setCounterPicks] = useState([]);
+  useEffect(() => {
+    const pool = [...COUNTER_MENU];
+    const picks = [];
+    while (picks.length < 2 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    setCounterPicks(picks);
+  }, []);
   return (
     <div className="absolute inset-0">
       {/* 🪟 사계절 통창 — 배경 그림의 유리 부분이 투명해서, 그림 "뒤"에 깔면 창틀·창살은 그림 그대로 보여요 */}
@@ -206,6 +230,22 @@ function CafeScene({ npcBubble, season, orders, debug, npcAlert, onNpcAlert, tal
       {/* 배경 그림 (그림을 못 불러오면 나무 바닥색) */}
       <div className="absolute inset-0" style={{ background: `url(${BG_IMAGE}) center / 100% 100% no-repeat`, imageRendering: "pixelated" }} />
       <div className="pointer-events-none absolute bg-gradient-to-br from-white/20 via-transparent to-transparent" style={pct(WINDOW_AREA)} />
+      {/* 🍡 카운터에 진열한 미니게임 메뉴 */}
+      {counterPicks.map((m, i) => {
+        const slot = COUNTER_SLOTS[i];
+        const w = slot.w * m.size;
+        return (
+          <img
+            key={m.img}
+            src={`/craft/${m.img}.png`}
+            alt=""
+            draggable={false}
+            className="pointer-events-none absolute drop-shadow-[2px_3px_0_rgba(0,0,0,0.25)]"
+            style={{ left: (slot.x - w / 2) * MAP_W, top: slot.y * MAP_H - w * MAP_W, width: w * MAP_W, height: w * MAP_W, zIndex: COUNTER_TOP_Z }}
+          />
+        );
+      })}
+
       {/* 📌 게시판 (벽에 걸린 코르크 보드) */}
       <img src="/craft/cafe_board.png" alt="" draggable={false} className="pointer-events-none absolute object-contain drop-shadow-[3px_4px_0_rgba(0,0,0,0.25)]" style={pct(BOARD)} />
 
