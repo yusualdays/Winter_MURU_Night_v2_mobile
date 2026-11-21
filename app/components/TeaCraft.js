@@ -5,9 +5,10 @@ import PixelModal from "./PixelModal";
 import { sfxLevel } from "../lib/sound";
 import { CraftImg, craftSrc, useImgOk } from "./CraftImg";
 import { partyData } from "../data";
+import { bonibamUnlocked, bonibamIsNew, markBonibamPlayed } from "../lib/visits";
 
 // 🍡🍵 다도 체험존 미니게임 2종 (그림 파일 없이 CSS/SVG + Web Audio API 효과음만 사용)
-//  1) 수제 다식 만들기 (쿠킹마마 스타일): 보늬밤 조림 / 곶감 호두말이 (+ 🍢 가래떡 구이)
+//  1) 수제 다식 만들기 (쿠킹마마 스타일): 보늬밤조림 / 곶감 호두말이 (+ 🍢 가래떡 구이)
 //     ① 재료 손질(연타로 점선 따라 껍질 벗기기) → ② 불 조절(초록 구간에서 3번 클릭) → ③ 플레이팅(고명 올리기)
 //  2) 말차 격불하기: ① 체 치기(다완 3번 클릭) → ② 온수 붓기(주전자 길게 누르기) → ③ 10초 동안 차선 젓기
 //  완성하면 [🪑 내 테이블로 가져가기] → 앉아 있는 자리(지금 또는 다음에 앉을 자리) 테이블에 놓여요
@@ -22,7 +23,7 @@ const safeUrl = (u) => (/^https?:\/\//i.test((u || "").trim()) ? u.trim() : "");
 
 export const RECIPES = {
   bonibam: {
-    name: "군산 보늬밤 조림", emoji: "🌰", peel: "밤 겉껍질 벗기기", cook: "약불에 시럽 조리기", base: "#7a3e1f", light: "#a8643a", shell: "#4a2a17",
+    name: "군산 보늬밤조림", emoji: "🌰", peel: "밤 겉껍질 벗기기", cook: "약불에 시럽 조리기", base: "#7a3e1f", light: "#a8643a", shell: "#4a2a17",
   },
   gotgam: {
     name: "곶감 호두말이", emoji: "🍊", peel: "곶감 꼭지 따고 씨 빼기", cook: "호두 살짝 볶기", base: "#d9692a", light: "#f0a05a", shell: "#8a3c14",
@@ -351,7 +352,7 @@ function DasikGame({ onBack, initialId = null }) {
     return (
       <div className="flex flex-col gap-2">
         <p className="mb-1 text-sm text-white/80">어떤 다식을 만들어 볼까요?</p>
-        {Object.entries(RECIPES).map(([k, r]) => (
+        {Object.entries(RECIPES).filter(([k]) => k !== "bonibam" || bonibamUnlocked()).map(([k, r]) => (
           <button key={k} type="button" onClick={() => { setId(k); reset(true); }} className={`${BTN} flex items-center gap-3 bg-[#f5e6c8] text-left text-[#2b1d1a]`}>
             <span className="text-3xl">{r.emoji}</span>
             <span>{r.name}</span>
@@ -1439,10 +1440,21 @@ export default function TeaCraftModal({ open, onClose }) {
   }, [open]);
 
   // 🎮 미니게임 목록 (한 화면에 모두)
+  //  🌰 보늬밤조림은 찻집에 3번(3일) 이상 온 손님에게만 보여요 (lib/visits.js)
+  const [unlocked, setUnlocked] = useState(false);
+  const [isNew, setIsNew] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    setUnlocked(bonibamUnlocked());
+    setIsNew(bonibamIsNew());
+  }, [open]);
   const GAMES = [
     { key: "matcha", emoji: "🍵", img: "matcha_bowl_foam", name: "말차", bg: "bg-[#bbf7d0] text-[#14532d]" },
     { key: "leaftea", emoji: "🍃", img: "table_cup_full", name: "백차", bg: "bg-[#fef3c7] text-[#713f12]" },
-    ...Object.entries(RECIPES).map(([k, r]) => ({ key: `dasik:${k}`, emoji: r.emoji, img: `${k}_done`, name: r.name.replace("군산 ", ""), bg: "bg-[#fbcfe8] text-[#831843]" })),
+    ...Object.entries(RECIPES)
+      .filter(([k]) => k !== "bonibam" || unlocked)
+      .sort(([a], [b]) => (a === "bonibam") - (b === "bonibam")) // 보늬밤조림은 맨 뒤에
+      .map(([k, r]) => ({ key: `dasik:${k}`, emoji: r.emoji, img: `${k}_done`, name: r.name.replace("군산 ", ""), bg: "bg-[#fbcfe8] text-[#831843]", isNew: k === "bonibam" && isNew })),
   ];
   const picked = GAMES.find((g) => g.key === game);
   return (
@@ -1470,7 +1482,8 @@ export default function TeaCraftModal({ open, onClose }) {
       {!game && (
         <div className="grid grid-cols-2 gap-3">
           {GAMES.map((g) => (
-            <button key={g.key} type="button" onClick={() => { ac(); setGame(g.key); }} className={`${BTN} flex flex-col items-center gap-1 py-4 text-center ${g.bg}`}>
+            <button key={g.key} type="button" onClick={() => { ac(); if (g.key === "dasik:bonibam") { markBonibamPlayed(); setIsNew(false); } setGame(g.key); }} className={`${BTN} relative flex flex-col items-center gap-1 py-4 text-center ${g.bg}`}>
+              {g.isNew && <span className="absolute -right-2 -top-2 border-2 border-[#2b1d1a] bg-[#facc15] px-1.5 text-xs font-black text-[#2b1d1a]">NEW</span>}
               <CraftImg name={g.img} className="h-16 w-16 object-contain" fallback={<span className="text-4xl">{g.emoji}</span>} />
               <span className="text-base">{g.name}</span>
             </button>

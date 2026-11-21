@@ -13,6 +13,7 @@ import { CounterModal, SpeakerModal, BookmarkModal, ShowroomModal } from "../com
 import { TableItems, clearOrder } from "../components/TeaTable";
 import { BoardModal } from "../components/TeaBoard";
 import { cafeData } from "../spaceData";
+import { recordCafeVisit, bonibamUnlocked, unlockSeen, markUnlockSeen } from "../lib/visits";
 
 // ☕ 군산 온라인 찻집 (teaHouse) — 입장하면 가장 먼저 오는 곳
 //  - 배경 그림: public/teahouse_bg.png (2400x1792, 통창 유리는 투명) — 아래 좌표는 모두 이 그림 기준 0~1 비율
@@ -64,6 +65,13 @@ const TALK_LINES = [
   partyData.shopOpen ? "왼쪽 아래 책장엔 손님들이 남긴 책갈피가, 오른쪽 선반엔 다구 쇼룸이 있어요." : "왼쪽 아래 책장엔 손님들이 남긴 책갈피가 있어요. 마음에 드는 책을 골라 보세요!",
   "위쪽 문은 🛋️ 거실, 카운터와 다구 선반 사이 길은 🖼️ 전시실, 오른쪽 아래 통로는 🌳 무해림 숲길로 이어져요. 오픈 기간에만 열려요!",
   "그럼 편안한 시간 보내세요. 궁금한 게 생기면 포스기 옆에서 저를 불러 주세요 😊",
+];
+
+// 🌰 3번째 방문: 보늬밤조림 미니게임 해금 안내 (다연 머리 위 ❗ → 누르면 이 대사)
+const UNLOCK_LINES = [
+  "또 와 주셨네요! 벌써 세 번째 방문이에요. 이제 단골 손님이시네요 😊",
+  "단골 손님께만 알려 드리는 비밀 메뉴가 있어요. 군산 밤으로 만드는 🌰 보늬밤조림이요!",
+  "카운터에서 [🎮 미니게임 하기]를 누르면 새 게임 🌰 보늬밤조림을 해 볼 수 있어요. 맛있게 만들어 주세요!",
 ];
 
 // ---------------- 🪑 좌석 (총 13석) ----------------
@@ -218,7 +226,7 @@ function CafeScene({ npcBubble, season, orders, debug, npcAlert, onNpcAlert, tal
   // 🍡 카운터 진열: 들어올 때마다 메뉴 2개를 랜덤으로
   const [counterPicks, setCounterPicks] = useState([]);
   useEffect(() => {
-    const pool = [...COUNTER_MENU];
+    const pool = COUNTER_MENU.filter((m) => m.img !== "bonibam_done" || bonibamUnlocked()); // 🌰 해금 전엔 보늬밤조림 안 보여요
     const picks = [];
     while (picks.length < 2 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
     setCounterPicks(picks);
@@ -321,16 +329,21 @@ export default function CafePage() {
   // ❗ 첫 방문 느낌표 / 💬 이용 안내 대화 { lines, index }
   const [npcAlert, setNpcAlert] = useState(false);
   const [talk, setTalk] = useState(null);
-  const startTalk = () => {
+  // ❗가 무슨 안내인지: "guide"(첫 방문 이용 안내) | "unlock"(🌰 보늬밤조림 해금)
+  const [alertKind, setAlertKind] = useState("guide");
+  const startTalk = (kind = "guide") => {
     setNpcBubble(null);
     setNpcAlert(false);
-    setTalk({ lines: TALK_LINES, index: 0 });
+    setTalk({ lines: kind === "unlock" ? UNLOCK_LINES : TALK_LINES, index: 0, kind });
   };
   const endTalk = () => {
+    if (talk?.kind === "unlock") markUnlockSeen(); // 해금 안내를 들었어요
+    else {
+      try {
+        localStorage.setItem("teaHouseVisited", "true"); // 이제 "와 본 손님"
+      } catch {}
+    }
     setTalk(null);
-    try {
-      localStorage.setItem("teaHouseVisited", "true"); // 이제 "와 본 손님"
-    } catch {}
   };
   const nextTalk = () => {
     if (!talk) return;
@@ -344,11 +357,17 @@ export default function CafePage() {
       try {
         nicknameRef.current = localStorage.getItem("partyNickname") || "";
       } catch {}
+      recordCafeVisit(); // 하루에 한 번 방문 횟수 +1
       let visited = false;
       try {
         visited = localStorage.getItem("teaHouseVisited") === "true";
       } catch {}
       if (!visited) {
+        setAlertKind("guide");
+        setNpcAlert(true);
+      } else if (bonibamUnlocked() && !unlockSeen()) {
+        // 🌰 3번째 방문: 새 미니게임이 열렸다고 ❗로 알려요
+        setAlertKind("unlock");
         setNpcAlert(true);
       } else {
         later(() => say(NPC_LINES.again, 4000), 600);
@@ -390,7 +409,7 @@ export default function CafePage() {
           onPick={(pick) => {
             if (pick !== "guide") return setCounterPick(pick);
             closeAll(); // 💬 다연에게 말 걸기 → 창을 닫고 말풍선으로 이용 안내
-            startTalk();
+            startTalk("guide");
           }}
         />
         <TeaCraftModal open={view === "craft"} onClose={closeAll} />
@@ -411,7 +430,7 @@ export default function CafePage() {
         orders={tea.orders}
         debug={debug}
         npcAlert={npcAlert}
-        onNpcAlert={startTalk}
+        onNpcAlert={() => startTalk(alertKind)}
         talk={talk}
         onTalkNext={nextTalk}
         onTalkSkip={endTalk}

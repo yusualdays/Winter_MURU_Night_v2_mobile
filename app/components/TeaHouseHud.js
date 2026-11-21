@@ -220,7 +220,7 @@ function CleanupSection({ api }) {
     }
     if (local) {
       try {
-        ["teaHouseVisited", "teaCraftPending", "partyInviteSeen", "partyNoiseMix", "partyFocus"].forEach((k) => localStorage.removeItem(k));
+        ["teaHouseVisited", "teaHouseVisits", "bonibamUnlockSeen", "bonibamPlayed", "teaCraftPending", "partyInviteSeen", "partyNoiseMix", "partyFocus"].forEach((k) => localStorage.removeItem(k));
       } catch {}
     }
     setResult(fails.length ? `일부는 지우지 못했어요 (Firebase 규칙 확인): ${fails.join(", ")}` : "깨끗하게 지웠어요! ✨");
