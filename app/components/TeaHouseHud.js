@@ -8,10 +8,10 @@ import { cafeData } from "../spaceData";
 import { isHost, inSchedule, scheduleText, ROOMS, LOCKABLE_ROOMS, useRoomSchedules, scheduleOf } from "../lib/rooms";
 import PixelModal from "./PixelModal";
 import { OrderBar } from "./TeaTable";
-import { FocusToggle, FocusPanel, NoiseMixer } from "./FocusMode";
+import { FocusToggle, FocusPanel } from "./FocusMode";
 import { adminLogin, isAdminUser, ADMIN_UID, logout as adminLogout } from "../lib/forestAuth";
-import { CafeBgmControl, useCafeBgmAutoStart } from "./TeaRoomModals";
-import { SettingsPopup, Section, ToggleRow, L_INPUT, L_BTN, L_BTN_MAIN } from "./RoomSettings";
+import { useCafeBgmAutoStart } from "./TeaRoomModals";
+import { SettingsPopup, Section, ToggleRow, SoundSection, L_INPUT, L_BTN, L_BTN_MAIN } from "./RoomSettings";
 
 // ☕ 찻집 화면 위 UI 모음
 //  - ⚙️ 설정: 🎧 백색소음 · 🔑 사장님 인증 (🪟 통창 풍경은 접속한 날짜의 계절로 자동) · 🔓 테스트용 강제 오픈
@@ -134,14 +134,11 @@ export function SettingsPanel({ api, onOpenOwner, noise = true, top = null, owne
 
   return (
     <div className="text-[#2b1d1a]">
-      {top}
-
-      {/* 🎧 백색소음 */}
-      {noise && (
-        <Section title="🎧 백색소음">
-          <NoiseMixer light />
-        </Section>
-      )}
+      {/* 🔊 소리 (모든 방 공통: 배경음악 · 효과음) */}
+      <Section title="🔊 소리">
+        <SoundSection />
+      </Section>
+      {top && <Section>{top}</Section>}
 
       {/* 🔑 사장님 모드 (사장님에게만 보여요) */}
       {api.isOwner && (
@@ -194,6 +191,81 @@ const dayKeyOf = (ms) => {
   const d = new Date(ms);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
+
+// 🧹 테스트하면서 쌓인 데이터 지우기 (Firebase) — 설정(오픈 기간·주인장 팻말·야차 차 종류)은 남겨요
+const CLEAN_GROUPS = [
+  { id: "cafe", label: "☕ 찻집", sub: "주문·자리, 게시판, 모임·라이브, 메뉴 상태·투표·피드백, 책갈피, 1:1 대화", paths: ["teaHouse/orders", "roomSeats", "teaHouse/board", "teaHouse/gathering", "teaHouse/live", "teaHouse/menuStatus", "menuFeedbacks", "teaHouse/bookmarks", "teaChat"] },
+  { id: "living", label: "🛋️ 거실", sub: "채팅, 방명록, 소원 트리, 영화·책 추천, 눈사람 편지, 건배·인사, 의자, 통화 참석, 눈덩이 게임", paths: ["chat", "guestbook", "wishes", "partyMovies", "partyBooks", "messages", "events", "seats", "callRsvp", "snowGame"] },
+  { id: "gallery", label: "🖼️ 전시실", sub: "방명록", paths: ["galleryGuestbook"] },
+  { id: "forest", label: "🌳 무해림", sub: "손님 나무, 비밀 나무", paths: ["forest/trees", "forestSecrets"] },
+  { id: "users", label: "👥 접속자 기록", sub: "남아 있는 접속 기록 (지금 접속한 사람은 다시 생겨요)", paths: ["users"] },
+];
+function CleanupSection({ api }) {
+  const [pick, setPick] = useState(() => Object.fromEntries(CLEAN_GROUPS.map((g) => [g.id, true])));
+  const [local, setLocal] = useState(false);
+  const [ask, setAsk] = useState(false);
+  const [result, setResult] = useState("");
+  const run = async () => {
+    setAsk(false);
+    const fails = [];
+    for (const g of CLEAN_GROUPS) {
+      if (!pick[g.id]) continue;
+      for (const path of g.paths) {
+        try {
+          if (db) await remove(ref(db, path));
+        } catch {
+          fails.push(path);
+        }
+      }
+    }
+    if (local) {
+      try {
+        ["teaHouseVisited", "teaCraftPending", "partyInviteSeen", "partyNoiseMix", "partyFocus"].forEach((k) => localStorage.removeItem(k));
+      } catch {}
+    }
+    setResult(fails.length ? `일부는 지우지 못했어요 (Firebase 규칙 확인): ${fails.join(", ")}` : "깨끗하게 지웠어요! ✨");
+    api.showToast(fails.length ? "일부 데이터는 지우지 못했어요" : "테스트 데이터를 지웠어요", "🧹");
+  };
+  return (
+    <section className="mt-5 border-t-4 border-dashed border-white/15 pt-4">
+      <p className="font-black text-amber-200">🧹 테스트 데이터 지우기</p>
+      <p className="mt-0.5 text-[11px] text-white/50">고른 공간의 글·기록을 모두 지워요. 오픈 기간·주인장 팻말·야차 차 종류 같은 설정은 남아요. 지우면 되돌릴 수 없어요.</p>
+      <ul className="mt-2 flex flex-col gap-1.5">
+        {CLEAN_GROUPS.map((g) => (
+          <li key={g.id}>
+            <label className="flex cursor-pointer items-start gap-2 border-2 border-white/15 bg-black/20 px-2.5 py-2 text-sm">
+              <input type="checkbox" checked={!!pick[g.id]} onChange={(e) => setPick({ ...pick, [g.id]: e.target.checked })} className="mt-0.5 h-4 w-4 shrink-0 accent-amber-400" />
+              <span>
+                <b>{g.label}</b>
+                <span className="block text-[11px] text-white/60">{g.sub}</span>
+              </span>
+            </label>
+          </li>
+        ))}
+        <li>
+          <label className="flex cursor-pointer items-start gap-2 px-2.5 py-1 text-xs text-white/70">
+            <input type="checkbox" checked={local} onChange={(e) => setLocal(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-amber-400" />
+            이 기기의 기록도 지우기 (첫 방문 안내 다시 보기 등)
+          </label>
+        </li>
+      </ul>
+      {!ask ? (
+        <button type="button" onClick={() => { setResult(""); setAsk(true); }} disabled={!Object.values(pick).some(Boolean) && !local} className={`${BTN} mt-2 w-full bg-rose-300 text-[#7f1d1d]`}>
+          🧹 고른 데이터 지우기
+        </button>
+      ) : (
+        <div className="mt-2 border-2 border-rose-300/60 bg-rose-900/40 p-2.5 text-sm">
+          <p className="font-bold text-rose-100">정말 지울까요? 되돌릴 수 없어요.</p>
+          <div className="mt-2 flex gap-2">
+            <button type="button" onClick={run} className={`${BTN} flex-1 bg-rose-400 text-white`}>네, 지울게요</button>
+            <button type="button" onClick={() => setAsk(false)} className={`${BTN} bg-[#f5e6c8] text-[#2b1d1a]`}>취소</button>
+          </div>
+        </div>
+      )}
+      {result && <p className="mt-2 text-xs font-bold text-amber-100">{result}</p>}
+    </section>
+  );
+}
 
 // 🗓️ 거실 · 전시실 · 무해림 오픈 기간 (Firebase roomSchedule/{방}) — 모두의 화면에 바로 반영
 function RoomScheduleSection({ write, setMsg, api }) {
@@ -350,6 +422,9 @@ function OwnerPanel({ open, onClose, tea, api }) {
       {/* 🗓️ 공간 오픈 기간 */}
       <RoomScheduleSection write={write} setMsg={setMsg} api={api} />
 
+      {/* 🧹 테스트 데이터 지우기 */}
+      <CleanupSection api={api} />
+
       {/* 2) 메뉴 실시간 상태 */}
       <section className="mt-5 border-t-4 border-dashed border-white/15 pt-4">
         <p className="font-black text-amber-200">🍵 메뉴 실시간 상태</p>
@@ -486,7 +561,6 @@ export default function TeaHouseHud({ tea, api }) {
           tea={tea}
           api={api}
           ownerToggle
-          top={<CafeBgmControl />}
           onOpenOwner={() => {
             setPanelOpen(false);
             setOwnerOpen(true);

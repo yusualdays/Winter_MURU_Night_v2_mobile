@@ -6,6 +6,7 @@ import { db } from "../lib/firebase";
 import { ensureUser, watchUser, adminLogin, logout } from "../lib/forestAuth";
 import { isHost } from "../lib/rooms";
 import { startBirds, stopBirds } from "../lib/birdsong";
+import { useSound } from "../lib/sound";
 import SimpleRoom from "../components/SimpleRoom";
 import PixelModal from "../components/PixelModal";
 import { SettingsPanel } from "../components/TeaHouseHud";
@@ -249,7 +250,7 @@ function PlantForm({ initial, defaultName = "", onSubmit, onCancel }) {
           🔒 비밀 나무
         </label>
       </div>
-      {secret && <p className="mt-1 text-[11px] text-amber-100/70">하고 싶은 말과 내 이름은 주인장만 읽을 수 있어요. 나무 이름은 숲에 보여요.</p>}
+      {secret && <p className="mt-1 text-[11px] text-amber-100/70">하고 싶은 말과 내 이름은 무해임만 읽을 수 있어요. 나무 이름은 숲에 보여요.</p>}
       {msg && <p className="mt-2 text-sm font-bold text-rose-300">{msg}</p>}
       <div className="mt-4 flex justify-end gap-2">
         <button type="button" onClick={onCancel} className="border-4 border-[#1a110e] bg-[#6e4530] px-4 py-2 font-black text-white">
@@ -269,15 +270,12 @@ function useForestBgm() {
   const src = forestData.bgm?.src;
   const audioRef = useRef(null);
   const [ready, setReady] = useState(false);
-  const [on, setOnState] = useState(true);
-  const [vol, setVolState] = useState(20); // 처음 소리 크기 20
+  // 🔊 소리 크기·켜기/끄기는 모든 방 공통 설정 (lib/sound.js 배경음악)
+  const [snd, setSnd] = useSound();
+  const on = snd.bgmOn && snd.bgmVol > 0;
+  const vol = snd.bgmVol;
   useEffect(() => {
     if (!src) return;
-    try {
-      if (localStorage.getItem(BGM_KEY) === "0") setOnState(false);
-      const v = localStorage.getItem(BGM_VOL_KEY);
-      if (v !== null && !Number.isNaN(Number(v))) setVolState(Math.max(0, Math.min(100, Number(v))));
-    } catch {}
     const a = new Audio(src);
     a.loop = true;
     a.preload = "auto";
@@ -307,18 +305,8 @@ function useForestBgm() {
       window.removeEventListener("keydown", go);
     };
   }, [ready, on, vol]);
-  const setOn = (v) => {
-    setOnState(v);
-    try {
-      localStorage.setItem(BGM_KEY, v ? "1" : "0");
-    } catch {}
-  };
-  const setVol = (v) => {
-    setVolState(v);
-    try {
-      localStorage.setItem(BGM_VOL_KEY, String(v));
-    } catch {}
-  };
+  const setOn = (v) => setSnd({ bgmOn: !!v });
+  const setVol = (v) => setSnd({ bgmVol: v });
   return { ready, on, setOn, vol, setVol, title: forestData.bgm?.title ?? "숲의 음악" };
 }
 
@@ -474,8 +462,6 @@ function ForestSettings({ api, birds, onBirds, host, count, teas, bgm, admin }) 
   const canHost = api.isOwner;
   const top = (
     <div className="flex flex-col gap-4">
-      {bgm.ready && <VolumeRow icon="🎵" label={bgm.title} playing={bgm.on} onToggle={() => bgm.setOn(!bgm.on)} volume={bgm.vol} onVolume={bgm.setVol} />}
-      <ToggleRow icon="🐦" label="새소리" checked={birds} onChange={onBirds} />
       <p className="text-[11px] text-[#5b3b2a]">🌳 지금 숲에 {count - 1}그루</p>
     </div>
   );
@@ -561,7 +547,10 @@ export default function ForestPage() {
   const mapW = Math.max(BASE_W, Math.round(maxX + EXTRA_W));
   const [nickname, setNickname] = useState("");
   const [plantAt, setPlantAt] = useState(null); // { x, editing? }
-  const [birds, setBirds] = useState(true);
+  // 🐦 새소리 = 🔔 효과음 (모든 방 공통 소리 설정)
+  const [sndAll] = useSound();
+  const birds = sndAll.sfxOn && sndAll.sfxVol > 0;
+  const birdVol = 0.05 * (sndAll.sfxVol / 60);
   const [guideAlert, setGuideAlert] = useState(false); // 📜 처음 오면 안내판 위 "!"
   const openRef = useRef(null);
   const apiRef = useRef(null);
@@ -569,7 +558,6 @@ export default function ForestPage() {
   useEffect(() => {
     try {
       setNickname(localStorage.getItem("partyNickname") ?? "");
-      if (localStorage.getItem(BIRDS_KEY) === "0") setBirds(false);
       if (!localStorage.getItem(GUIDE_SEEN_KEY)) setGuideAlert(true);
       let fid = localStorage.getItem("forestId");
       if (!fid) {
@@ -586,7 +574,7 @@ export default function ForestPage() {
       stopBirds();
       return;
     }
-    const go = () => startBirds();
+    const go = () => startBirds(birdVol);
     window.addEventListener("pointerdown", go, { once: true });
     window.addEventListener("keydown", go, { once: true });
     return () => {
@@ -594,14 +582,8 @@ export default function ForestPage() {
       window.removeEventListener("keydown", go);
       stopBirds();
     };
-  }, [birds]);
-  const changeBirds = (on) => {
-    setBirds(on);
-    try {
-      localStorage.setItem(BIRDS_KEY, on ? "1" : "0");
-    } catch {}
-    if (on) startBirds();
-  };
+  }, [birds, birdVol]);
+  const changeBirds = () => {};
 
   const admin = useAdminSecrets();
   const [myId, setMyId] = useState(""); // 이 기기의 숲 아이디 (localStorage — 다음에 와도 내 나무를 알아봐요)

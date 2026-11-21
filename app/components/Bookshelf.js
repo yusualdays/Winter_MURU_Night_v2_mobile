@@ -101,7 +101,7 @@ export default function Bookshelf({ open, onClose }) {
         <>
           {/* 호스트의 책꽂이 */}
           <p className="mb-2 text-sm font-bold text-amber-200">
-            ⭐ 주인장의 추천
+            ⭐ 무해임의 추천
           </p>
           <Shelf books={books} onSelect={setSelected} />
 

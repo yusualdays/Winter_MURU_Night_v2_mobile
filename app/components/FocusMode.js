@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { sfxLevel, onSound } from "../lib/sound";
 
 // 📖 공부 집중 모드 + 🎧 백색소음 믹서 (mp3 없이 Web Audio API로 직접 만든 소리)
 //  - [📖 공부 집중 모드 ON/OFF]: 켜면 파티 UI가 숨고, 도트 뽀모도로 타이머(25분 집중 / 5분 휴식)가 떠요
@@ -126,7 +127,9 @@ function startEngine() {
   }
   engine.ctx = a;
   engine.master = a.createGain();
+  engine.master.gain.value = sfxLevel(); // 🔔 효과음 소리 크기 (모든 방 공통)
   engine.master.connect(a.destination);
+  onSound(() => engine.master && engine.master.gain.setTargetAtTime(sfxLevel(), a.currentTime, 0.1));
   const white = noiseBuffer(a, "white");
   const pink = noiseBuffer(a, "pink");
   const brown = noiseBuffer(a, "brown");
@@ -187,7 +190,42 @@ function setVolume(id, v) {
   g.gain.setTargetAtTime(Math.pow(v / 100, 2) * (id === "kettle" ? 1.4 : 1), engine.ctx.currentTime, 0.15);
 }
 
-// ---------------- 🎧 믹서 (설정 창·집중 패널 어디서나) ----------------
+// ---------------- 🌦️ 찻집 자동 백색소음 ----------------
+//  찻집에서는 날씨에 맞는 소리 하나만 자동으로 (집중 패널 믹서를 직접 만지면 그때부터는 손님이 고른 대로)
+//   평소: 🫖 찻물 끓는 소리 / 비: 🌧️ 빗소리 / 최저기온 -20℃ 이하: 🔥 장작불 / 태풍(강풍): 🍃 바람·풍경
+let ambientId = null;
+let manualMix = false;
+export function setAmbient(id) {
+  ambientId = id;
+  if (manualMix) return;
+  const apply = () => SOUNDS.forEach((s) => setVolume(s.id, s.id === id ? 70 : 0));
+  if (engine.ctx) apply();
+}
+// 첫 터치 때 소리 켜기 (브라우저 규칙) — 찻집 페이지에서 써요
+export function useCafeAmbient(id) {
+  useEffect(() => {
+    setAmbient(id);
+    const go = () => {
+      if (startEngine() && !manualMix) setAmbient(ambientId);
+    };
+    window.addEventListener("pointerdown", go);
+    window.addEventListener("keydown", go);
+    return () => {
+      window.removeEventListener("pointerdown", go);
+      window.removeEventListener("keydown", go);
+    };
+  }, [id]);
+  // 찻집을 나가면 조용히
+  useEffect(
+    () => () => {
+      ambientId = null;
+      if (!manualMix) SOUNDS.forEach((s) => setVolume(s.id, 0));
+    },
+    []
+  );
+}
+
+// ---------------- 🎧 믹서 (집중 패널) ----------------
 function loadVols() {
   try {
     return { fire: 0, kettle: 0, rain: 0, wind: 0, ...JSON.parse(localStorage.getItem(VOL_KEY) || "{}") };
@@ -201,6 +239,7 @@ export function NoiseMixer({ light = false }) {
   useEffect(() => setVols(loadVols()), []);
   const change = (id, v) => {
     startEngine(); // 첫 조작 때 소리 켜기 (브라우저 자동 재생 규칙)
+    manualMix = true; // 손님이 직접 고르면 자동 백색소음은 멈춰요
     const next = { ...vols, [id]: v };
     setVols(next);
     try {
@@ -263,6 +302,7 @@ export function NoiseMixer({ light = false }) {
 // 새로고침 뒤에도 기억해 둔 볼륨으로 이어 듣기 (첫 터치 때 시작)
 function useResumeMix() {
   useEffect(() => {
+    if (ambientId) return; // 찻집 자동 백색소음이 켜져 있으면 그걸로
     const vols = loadVols();
     if (!Object.values(vols).some((v) => v > 0)) return;
     const go = () => {
@@ -284,7 +324,7 @@ function beep(times = 2) {
     o.type = "square";
     o.frequency.value = 880;
     const t = a.currentTime + i * 0.25;
-    g.gain.setValueAtTime(0.08, t);
+    g.gain.setValueAtTime(Math.max(0.0002, 0.08 * sfxLevel() * 1.6), t); // 🔔 효과음 크기
     g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
     o.connect(g).connect(a.destination);
     o.start(t);

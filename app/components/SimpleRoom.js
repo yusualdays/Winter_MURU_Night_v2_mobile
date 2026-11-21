@@ -896,7 +896,7 @@ export default function SimpleRoom({
       {/* 🔑 거실 입장 코드 */}
       <PixelModal open={!!codeAsk} onClose={() => setCodeAsk(null)} label="🔑 입장 코드" title="거실은 초대받은 분만 들어갈 수 있어요" width={400}>
         <form onSubmit={submitCode} className="flex flex-col gap-2">
-          <p className="text-sm text-white/80">주인장에게 받은 입장 코드를 입력해 주세요. 한 번 맞히면 다음부터는 바로 들어가요.</p>
+          <p className="text-sm text-white/80">무해임에게 받은 입장 코드를 입력해 주세요. 한 번 맞히면 다음부터는 바로 들어가요.</p>
           <div className="flex gap-2">
             <input
               autoFocus

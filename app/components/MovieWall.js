@@ -115,7 +115,7 @@ export default function MovieWall({ open, onClose }) {
       width={600}
     >
       {/* 호스트의 추천 */}
-      <p className="mb-2 text-sm font-bold text-amber-200">⭐ 주인장의 추천</p>
+      <p className="mb-2 text-sm font-bold text-amber-200">⭐ 무해임의 추천</p>
       <div className="mx-auto grid max-w-[440px] grid-cols-3 gap-3">
         {movies.map((movie, i) => (
           <MovieCard key={movie.id ?? i} movie={movie} />

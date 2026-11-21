@@ -1,3 +1,4 @@
+import { sfxLevel } from './sound';
 // ===== '쨍그랑' 건배 소리 =====
 // mp3 파일 없이 브라우저가 직접 소리를 만들어요 (Web Audio API) → 업로드 용량 0
 // 직접 녹음한 mp3를 쓰고 싶으면 public 폴더에 넣고 아래에 경로를 적으세요. 예: "/clink.mp3"
@@ -18,7 +19,7 @@ export function unlockAudio() {
 // 유리잔 한 번 "팅~"
 function clink(at, pitch) {
   const master = ctx.createGain();
-  master.gain.value = 0.35;
+  master.gain.value = 0.35 * sfxLevel() * 1.6; // 🔔 효과음 소리 크기 (모든 방 공통)
   master.connect(ctx.destination);
 
   // 유리잔 특유의 맑은 배음들 (높은 음 여러 개를 겹치기)

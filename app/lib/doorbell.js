@@ -1,3 +1,4 @@
+import { sfxLevel } from './sound';
 // ===== 초인종 "딩~동~" =====
 // mp3 파일 없이 브라우저가 실시간으로 소리를 만들어요 (Web Audio API) → 업로드 용량 0
 
@@ -9,7 +10,7 @@ let ctx = null;
 function chime(freq, start, length) {
   const master = ctx.createGain();
   master.gain.setValueAtTime(0.0001, start);
-  master.gain.exponentialRampToValueAtTime(VOLUME, start + 0.01); // 톡 치고
+  master.gain.exponentialRampToValueAtTime(Math.max(0.0002, VOLUME * sfxLevel() * 1.6), start + 0.01); // 톡 치고 (🔔 효과음 크기)
   master.gain.exponentialRampToValueAtTime(0.0001, start + length); // 은은하게 사라짐
   master.connect(ctx.destination);
 
@@ -67,8 +68,9 @@ export function playEnterSound() {
     f.Q.value = 0.9;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, now);
-    g.gain.exponentialRampToValueAtTime(0.22, now + 0.05);
-    g.gain.setValueAtTime(0.22, now + 0.38);
+    const lv = Math.max(0.0002, 0.22 * sfxLevel() * 1.6); // 🔔 효과음 크기
+    g.gain.exponentialRampToValueAtTime(lv, now + 0.05);
+    g.gain.setValueAtTime(lv, now + 0.38);
     g.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
     src.connect(f).connect(g).connect(ctx.destination);
     src.start(now);
@@ -79,7 +81,7 @@ export function playEnterSound() {
         const o = ctx.createOscillator();
         const gg = ctx.createGain();
         o.frequency.value = freq * m;
-        gg.gain.setValueAtTime(0.12 / (i + 1), t);
+        gg.gain.setValueAtTime(Math.max(0.0002, (0.12 / (i + 1)) * sfxLevel() * 1.6), t);
         gg.gain.exponentialRampToValueAtTime(0.0001, t + 1.6 - i * 0.4);
         o.connect(gg).connect(ctx.destination);
         o.start(t);

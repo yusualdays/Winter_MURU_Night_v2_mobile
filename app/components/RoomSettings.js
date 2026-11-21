@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSound } from "../lib/sound";
 
 // ⚙️ 모든 방 공통 설정창 모양 (거실 설정창과 같은 생김새)
 //  - SettingsPopup: 오른쪽 위 픽셀 톱니바퀴 버튼 + 크림색 팝업 (ESC·바깥 누르면 닫혀요)
@@ -68,6 +69,19 @@ export function VolumeRow({ icon, label, playing, onToggle, volume, onVolume, di
         </div>
       </div>
       {hint && <p className="pl-11 text-[11px] text-[#a8433a]">{hint}</p>}
+    </div>
+  );
+}
+
+// ---------- 🔊 소리 (모든 방 공통: 배경음악 · 효과음) ----------
+//  한 방에서 바꾸면 다른 방에도 그대로 (lib/sound.js)
+export function SoundSection({ bgmHint = "", sfxHint = "" }) {
+  const [s, set] = useSound();
+  return (
+    <div className="flex flex-col gap-3">
+      <VolumeRow icon="🎵" label="배경음악" playing={s.bgmOn} onToggle={() => set({ bgmOn: !s.bgmOn })} volume={s.bgmVol} onVolume={(v) => set({ bgmVol: v, bgmOn: v > 0 ? true : s.bgmOn })} hint={bgmHint} />
+      <VolumeRow icon="🔔" label="효과음" playing={s.sfxOn} onToggle={() => set({ sfxOn: !s.sfxOn })} volume={s.sfxVol} onVolume={(v) => set({ sfxVol: v, sfxOn: v > 0 ? true : s.sfxOn })} hint={sfxHint} />
+      <p className="text-[11px] text-[#5b3b2a]">찻집·거실·전시실·무해림 모두 같은 소리 크기로 들려요</p>
     </div>
   );
 }

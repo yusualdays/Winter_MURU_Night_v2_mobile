@@ -1,6 +1,6 @@
 // 파티에서 쓰는 데이터 모음
 export const partyData = {
-      hostNickname: "주인장",
+      hostNickname: "무해임", // 👑 호스트(나) 닉네임 — 이 닉네임으로 들어오면 미리 열기·눈덩이 게임 시작 등을 할 수 있어요
   // 🗓️ 거실·전시회 오픈 기간 (이 기간에만 찻집에서 들어갈 수 있어요. 기간 밖에는 "준비중")
   //    날짜는 "연-월-일" 형식, 시작일과 마지막 날 모두 포함
   eventSchedule: { startDate: "2026-12-01", endDate: "2026-12-31" },
@@ -17,8 +17,8 @@ export const partyData = {
   adminUid: "",
   // 🎵 찻집 BGM (내가 만든 음악) — mp3를 public 폴더에 올리고 주소와 제목을 적어요 (예: "/cafe_bgm.mp3")
   //    비워 두면 찻집에는 BGM이 없어요 (설정창에도 안 보여요)
-  teaHouseBgm: "",
-  teaHouseBgmTitle: "",
+  teaHouseBgm: "/cafe/bgm.mp3",
+  teaHouseBgmTitle: "無害林 찻집 BGM",
   // 🍵 군산 온라인 찻집 차림표 (카운터 근처 [🍵 차림표 보기])
   //   id: 영어·숫자로 겹치지 않게 (사장님 메뉴 상태·손님 투표·피드백이 이 id로 저장돼요)
   //   story: 메뉴에 담긴 이야기 / price: 예정 가격 (비워 둬도 돼요)
@@ -48,8 +48,6 @@ export const partyData = {
       { emoji: "🍶", name: "숙우 & 찻잔 세트", price: "32,000원", description: "2인 찻잔 + 숙우", url: "" },
     ],
   },
-  // (선택) 찻집 BGM — 비워 두면 bgmFile 을 써요
-  teaHouseBgm: "",
   // 🍡🍵 다도 체험존 (찻집 미니게임) — 완성 화면의 [🛍️ ...] 버튼이 여기 주소로 연결돼요 (스마트스토어 상품 주소로 바꿔 주세요)
   teaCraft: {
     dasikKits: {
@@ -176,7 +174,7 @@ export const partyData = {
     time: '12월 19일 (토) 저녁 7시', // 빨간 날짜 띠
     message:
       '우리 구글 MEET에서 만나요.\n편한 옷, 따뜻한 음료와 간식 챙겨 오세요 ☕', // 편지 내용 (\n = 줄바꿈)
-    host: '주인장', // "— 파티 주인 드림"
+    host: '무해임', // "— 파티 주인 드림"
     links: [
       { label: 'Google Meet 가기', url: 'https://meet.google.com/csi-kfed-nxk' }, // 버튼 글자, 통화 주소
     ],

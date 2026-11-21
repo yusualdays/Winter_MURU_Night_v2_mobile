@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { partyData } from "../data";
 import { startFire, stopFire, setFireVolume as applyFireVolume } from "../lib/fireSound";
 import { LIGHTING_MODES, WEATHER_MODES } from "./RoomAmbience";
-import { PIXEL_CORNERS, PixelGear, VolumeRow, ChoiceRow } from "./RoomSettings";
+import { PIXEL_CORNERS, PixelGear, ChoiceRow, SoundSection } from "./RoomSettings";
+import { useSound } from "../lib/sound";
 
 // 설정창 모양 조각은 RoomSettings.js에서 같이 써요 (찻집·전시실·무해림과 같은 생김새)
 
@@ -26,6 +27,10 @@ export default function AudioSettings({
 }) {
   const [open, setOpen] = useState(false);
   const panelRef = useRef(null);
+  // 🔊 소리 크기는 모든 방 공통 (배경음악 · 효과음) — lib/sound.js
+  const [snd] = useSound();
+  bgmVolume = snd.bgmOn ? snd.bgmVol : 0;
+  fireVolume = snd.sfxOn ? snd.sfxVol : 0; // 🔥 장작불 = 효과음
 
     // --- BGM (내 음악 파일, 화면에 플레이어 없이 소리만) ---
   //  아이폰은 <audio>의 볼륨을 바꿀 수 없어서, 소리를 "볼륨 조절기(GainNode)"에 통과시켜 조절해요
@@ -87,7 +92,7 @@ export default function AudioSettings({
       window.addEventListener("pointerdown", startOnTouch);
       window.addEventListener("keydown", startOnTouch);
     };
-    if (partyData?.bgmAutoplay !== false) {
+    if (partyData?.bgmAutoplay !== false && bgmVolume > 0) {
       ctx?.resume().catch(() => {});
       audio
         .play()
@@ -113,11 +118,18 @@ export default function AudioSettings({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bgmSrc, setBgmPlaying]);
 
-  // 볼륨 바꾸기 (볼륨 조절기가 있으면 그걸로 → 아이폰에서도 작동)
+  // 볼륨 바꾸기 (볼륨 조절기가 있으면 그걸로 → 아이폰에서도 작동) · 배경음악을 끄면 멈추고, 켜면 다시
   useEffect(() => {
     const v = bgmVolume / 100;
     if (gainRef.current && ctxRef.current) gainRef.current.gain.setTargetAtTime(v, ctxRef.current.currentTime, 0.05);
     else if (audioRef.current) audioRef.current.volume = v;
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (v === 0) audio.pause();
+    else if (audio.paused) {
+      ctxRef.current?.resume().catch(() => {});
+      audio.play().catch(() => {});
+    }
   }, [bgmVolume]);
 
   const toggleBgm = () => {
@@ -130,9 +142,22 @@ export default function AudioSettings({
     else audio.pause();
   };
 
-  // --- 장작불 ASMR ---
+  // --- 🔥 장작불 ASMR (효과음): 효과음이 켜져 있으면 화면을 한 번 누른 뒤부터 타닥타닥 ---
   useEffect(() => {
     applyFireVolume(fireVolume);
+    if (fireVolume === 0) {
+      stopFire();
+      setFirePlaying(false);
+      return;
+    }
+    const go = () => setFirePlaying(startFire());
+    window.addEventListener("pointerdown", go, { once: true });
+    window.addEventListener("keydown", go, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", go);
+      window.removeEventListener("keydown", go);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fireVolume]);
 
   useEffect(() => () => stopFire(), []); // 거실을 나가면 소리 끄기
@@ -202,26 +227,9 @@ export default function AudioSettings({
                     ×
                   </button>
                 </div>
-                <div className="flex flex-col gap-4">
-                  <VolumeRow
-                    icon="🎵"
-                    label="BGM"
-                    playing={bgmPlaying}
-                    onToggle={toggleBgm}
-                    volume={bgmVolume}
-                    onVolume={setBgmVolume}
-                    disabled={!bgmSrc}
-                    hint={bgmHint}
-                  />
-                  <VolumeRow
-                    icon="🔥"
-                    label="장작불 ASMR"
-                    playing={firePlaying}
-                    onToggle={toggleFire}
-                    volume={fireVolume}
-                    onVolume={setFireVolume}
-                  />
-                </div>
+                {/* 🔊 소리 (모든 방 공통: 배경음악 · 효과음) */}
+                <p className="mb-2 text-sm font-black text-[#2b1d1a]">🔊 소리</p>
+                <SoundSection bgmHint={bgmHint} sfxHint="🔥 장작불 소리도 효과음이에요" />
 
                 {/* 거실 분위기 설정 (나에게만 적용돼요) */}
                 <div className="mt-4 border-t-2 border-dashed border-[#2b1d1a]/25 pt-3">

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import SimpleRoom from "../components/SimpleRoom";
 import { TeaNpc, TeaNpcLabel } from "../components/TeaNpc";
-import SeasonWindow, { seasonByDate, useGunsanWeather } from "../components/SeasonWindow";
+import SeasonWindow, { seasonByDate, useGunsanWeather, ambientOf } from "../components/SeasonWindow";
+import { useCafeAmbient } from "../components/FocusMode";
 import { partyData } from "../data";
 import TeaHouseHud, { useTeaHouse } from "../components/TeaHouseHud";
 import TeaMenuBoard from "../components/TeaMenuBoard";
@@ -292,7 +293,17 @@ export default function CafePage() {
       setDateSeason(seasonByDate(new Date()));
     } catch {}
   }, []);
-  const season = testSeason || (weather === "snow" ? "winter" : weather === "rain" ? "rain" : dateSeason);
+  const season = testSeason || (weather?.kind === "snow" ? "winter" : weather?.kind === "rain" || weather?.storm ? "rain" : dateSeason);
+  // 🎧 찻집 백색소음 (자동): 평소 찻물 끓는 소리 · 비 → 빗소리 · 최저 -20℃ 이하 → 장작불 · 태풍 → 바람·풍경
+  //   확인용: 주소 끝에 ?ambient=rain | fire | wind | kettle
+  const [testAmbient, setTestAmbient] = useState(null);
+  useEffect(() => {
+    try {
+      const a = new URLSearchParams(window.location.search).get("ambient");
+      if (["kettle", "rain", "fire", "wind"].includes(a)) setTestAmbient(a);
+    } catch {}
+  }, []);
+  useCafeAmbient(testAmbient || ambientOf(weather));
   // 카운터 창에서 고른 것 (menu | craft | guide) — 카운터 창 대신 그 창을 열어요
   const [counterPick, setCounterPick] = useState(null);
 
