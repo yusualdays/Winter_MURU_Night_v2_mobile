@@ -24,7 +24,7 @@ import ProfileModal from "../components/ProfileModal";
 import ToastParty from "../components/ToastParty";
 import SnowGame from "../components/SnowGame";
 import TapRipple, { TAP_FX_MS } from "../components/TapRipple";
-import { ROOMS, rememberFrom, inZone, isRoomOpen, getOwnerLocal } from "../lib/rooms";
+import { ROOMS, rememberFrom, inZone, isRoomOpen, getOwnerLocal, schedulesReady } from "../lib/rooms";
 import { EMOTE_KEYS } from "../components/EmoteBubble";
 import { ref, set, update, remove, push, onValue, onDisconnect, runTransaction, serverTimestamp } from "firebase/database";
 import { findPath } from "../lib/pathfind";
@@ -206,8 +206,8 @@ export default function LivingRoom() {
       saved = localStorage.getItem("partyNickname");
     } catch {}
     if (!saved || !hasInvite()) router.replace("/"); // 닉네임이 없거나 💌 초대받지 않은 기기 → 입구로
-    else if (!isRoomOpen("livingRoom", saved)) router.replace(ROOMS.teaHouse.href); // 오픈 기간이 아니면 찻집으로
-    else setNickname(saved);
+    // 오픈 기간이 아니면 찻집으로 (사장님이 정한 기간을 불러온 뒤 확인)
+    else schedulesReady().then(() => (isRoomOpen("livingRoom", saved) ? setNickname(saved) : router.replace(ROOMS.teaHouse.href)));
     setOwnerMode(getOwnerLocal());
     setLook(normalizeLook(getLook()));
   }, [router]);

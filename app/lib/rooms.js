@@ -4,7 +4,11 @@
 //            ├ 카운터·다구 선반 사이 길 → 🖼️ 전시회(exhibitionRoom, /gallery)
 //            └ 오른쪽 아래 통로        → 🌳 무해림(forest, /forest) — 옆으로 걷는 숲길 기획전
 //  - 어느 방(어느 통로)에서 왔는지 기억해 두면, 도착한 방에서 그 통로 앞에 서서 시작해요
-//  - 거실·전시회는 data.js의 eventSchedule 기간에만 열려요 (호스트는 테스트용으로 강제 오픈 가능)
+//  - 거실·전시회·무해림은 오픈 기간에만 열려요 (호스트는 테스트용으로 강제 오픈 가능)
+//    기간: 찻집 📋 사장님 관리 → 🗓️ 공간 오픈 기간 (Firebase roomSchedule/{방}) — 안 정한 방은 data.js eventSchedule
+import { useEffect, useState } from "react";
+import { ref, onValue } from "firebase/database";
+import { db } from "./firebase";
 import { partyData } from "../data";
 
 export const ROOMS = {
@@ -60,9 +64,69 @@ export function todayKey(d = new Date()) {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
-// 오늘이 eventSchedule 기간 안인지 (시작일·마지막 날 모두 포함)
-export function inSchedule(d = new Date()) {
-  const s = partyData?.eventSchedule;
+// ---------- 🗓️ 방마다 오픈 기간 (사장님이 찻집에서 정해요) ----------
+//  Firebase roomSchedule/{livingRoom|exhibitionRoom|forest} = { startDate: "2026-12-01", endDate: "2026-12-31" }
+let schedules = null; // 아직 못 불러왔으면 null
+let watching = false;
+const schedSubs = new Set();
+let readyResolve;
+const readyPromise = new Promise((r) => (readyResolve = r));
+function watchSchedules() {
+  if (watching || typeof window === "undefined") return;
+  watching = true;
+  if (!db) {
+    schedules = {};
+    readyResolve();
+    return;
+  }
+  onValue(
+    ref(db, "roomSchedule"),
+    (snap) => {
+      schedules = snap.val() || {};
+      readyResolve();
+      schedSubs.forEach((f) => f());
+    },
+    () => {
+      schedules = schedules || {};
+      readyResolve();
+    }
+  );
+  // 인터넷이 느려도 3초 뒤엔 기본 기간(data.js)으로 진행
+  setTimeout(() => {
+    if (!schedules) {
+      schedules = {};
+      readyResolve();
+    }
+  }, 3000);
+}
+export const schedulesLoaded = () => schedules !== null;
+// 기간을 불러올 때까지 기다리기 (주소로 바로 들어왔을 때 확인용)
+export function schedulesReady() {
+  watchSchedules();
+  return readyPromise;
+}
+// 화면에서: 사장님이 기간을 바꾸면 바로 다시 그리기 → [버전 숫자, 지금 기간들]
+export function useRoomSchedules() {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    watchSchedules();
+    const f = () => setV((n) => n + 1);
+    schedSubs.add(f);
+    if (schedules) f();
+    return () => schedSubs.delete(f);
+  }, []);
+  return [v, schedules || {}];
+}
+// 이 방의 오픈 기간 (사장님이 안 정했으면 data.js eventSchedule)
+export function scheduleOf(roomId) {
+  watchSchedules();
+  const s = roomId && schedules?.[roomId];
+  return s && (s.startDate || s.endDate) ? s : partyData?.eventSchedule;
+}
+
+// 오늘이 오픈 기간 안인지 (시작일·마지막 날 모두 포함)
+export function inSchedule(d = new Date(), roomId) {
+  const s = scheduleOf(roomId);
   if (!s) return true; // 기간을 안 정했으면 항상 열림
   const t = todayKey(d);
   return (!s.startDate || t >= s.startDate) && (!s.endDate || t <= s.endDate);
@@ -107,13 +171,13 @@ export function setOwnerLocal(on) {
 // 이 방에 지금 들어갈 수 있는지 (기간 밖이면: 강제 오픈을 켠 호스트·사장님만)
 export function isRoomOpen(roomId, nickname) {
   if (!LOCKABLE_ROOMS.includes(roomId)) return true;
-  if (inSchedule()) return true;
+  if (inSchedule(new Date(), roomId)) return true;
   return getForceOpen() && (isHost(nickname) || getOwnerLocal());
 }
 
 // "12월 1일 ~ 12월 31일" 같은 안내 문구
-export function scheduleText() {
-  const s = partyData?.eventSchedule;
+export function scheduleText(roomId) {
+  const s = scheduleOf(roomId);
   if (!s) return "";
   const f = (v) => {
     const [, m, d] = (v || "").split("-").map(Number);

@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ref, push, remove, onValue, serverTimestamp } from "firebase/database";
+import { ref, push, remove, update, get, onValue, serverTimestamp } from "firebase/database";
 import { db } from "../lib/firebase";
 import PixelModal from "./PixelModal";
 
 // 📌 찻집 게시판 (벽에 걸린 코르크 보드 — public/craft/cafe_board.png)
 //  - 📢 공지: 사장님만 쓰고 지울 수 있어요
 //  - 📅 달력: 사장님이 모임·행사 날짜를 적으면 달력에 표시돼요 (날짜를 누르면 그날 일정)
+//      📚 독서모임·차모임을 📋 사장님 관리에서 열면 자동으로 적혀요 (events/gathering) — 여기서 ✏️ 고치면 모임도 같이 바뀌어요
 //  - 📝 메모: 손님 누구나 포스트잇을 붙일 수 있어요 (내가 붙인 것·사장님은 뗄 수 있어요, 최근 40장)
 //  Firebase: teaHouse/board/{notices, events, memos}
 const BOX = "border-4 border-[#1a110e] shadow-[3px_3px_0_0_rgba(0,0,0,0.4)]";
@@ -137,7 +138,32 @@ function Calendar({ list, isOwner, nickname }) {
     push(ref(db, "teaHouse/board/events"), { date: picked, title: t, by: nickname, at: serverTimestamp() }).catch(() => {});
     setTitle("");
   };
-  const dayEvents = byDay[picked] ?? [];
+  const dayEvents = (byDay[picked] ?? []).slice().sort((a, b) => (a.time || "").localeCompare(b.time || ""));
+  // ✏️ 일정 고치기 (사장님)
+  const [editing, setEditing] = useState(null); // { id, title, date, time }
+  const saveEdit = async () => {
+    const e = editing;
+    if (!e || !db || !e.title.trim() || !e.date) return;
+    const title = e.title.trim().slice(0, 40);
+    await update(ref(db, `teaHouse/board/events/${e.id}`), { title, date: e.date, time: e.time || null }).catch(() => {});
+    // 📚 모임 일정이면 → 찻집 모임(공지·단체석 카드)도 같은 날짜·시간·제목으로
+    if (e.id === "gathering") {
+      try {
+        const snap = await get(ref(db, "teaHouse/gathering"));
+        const g = snap.val();
+        if (g?.startAt) {
+          const old = new Date(g.startAt);
+          const [yy, mm, dd] = e.date.split("-").map(Number);
+          const [hh, mi] = (e.time || `${old.getHours()}:${old.getMinutes()}`).split(":").map(Number);
+          const startAt = new Date(yy, mm - 1, dd, hh, mi).getTime();
+          const endAt = startAt + Math.max(30 * 60000, (g.endAt ?? g.startAt + 7200000) - g.startAt);
+          await update(ref(db, "teaHouse/gathering"), { title, startAt, endAt });
+        }
+      } catch {}
+    }
+    setPicked(e.date);
+    setEditing(null);
+  };
   const [py, pm, pd] = picked.split("-").map(Number);
   // 다가오는 일정 (오늘부터)
   const upcoming = [...list].filter((e) => e.date >= today).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 5);
@@ -182,14 +208,32 @@ function Calendar({ list, isOwner, nickname }) {
           <p className="mt-1 text-xs text-[#2b1d1a]/60">일정이 없어요</p>
         ) : (
           <ul className="mt-1 flex flex-col gap-1">
-            {dayEvents.map((e) => (
-              <li key={e.id} className="flex items-center justify-between gap-2 text-sm font-bold">
-                <span>📌 {e.title}</span>
-                {isOwner && (
-                  <button type="button" onClick={() => db && remove(ref(db, `teaHouse/board/events/${e.id}`))} className="text-xs font-black text-rose-700" aria-label="일정 지우기">✕</button>
-                )}
-              </li>
-            ))}
+            {dayEvents.map((e) =>
+              editing?.id === e.id ? (
+                <li key={e.id} className="flex flex-col gap-1.5 border-2 border-[#2b1d1a]/30 bg-white/60 p-2">
+                  <input value={editing.title} onChange={(ev) => setEditing({ ...editing, title: ev.target.value })} maxLength={40} className={INPUT} aria-label="일정 제목" />
+                  <div className="flex gap-1.5">
+                    <input type="date" value={editing.date} onChange={(ev) => setEditing({ ...editing, date: ev.target.value })} className={INPUT} aria-label="날짜" />
+                    <input type="time" value={editing.time || ""} onChange={(ev) => setEditing({ ...editing, time: ev.target.value })} className={INPUT} aria-label="시간" />
+                  </div>
+                  {e.id === "gathering" && <p className="text-[11px] text-[#7b5236]">📚 모임 일정이라 고치면 찻집 모임 공지도 같이 바뀌어요</p>}
+                  <div className="flex gap-1.5">
+                    <button type="button" onClick={saveEdit} className={`${BTN} flex-1 bg-amber-400 text-[#2b1d1a]`}>저장</button>
+                    <button type="button" onClick={() => setEditing(null)} className={`${BTN} bg-[#f5e6c8] text-[#2b1d1a]`}>취소</button>
+                  </div>
+                </li>
+              ) : (
+                <li key={e.id} className="flex items-center justify-between gap-2 text-sm font-bold">
+                  <span>{e.auto === "gathering" ? "📚" : "📌"} {e.time ? `${e.time} · ` : ""}{e.title}</span>
+                  {isOwner && (
+                    <span className="flex shrink-0 gap-2">
+                      <button type="button" onClick={() => setEditing({ id: e.id, title: e.title || "", date: e.date, time: e.time || "" })} className="text-xs font-black text-[#7b5236]" aria-label="일정 고치기">✏️</button>
+                      <button type="button" onClick={() => { if (!db) return; remove(ref(db, `teaHouse/board/events/${e.id}`)); if (e.id === "gathering") remove(ref(db, "teaHouse/gathering")); }} className="text-xs font-black text-rose-700" aria-label="일정 지우기">✕</button>
+                    </span>
+                  )}
+                </li>
+              )
+            )}
           </ul>
         )}
         {isOwner && (
@@ -207,7 +251,7 @@ function Calendar({ list, isOwner, nickname }) {
             {upcoming.map((e) => (
               <li key={e.id}>
                 <button type="button" onClick={() => { const [a, b] = e.date.split("-").map(Number); setView(new Date(a, b - 1, 1)); setPicked(e.date); }} className="text-left font-bold">
-                  {Number(e.date.slice(5, 7))}/{Number(e.date.slice(8, 10))} · {e.title}
+                  {Number(e.date.slice(5, 7))}/{Number(e.date.slice(8, 10))} · {e.time ? `${e.time} ` : ""}{e.title}
                 </button>
               </li>
             ))}

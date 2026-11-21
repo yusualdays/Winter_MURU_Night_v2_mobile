@@ -5,7 +5,7 @@ import { ref, set, remove, onValue, serverTimestamp } from "firebase/database";
 import { db } from "../lib/firebase";
 import { partyData } from "../data";
 import { cafeData } from "../spaceData";
-import { isHost, inSchedule, scheduleText } from "../lib/rooms";
+import { isHost, inSchedule, scheduleText, ROOMS, LOCKABLE_ROOMS, useRoomSchedules, scheduleOf } from "../lib/rooms";
 import PixelModal from "./PixelModal";
 import { OrderBar } from "./TeaTable";
 import { FocusToggle, FocusPanel, NoiseMixer } from "./FocusMode";
@@ -147,7 +147,7 @@ export function SettingsPanel({ api, onOpenOwner, noise = true, top = null, owne
       {api.isOwner && (
         <Section title="🍵 사장님 모드">
           <div className="flex flex-col gap-3">
-            <ToggleRow icon="🔓" label="거실·전시회·무해림 미리 열기" sub={`테스트용 · 오픈 기간 ${scheduleText() || "제한 없음"} · 지금 ${inSchedule() ? "오픈 중" : "준비중"}`} checked={api.forceOpen} onChange={api.changeForceOpen} />
+            <ToggleRow icon="🔓" label="거실·전시회·무해림 미리 열기" sub="테스트용 · 기간 밖이어도 나만 들어가 볼 수 있어요 (기간은 📋 사장님 관리)" checked={api.forceOpen} onChange={api.changeForceOpen} />
             {ownerToggle && (
               <div className="flex gap-2">
                 {onOpenOwner && (
@@ -189,6 +189,60 @@ export function SettingsPanel({ api, onOpenOwner, noise = true, top = null, owne
 }
 
 // ---------------- 📋 사장님 관리 창 ----------------
+// 날짜 → "2026-12-05"
+const dayKeyOf = (ms) => {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+// 🗓️ 거실 · 전시실 · 무해림 오픈 기간 (Firebase roomSchedule/{방}) — 모두의 화면에 바로 반영
+function RoomScheduleSection({ write, setMsg, api }) {
+  const [, saved] = useRoomSchedules();
+  const [form, setForm] = useState({});
+  useEffect(() => {
+    const f = {};
+    LOCKABLE_ROOMS.forEach((id) => {
+      const s = scheduleOf(id) || {};
+      f[id] = { start: s.startDate || "", end: s.endDate || "" };
+    });
+    setForm(f);
+  }, [saved]);
+  const save = (id) => {
+    const v = form[id] || {};
+    if (!v.start || !v.end) return setMsg("시작일과 마지막 날을 모두 골라 주세요.");
+    if (v.end < v.start) return setMsg("마지막 날이 시작일보다 뒤여야 해요.");
+    write(`roomSchedule/${id}`, { startDate: v.start, endDate: v.end, by: api.nickname });
+    setMsg("");
+    api.showToast(`${ROOMS[id].name} 오픈 기간을 저장했어요`, "🗓️");
+  };
+  return (
+    <section className="mt-5 border-t-4 border-dashed border-white/15 pt-4">
+      <p className="font-black text-amber-200">🗓️ 공간 오픈 기간</p>
+      <p className="mt-0.5 text-[11px] text-white/50">이 기간에만 손님이 들어갈 수 있어요 (시작일·마지막 날 포함). 저장하면 모두의 화면에 바로 반영돼요.</p>
+      <ul className="mt-2 flex flex-col gap-2">
+        {LOCKABLE_ROOMS.map((id) => {
+          const v = form[id] || { start: "", end: "" };
+          const open = inSchedule(new Date(), id);
+          return (
+            <li key={id} className="border-2 border-white/15 bg-black/20 p-2.5">
+              <div className="mb-1.5 flex items-center justify-between text-sm font-bold">
+                <span>{ROOMS[id].name}</span>
+                <span className={`text-xs ${open ? "text-lime-300" : "text-white/50"}`}>{open ? "🟢 지금 오픈 중" : "🚧 준비중"}{saved[id] ? "" : " · 기본값"}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <input type="date" value={v.start} onChange={(e) => setForm({ ...form, [id]: { ...v, start: e.target.value } })} className={`${INPUT} w-auto min-w-0 flex-1`} aria-label={`${ROOMS[id].name} 시작일`} />
+                <span className="text-white/60">~</span>
+                <input type="date" value={v.end} onChange={(e) => setForm({ ...form, [id]: { ...v, end: e.target.value } })} className={`${INPUT} w-auto min-w-0 flex-1`} aria-label={`${ROOMS[id].name} 마지막 날`} />
+                <button type="button" onClick={() => save(id)} className={`${BTN} bg-amber-400 text-[#2b1d1a]`}>저장</button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function OwnerPanel({ open, onClose, tea, api }) {
   const [g, setG] = useState({ title: "", topic: "", meetUrl: "", start: "", end: "" });
   const now = useClock();
@@ -226,7 +280,10 @@ function OwnerPanel({ open, onClose, tea, api }) {
     const endAt = new Date(g.end).getTime();
     if (!startAt || !endAt) return setMsg("모임 시작·끝 시간을 정해 주세요.");
     if (endAt <= startAt) return setMsg("끝나는 시간이 시작 시간보다 뒤여야 해요.");
-    write("teaHouse/gathering", { title: g.title.trim().slice(0, 40), topic: g.topic.trim().slice(0, 500), meetUrl: safeUrl(g.meetUrl), startAt, endAt, openedAt: serverTimestamp(), by: api.nickname });
+    const title = g.title.trim().slice(0, 40);
+    write("teaHouse/gathering", { title, topic: g.topic.trim().slice(0, 500), meetUrl: safeUrl(g.meetUrl), startAt, endAt, openedAt: serverTimestamp(), by: api.nickname });
+    // 📌 게시판 달력에도 자동으로 일정 등록 (모임을 고치면 일정도 같이 바뀌어요)
+    write("teaHouse/board/events/gathering", { date: dayKeyOf(startAt), time: fmtHM(startAt), title, by: api.nickname, auto: "gathering", at: serverTimestamp() });
     setMsg("");
     api.showToast(`모임을 잡았어요! ${fmtHM(startAt - NOTICE_BEFORE_MS)}부터 찻집 위에 공지가 떠요`, "📚");
   };
@@ -264,7 +321,7 @@ function OwnerPanel({ open, onClose, tea, api }) {
                 {fmtTime(tea.gathering.startAt)} ~ {fmtHM(tea.gathering.endAt)} · 공지는 {fmtHM(tea.gathering.startAt - NOTICE_BEFORE_MS)}부터
               </p>
             )}
-            <button type="button" onClick={() => write("teaHouse/gathering", null)} className={`${BTN} mt-2 bg-[#6e4530] text-white`}>
+            <button type="button" onClick={() => { write("teaHouse/gathering", null); write("teaHouse/board/events/gathering", null); }} className={`${BTN} mt-2 bg-[#6e4530] text-white`}>
               모임 지우기
             </button>
           </div>
@@ -283,12 +340,15 @@ function OwnerPanel({ open, onClose, tea, api }) {
               <input type="datetime-local" value={g.end} onChange={(e) => setG({ ...g, end: e.target.value })} className={`${INPUT} mt-1`} />
             </label>
           </div>
-          <p className="text-[11px] text-white/50">찻집 위 공지는 시작 1시간 전부터 끝나는 시간까지만 보여요.</p>
+          <p className="text-[11px] text-white/50">찻집 위 공지는 시작 1시간 전부터 끝나는 시간까지만 보여요. 📌 게시판 달력에도 자동으로 적혀요.</p>
           <button type="submit" className={`${BTN} bg-amber-400 text-[#2b1d1a]`}>
             {tea.gathering ? "모임 내용 고치기" : "모임 오픈하기"}
           </button>
         </form>
       </section>
+
+      {/* 🗓️ 공간 오픈 기간 */}
+      <RoomScheduleSection write={write} setMsg={setMsg} api={api} />
 
       {/* 2) 메뉴 실시간 상태 */}
       <section className="mt-5 border-t-4 border-dashed border-white/15 pt-4">

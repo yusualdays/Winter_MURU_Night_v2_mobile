@@ -8,6 +8,7 @@ import { hasInvite } from "../lib/invite";
 import { db } from "../lib/firebase";
 import { getMyId, getLook } from "../lib/session";
 import { DEFAULT_LOOK, normalizeLook } from "../lib/pixelCharacter";
+import { schedulesReady, schedulesLoaded, useRoomSchedules, LOCKABLE_ROOMS } from "../lib/rooms";
 import { ROOMS, rememberFrom, takeArrival, lastExitOf, inZone, isRoomOpen, getForceOpen, setForceOpen, scheduleText, getOwnerLocal, setOwnerLocal } from "../lib/rooms";
 import GreetToast from "./GreetToast";
 import { watchUser, isAdminUser, ADMIN_UID, logout } from "../lib/forestAuth";
@@ -157,6 +158,7 @@ export default function SimpleRoom({
     [blocked, mapW, mapH]
   );
 
+  const [schedLoaded, setSchedLoaded] = useState(false); // 🗓️ 사장님이 정한 오픈 기간을 불러왔는지
   // 1) 닉네임·캐릭터·ID, 시작 위치 (어느 문으로 들어왔는지)
   useEffect(() => {
     let saved = null;
@@ -167,7 +169,11 @@ export default function SimpleRoom({
       router.replace("/"); // 닉네임이 없거나 💌 초대받지 않은 기기 → 입구로
       return;
     }
-    // 기간이 아닌데 주소로 바로 들어오면 → 찻집으로
+    // 기간이 아닌데 주소로 바로 들어오면 → 찻집으로 (사장님이 정한 기간을 불러온 뒤 확인)
+    if (LOCKABLE_ROOMS.includes(roomId) && !schedLoaded && !schedulesLoaded()) {
+      schedulesReady().then(() => setSchedLoaded(true)); // 불러온 뒤 이 확인을 한 번 더 해요
+      return;
+    }
     if (!isRoomOpen(roomId, saved)) {
       router.replace(ROOMS.teaHouse.href);
       return;
@@ -185,7 +191,7 @@ export default function SimpleRoom({
     posRef.current = start;
     setPos(start);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [schedLoaded]);
 
   // 방에 들어왔을 때 한 번 알려주기 (첫 방문 안내 등)
   const enteredRef = useRef(false);
@@ -596,12 +602,13 @@ export default function SimpleRoom({
 
   // 10) 통로에 닿으면 다른 방으로 (들어온 통로 위에서 시작했다면, 한 번 벗어난 뒤부터)
   //     오픈 기간이 아니면: 이동하지 않고 "현재 준비중입니다" 안내만
+  const [schedVer] = useRoomSchedules(); // 🗓️ 사장님이 오픈 기간을 바꾸면 팻말·통로가 바로 바뀌어요
   const exitOpen = useMemo(() => {
     const o = {};
     for (const ex of exits) o[ex.id ?? ex.to] = isRoomOpen(ex.to, nickname);
     return o;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exits, nickname, forceOpen, clock]);
+  }, [exits, nickname, forceOpen, clock, schedVer]);
 
   const showToast = (text, icon) => {
     const id = Date.now();
@@ -624,7 +631,7 @@ export default function SimpleRoom({
       if (lockedNoticeRef.current !== exitId) {
         lockedNoticeRef.current = exitId;
         targetRef.current = null;
-        showToast(`현재 준비중입니다${scheduleText() ? ` (${scheduleText()} 오픈)` : ""}`, "🚧");
+        showToast(`현재 준비중입니다${scheduleText(exit.to) ? ` (${scheduleText(exit.to)} 오픈)` : ""}`, "🚧");
       }
       return;
     }
