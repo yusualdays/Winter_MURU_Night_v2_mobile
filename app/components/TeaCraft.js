@@ -31,7 +31,7 @@ export const RECIPES = {
     name: "가래떡 구이", emoji: "🍢", game: "tteok", base: "#e8b04a", light: "#fff4dc", shell: "#8a5a2b",
   },
 };
-export const CRAFT_INFO = { ...RECIPES, matcha: { name: "내가 격불한 말차", emoji: "🍵", base: "#7fb36a" }, leaftea: { name: "내가 우린 잎차", emoji: "🍃", base: "#c9a23a", drink: true } };
+export const CRAFT_INFO = { ...RECIPES, matcha: { name: "내가 격불한 말차", emoji: "🍵", base: "#7fb36a" }, leaftea: { name: "내가 우린 백차", emoji: "🍃", base: "#c9a23a", drink: true } };
 
 // ---------------- 🔊 Web Audio 효과음 ----------------
 let ctx = null;
@@ -1201,7 +1201,7 @@ function MatchaGame({ onBack }) {
   );
 }
 
-// ---------------- 3) 🍃 잎차 우리기 ----------------
+// ---------------- 3) 🍃 백차 (잎차 우리기) ----------------
 //  ① 찻잎 넣기: 찻숟가락이 좌우로 움직여요 → 다관 위에 왔을 때 탭 (3번)
 //  ② 물 끓이기: 온도 바늘이 오르내려요 → 초록 구간(80℃ 근처)에서 탭하면 다관에 물을 부어요
 //  ③ 우리기: 찻물 색이 점점 진해져요 → 초록 구간에서 [🫖 따르기] (너무 빠르면 싱겁고, 늦으면 떫어요)
@@ -1439,7 +1439,7 @@ export default function TeaCraftModal({ open, onClose }) {
   // 🎮 미니게임 목록 (한 화면에 모두)
   const GAMES = [
     { key: "matcha", emoji: "🍵", img: "matcha_bowl_foam", name: "말차", bg: "bg-[#bbf7d0] text-[#14532d]" },
-    { key: "leaftea", emoji: "🍃", img: "table_cup_full", name: "잎차 우리기", bg: "bg-[#fef3c7] text-[#713f12]" },
+    { key: "leaftea", emoji: "🍃", img: "table_cup_full", name: "백차", bg: "bg-[#fef3c7] text-[#713f12]" },
     ...Object.entries(RECIPES).map(([k, r]) => ({ key: `dasik:${k}`, emoji: r.emoji, img: `${k}_done`, name: r.name.replace("군산 ", ""), bg: "bg-[#fbcfe8] text-[#831843]" })),
   ];
   const picked = GAMES.find((g) => g.key === game);

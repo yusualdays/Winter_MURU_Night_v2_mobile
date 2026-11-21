@@ -308,7 +308,7 @@ export function OrderBar({ seat, order, api, extra = null }) {
         )}
         {craftInfo && crafted.left > 0 && (
           <button type="button" onClick={useCrafted} className={`${BTN} bg-[#fde68a] text-[#78350f]`}>
-            {craftInfo.emoji} 내가 만든 {crafted.kind === "matcha" ? "말차 마시기" : crafted.kind === "leaftea" ? "잎차 마시기" : "다식 먹기"} <span className="bg-[#78350f] px-1 text-[10px] text-white">{crafted.left}</span>
+            {craftInfo.emoji} 내가 만든 {crafted.kind === "matcha" ? "말차 마시기" : crafted.kind === "leaftea" ? "백차 마시기" : "다식 먹기"} <span className="bg-[#78350f] px-1 text-[10px] text-white">{crafted.left}</span>
           </button>
         )}
         {/* 📖 공부 집중 모드 켜기/끄기 */}
