@@ -37,7 +37,7 @@ export function CounterModal({ open, onClose, onPick }) {
         </div>
       </div>
       <div className="flex flex-col gap-2">
-        <button type="button" onClick={() => onPick("craft")} className={`${BTN} bg-[#fbcfe8] text-left text-[#831843]`}>🎮 미니게임 · 다식·말차 만들기</button>
+        <button type="button" onClick={() => onPick("craft")} className={`${BTN} bg-[#fbcfe8] text-left text-[#831843]`}>🎮 미니게임 하기</button>
         <button type="button" onClick={() => onPick("guide")} className={`${BTN} bg-[#f5e6c8] text-left text-[#2b1d1a]`}>💬 말걸기</button>
       </div>
     </PixelModal>

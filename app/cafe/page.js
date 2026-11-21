@@ -10,6 +10,7 @@ import TeaMenuBoard from "../components/TeaMenuBoard";
 import TeaCraftModal from "../components/TeaCraft";
 import { CounterModal, SpeakerModal, BookmarkModal, ShowroomModal } from "../components/TeaRoomModals";
 import { TableItems, clearOrder } from "../components/TeaTable";
+import { BoardModal } from "../components/TeaBoard";
 import { cafeData } from "../spaceData";
 
 // ☕ 군산 온라인 찻집 (teaHouse) — 입장하면 가장 먼저 오는 곳
@@ -95,6 +96,7 @@ const ALL_SEATS = [...TABLE_SEATS, ...SHARE_SEATS];
 
 // ---------------- 벽면 오브젝트 ----------------
 const SPEAKER = { x: 0.365, y: 0.2, w: 0.072, h: 0.12 }; // 통창 옆 라디오
+const BOARD = { x: 0.578, y: 0.08, w: 0.09, h: 0.096 }; // 📌 게시판 (위쪽 문과 茶 족자 사이 벽, public/craft/cafe_board.png)
 const BOOKSHELF = { x: 0.005, y: 0.655, w: 0.165, h: 0.345 };
 const TEAWARE_SHELF = { x: 0.812, y: 0.555, w: 0.183, h: 0.2 };
 
@@ -136,6 +138,7 @@ const ALL_SPOTS = [
   // 포스기 옆(카운터 왼쪽)에 서면 → [차림표 보기 · 미니게임 · 다연에게 말 걸기]
   { id: "counterSide", rect: { x: 0.652, y: 0.215, w: 0.046, h: 0.03 }, near: { x: 0.612, y: 0.4 }, radius: 85, icon: "💬", title: "말걸기" },
   { id: "counter", rect: { x: 0.646, y: 0.2, w: 0.16, h: 0.03 }, near: { x: 0.72, y: 0.56 }, radius: 120, icon: "💬", title: "말걸기" },
+  { id: "board", rect: BOARD, near: { x: 0.62, y: 0.33 }, radius: 95, icon: "📌", title: "게시판" },
   { id: "speaker", rect: { x: SPEAKER.x - 0.02, y: SPEAKER.y - 0.04, w: SPEAKER.w + 0.04, h: 0.04 }, near: { x: 0.44, y: 0.325 }, radius: 75, icon: "🎵", title: "BGM & 백색소음 설정" },
   { id: "bookshelf", rect: { x: BOOKSHELF.x, y: BOOKSHELF.y - 0.04, w: BOOKSHELF.w, h: 0.04 }, near: { x: 0.2, y: 0.78 }, radius: 130, icon: "🔖", title: "교환 독서 책갈피" },
   { id: "showroom", rect: { x: TEAWARE_SHELF.x, y: TEAWARE_SHELF.y - 0.04, w: TEAWARE_SHELF.w, h: 0.04 }, near: { x: 0.76, y: 0.68 }, radius: 120, icon: "🫖", title: "다구 쇼룸 / 스마트스토어 구경하기" },
@@ -203,6 +206,8 @@ function CafeScene({ npcBubble, season, orders, debug, npcAlert, onNpcAlert, tal
       {/* 배경 그림 (그림을 못 불러오면 나무 바닥색) */}
       <div className="absolute inset-0" style={{ background: `url(${BG_IMAGE}) center / 100% 100% no-repeat`, imageRendering: "pixelated" }} />
       <div className="pointer-events-none absolute bg-gradient-to-br from-white/20 via-transparent to-transparent" style={pct(WINDOW_AREA)} />
+      {/* 📌 게시판 (벽에 걸린 코르크 보드) */}
+      <img src="/craft/cafe_board.png" alt="" draggable={false} className="pointer-events-none absolute object-contain drop-shadow-[3px_4px_0_rgba(0,0,0,0.25)]" style={pct(BOARD)} />
 
       {/* 🌳 앞에 겹치는 물건들 (테이블·분재·선반) — 캐릭터가 뒤로 가면 가려져요 */}
       {OCCLUDERS.map((o, i) => (
@@ -317,7 +322,7 @@ export default function CafePage() {
       onSeatLeave={clearOrder}
       hud={(api) => <TeaHouseHud tea={tea} api={api} />}
       onEnter={handleEnter}
-      renderModals={(openId, close) => {
+      renderModals={(openId, close, api) => {
         const closeAll = () => {
           setCounterPick(null);
           close();
@@ -342,6 +347,7 @@ export default function CafePage() {
         <TeaMenuBoard open={view === "menu"} onClose={closeAll} items={cafeData.menu} menuStatus={tea.menuStatus} nickname={nicknameRef.current} />
 
         <SpeakerModal open={view === "speaker"} onClose={closeAll} />
+        <BoardModal open={view === "board"} onClose={closeAll} api={api} />
         <BookmarkModal open={view === "bookshelf"} onClose={closeAll} nickname={nicknameRef.current} />
         <ShowroomModal open={view === "showroom"} onClose={closeAll} />
         </>

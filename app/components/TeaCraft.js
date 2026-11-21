@@ -263,8 +263,9 @@ function DasikArt({ id, peel = 100, cooked = 0, garnish = [] }) {
 const GARNISH_SPOTS = GARNISH_PCT;
 
 // ---------------- 1) 수제 다식 만들기 ----------------
-function DasikGame({ onBack }) {
-  const [id, setId] = useState(null);
+//  initialId: 미니게임 목록에서 고른 다식 (보늬밤 · 곶감 · 가래떡) — 바로 그 게임부터 시작
+function DasikGame({ onBack, initialId = null }) {
+  const [id, setId] = useState(initialId);
   const [step, setStep] = useState(0);
   const [peel, setPeel] = useState(0);
   const [peelStart, setPeelStart] = useState(0);
@@ -296,7 +297,10 @@ function DasikGame({ onBack }) {
 
   const reset = (keep) => {
     setStep(0); setPeel(0); setPeelStart(0); setHits(0); setMiss(0); setGarnish([]); setTaken(false); setFlash(null);
-    if (!keep) setId(null);
+    if (!keep) {
+      if (initialId) onBack?.(); // 목록에서 바로 골라 들어왔으면 → 미니게임 목록으로
+      else setId(null);
+    }
   };
 
   const doPeel = () => {
@@ -351,7 +355,7 @@ function DasikGame({ onBack }) {
             <span>{r.name}</span>
           </button>
         ))}
-        <button type="button" onClick={onBack} className={`${BTN} mt-1 bg-[#6e4530] text-white`}>← 체험 고르기</button>
+        <button type="button" onClick={onBack} className={`${BTN} mt-1 bg-[#6e4530] text-white`}>← 다른 게임 고르기</button>
       </div>
     );
   }
@@ -375,7 +379,7 @@ function DasikGame({ onBack }) {
             shopLabel={kit.label || "이 다식 DIY 키트 / 제철 과일 공구 보러가기"}
             taken={taken}
             onTake={() => { sendToTable(id, stars); setTaken(true); sfx.pop(); }}
-            onAgain={() => reset(false)}
+            onAgain={() => reset(true)}
           />
         </div>
       </>
@@ -467,6 +471,7 @@ function DasikGame({ onBack }) {
           </div>
         </>
       )}
+      <button type="button" onClick={() => reset(false)} className={`${BTN} mt-3 w-full bg-[#6e4530] text-white`}>← 다른 게임 고르기</button>
     </div>
   );
 }
@@ -711,7 +716,7 @@ function TteokGame({ onBack }) {
             onAgain={reset}
           />
         </div>
-        <button type="button" onClick={onBack} className={`${BTN} mt-2 w-full bg-black/30 text-white`}>← 다른 다식 고르기</button>
+        <button type="button" onClick={onBack} className={`${BTN} mt-2 w-full bg-black/30 text-white`}>← 다른 게임 고르기</button>
       </>
     );
   }
@@ -892,7 +897,7 @@ function TteokGame({ onBack }) {
         </>
       )}
 
-      <button type="button" onClick={onBack} className={`${BTN} mt-3 w-full bg-[#6e4530] text-white`}>← 다른 다식 고르기</button>
+      <button type="button" onClick={onBack} className={`${BTN} mt-3 w-full bg-[#6e4530] text-white`}>← 다른 게임 고르기</button>
     </div>
   );
 }
@@ -1191,7 +1196,7 @@ function MatchaGame({ onBack }) {
           <Gauge value={foam} label="거품 게이지" color={tea} />
         </>
       )}
-      <button type="button" onClick={onBack} className={`${BTN} mt-3 w-full bg-[#6e4530] text-white`}>← 체험 고르기</button>
+      <button type="button" onClick={onBack} className={`${BTN} mt-3 w-full bg-[#6e4530] text-white`}>← 다른 게임 고르기</button>
     </div>
   );
 }
@@ -1203,8 +1208,14 @@ export default function TeaCraftModal({ open, onClose }) {
     if (!open) { setGame(null); pourStop(); }
   }, [open]);
 
+  // 🎮 미니게임 목록 (한 화면에 모두)
+  const GAMES = [
+    { key: "matcha", emoji: "🍵", img: "matcha_bowl_foam", name: "말차 격불하기", bg: "bg-[#bbf7d0] text-[#14532d]" },
+    ...Object.entries(RECIPES).map(([k, r]) => ({ key: `dasik:${k}`, emoji: r.emoji, img: `${k}_done`, name: r.name.replace("군산 ", ""), bg: "bg-[#fbcfe8] text-[#831843]" })),
+  ];
+  const picked = GAMES.find((g) => g.key === game);
   return (
-    <PixelModal open={open} onClose={onClose} label="🍵 다도 체험존" title={game === "dasik" ? "수제 다식 만들기" : game === "matcha" ? "말차 격불하기" : "오늘은 무엇을 만들어 볼까요?"} width={420}>
+    <PixelModal open={open} onClose={onClose} label="🎮 미니게임" title={picked ? picked.name : "오늘은 무엇을 만들어 볼까요?"} width={420}>
       <style>{`
         @keyframes craft-dash-move { to { stroke-dashoffset: -24; } }
         .craft-dash { animation: craft-dash-move 0.8s linear infinite; }
@@ -1226,19 +1237,16 @@ export default function TeaCraftModal({ open, onClose }) {
         .craft-foam { animation: craft-foam-k 0.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
       `}</style>
       {!game && (
-        <div className="flex flex-col gap-3">
-          <button type="button" onClick={() => { ac(); setGame("dasik"); }} className={`${BTN} flex items-center gap-3 bg-[#fbcfe8] text-left text-[#831843]`}>
-            <span className="text-4xl">🍡</span>
-            <span><span className="block text-base">수제 다식 만들기</span><span className="block text-xs font-bold opacity-70">보늬밤 · 곶감 호두말이 · 가래떡 구이</span></span>
-          </button>
-          <button type="button" onClick={() => { ac(); setGame("matcha"); }} className={`${BTN} flex items-center gap-3 bg-[#bbf7d0] text-left text-[#14532d]`}>
-            <span className="text-4xl">🍵</span>
-            <span><span className="block text-base">말차 격불하기</span><span className="block text-xs font-bold opacity-70">체 치기 → 온수 붓기 → 10초 차선 젓기</span></span>
-          </button>
-          <p className="text-center text-xs text-white/60">🔊 소리를 켜면 더 재미있어요 · 완성하면 내 테이블로 가져가 먹을 수 있어요</p>
+        <div className="grid grid-cols-2 gap-3">
+          {GAMES.map((g) => (
+            <button key={g.key} type="button" onClick={() => { ac(); setGame(g.key); }} className={`${BTN} flex flex-col items-center gap-1 py-4 text-center ${g.bg}`}>
+              <CraftImg name={g.img} className="h-16 w-16 object-contain" fallback={<span className="text-4xl">{g.emoji}</span>} />
+              <span className="text-base">{g.name}</span>
+            </button>
+          ))}
         </div>
       )}
-      {game === "dasik" && <DasikGame onBack={() => setGame(null)} />}
+      {game?.startsWith("dasik:") && <DasikGame key={game} initialId={game.slice(6)} onBack={() => setGame(null)} />}
       {game === "matcha" && <MatchaGame onBack={() => setGame(null)} />}
     </PixelModal>
   );
