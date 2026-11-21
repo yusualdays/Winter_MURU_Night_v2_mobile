@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ref, set, update, remove, push, onValue, onDisconnect, runTransaction, serverTimestamp } from "firebase/database";
 import { findPath } from "../lib/pathfind";
-import { hasInvite } from "../lib/invite";
+import { hasInvite, acceptInviteCode } from "../lib/invite";
+import PixelModal from "./PixelModal";
 import { db } from "../lib/firebase";
 import { getMyId, getLook } from "../lib/session";
 import { DEFAULT_LOOK, normalizeLook } from "../lib/pixelCharacter";
@@ -53,6 +54,8 @@ import { EMOTE_KEYS } from "./EmoteBubble";
 //  sideScroll: true → 옆으로 긴 지도(무해림 숲길)용 카메라. 화면 높이에 맞추고 내 캐릭터를 따라 좌우로 움직여요
 //  hud api의 feet: 내 발 가운데 위치 { x, y } (맵 px) — 걸을 때마다 바뀌어요 · dir: 보는 방향 · teleport(fx, fy): 순간 이동
 const SPEED = 320;
+// 방마다 로딩 화면 모양 (components/LoadingScreen.js)
+const LOADING_KIND = { teaHouse: "cafe", exhibitionRoom: "gallery", forest: "forest", livingRoom: "living" };
 const SYNC_INTERVAL = 100;
 const EMOTE_MS = 3000;
 const CHAT_MS = 5000;
@@ -165,8 +168,8 @@ export default function SimpleRoom({
     try {
       saved = localStorage.getItem("partyNickname");
     } catch {}
-    if (!saved || !hasInvite()) {
-      router.replace("/"); // 닉네임이 없거나 💌 초대받지 않은 기기 → 입구로
+    if (!saved) {
+      router.replace("/"); // 닉네임이 없으면 → 입구로
       return;
     }
     // 기간이 아닌데 주소로 바로 들어오면 → 찻집으로 (사장님이 정한 기간을 불러온 뒤 확인)
@@ -212,7 +215,7 @@ export default function SimpleRoom({
     window.addEventListener("resize", check);
     window.visualViewport?.addEventListener("resize", check);
     const timer = setTimeout(() => setShowWelcome(false), 8000);
-    const fade = setTimeout(() => setArriving(false), 60);
+    const fade = setTimeout(() => setArriving(false), 200);
     const tick = setInterval(() => setClock((c) => c + 1), 60000);
     return () => {
       clearTimeout(fade);
@@ -627,6 +630,14 @@ export default function SimpleRoom({
     }
     if (!armedRef.current) return;
     const exitId = exit.id ?? exit.to;
+    // 🔑 거실은 입장 코드를 맞힌 기기만 (처음이면 코드 입력 창)
+    if (exitOpen[exitId] && exit.to === "livingRoom" && !hasInvite()) {
+      armedRef.current = false; // 창을 닫으면 통로에서 한 발 나갔다 와야 다시 물어봐요
+      targetRef.current = null;
+      pressedKeys.current.clear();
+      setCodeAsk({ exit, value: "", msg: "" });
+      return;
+    }
     if (!exitOpen[exitId]) {
       if (lockedNoticeRef.current !== exitId) {
         lockedNoticeRef.current = exitId;
@@ -635,13 +646,27 @@ export default function SimpleRoom({
       }
       return;
     }
-    setLeaving(true);
-    targetRef.current = null;
-    pressedKeys.current.clear();
-    rememberFrom(roomId, exitId);
-    setTimeout(() => router.push(ROOMS[exit.to].href), 300);
+    goThrough(exit);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos, leaving, exitOpen]);
+  const goThrough = (exit) => {
+    setLeaving(exit.to); // 가는 곳에 맞는 로딩 화면 (☕ 찻집 · 🖼️ 전시실 · 🌳 무해림 · 🛋️ 은아네 집)
+    targetRef.current = null;
+    pressedKeys.current.clear();
+    rememberFrom(roomId, exit.id ?? exit.to);
+    setTimeout(() => router.push(ROOMS[exit.to].href), 1000);
+  };
+  // 🔑 거실 입장 코드 창 { exit, value, msg }
+  const [codeAsk, setCodeAsk] = useState(null);
+  const submitCode = (e) => {
+    e.preventDefault();
+    if (!codeAsk) return;
+    if (acceptInviteCode(codeAsk.value)) {
+      const ex = codeAsk.exit;
+      setCodeAsk(null);
+      goThrough(ex);
+    } else setCodeAsk({ ...codeAsk, msg: "코드가 맞지 않아요. 다시 확인해 주세요." });
+  };
 
   // 11) 화면 배율 + 카메라 (휴대폰은 내 캐릭터를 따라가요)
   const fitScale = Math.min(vp.w / mapW, vp.h / mapH);
@@ -712,7 +737,7 @@ export default function SimpleRoom({
     chatInputRef.current?.focus();
   }, []);
 
-  if (!nickname || !pos) return <LoadingScreen />;
+  if (!nickname || !pos) return <LoadingScreen kind={LOADING_KIND[roomId]} />;
 
   // 버튼 위치·이름: 앉아 있으면 [🚶 자리에서 일어나기], 의자 옆이면 [🪑 앉기], 물건 옆이면 물건 이름
   let nearTarget = null;
@@ -868,8 +893,33 @@ export default function SimpleRoom({
       {/* 방마다 덧붙이는 화면 UI (찻집: ⚙️ 설정·사장님 관리·공지 배너) */}
       {hud?.(hudApi)}
 
-      {/* 방을 옮길 때: 화면이 스르륵 어두워졌다가 밝아져요 */}
-      <div className={`pointer-events-none fixed inset-0 z-[90] bg-black transition-opacity duration-300 ${leaving || arriving ? "opacity-100" : "opacity-0"}`} />
+      {/* 🔑 거실 입장 코드 */}
+      <PixelModal open={!!codeAsk} onClose={() => setCodeAsk(null)} label="🔑 입장 코드" title="거실은 초대받은 분만 들어갈 수 있어요" width={400}>
+        <form onSubmit={submitCode} className="flex flex-col gap-2">
+          <p className="text-sm text-white/80">주인장에게 받은 입장 코드를 입력해 주세요. 한 번 맞히면 다음부터는 바로 들어가요.</p>
+          <div className="flex gap-2">
+            <input
+              autoFocus
+              value={codeAsk?.value ?? ""}
+              onChange={(e) => setCodeAsk((c) => (c ? { ...c, value: e.target.value, msg: "" } : c))}
+              placeholder="입장 코드"
+              aria-label="입장 코드"
+              maxLength={40}
+              className="min-w-0 flex-1 border-4 border-[#1a110e] bg-[#fdf6e3] px-3 py-2 text-[#2b1d1a] outline-none focus:border-amber-400"
+            />
+            <button type="submit" className="border-4 border-[#1a110e] bg-amber-400 px-4 font-black text-[#2b1d1a] shadow-[3px_3px_0_0_rgba(0,0,0,0.4)] active:translate-y-0.5 active:shadow-none">
+              들어가기
+            </button>
+          </div>
+          {codeAsk?.msg && <p className="text-sm font-bold text-rose-300">{codeAsk.msg}</p>}
+        </form>
+      </PixelModal>
+
+      {/* 방을 옮길 때: 들어올 땐 이 방 로딩 화면이 스르륵 사라지고, 나갈 땐 가는 곳 로딩 화면 */}
+      <div className={`pointer-events-none fixed inset-0 z-[90] transition-opacity duration-500 ${arriving ? "opacity-100" : "opacity-0"}`}>
+        <LoadingScreen kind={LOADING_KIND[roomId]} />
+      </div>
+      {leaving && <LoadingScreen kind={LOADING_KIND[leaving] ?? "cafe"} />}
     </main>
   );
 }

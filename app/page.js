@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import CharacterCustomizer from './components/CharacterCustomizer';
 import { DEFAULT_LOOK, normalizeLook } from './lib/pixelCharacter';
 import { getLook, saveLook } from './lib/session';
-import { playDoorbell } from './lib/doorbell';
+import { playEnterSound } from './lib/doorbell';
+import EntranceScene from './components/EntranceScene';
 import LoadingScreen from './components/LoadingScreen';
-import { acceptInviteFromUrl, acceptInviteCode, hasInvite } from './lib/invite';
+import { acceptInviteFromUrl } from './lib/invite';
 
 export default function EntranceGate() {
   const router = useRouter();
@@ -15,22 +16,11 @@ export default function EntranceGate() {
   const [nickname, setNickname] = useState('');
   const [look, setLook] = useState(DEFAULT_LOOK);
   const [error, setError] = useState('');
-  const [entering, setEntering] = useState(false); // 거실로 들어가는 중 (로딩 화면)
-  // 💌 초대받은 기기인지 (null = 확인 중) — 초대 링크(?invite=코드)로 오면 기억해요
-  const [invited, setInvited] = useState(null);
-  const [code, setCode] = useState('');
-  const [codeMsg, setCodeMsg] = useState('');
+  const [entering, setEntering] = useState(false); // 찻집으로 들어가는 중 (로딩 화면)
+  // 🔑 코드가 붙은 링크(?invite=코드)로 오면 거실 입장 코드를 미리 기억해요 (찻집은 누구나)
   useEffect(() => {
     acceptInviteFromUrl();
-    setInvited(hasInvite());
   }, []);
-  const submitCode = (e) => {
-    e.preventDefault();
-    if (acceptInviteCode(code)) {
-      setInvited(true);
-      setCodeMsg('');
-    } else setCodeMsg('초대 코드가 맞지 않아요. 받은 초대 링크로 다시 들어와 주세요.');
-  };
 
   // 거실 화면을 미리 준비해 두기 → 입장할 때 더 빨리 열려요
   useEffect(() => {
@@ -60,7 +50,6 @@ export default function EntranceGate() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!hasInvite()) return setInvited(false); // 💌 초대받지 않은 기기
     const name = nickname.trim();
     if (!name) return setError('닉네임을 입력해 주세요.');
     if (name.length > 12)
@@ -74,76 +63,15 @@ export default function EntranceGate() {
   };
 
   return (
-    <main className="relative min-h-screen min-h-dvh overflow-hidden bg-gradient-to-b from-slate-950 via-indigo-950 to-slate-900 flex items-center justify-center px-4">
-      <style>{`
-        @keyframes snow {
-          from { transform: translateY(-10vh); }
-          to   { transform: translateY(110vh); }
-        }
-      `}</style>
-      {Array.from({ length: 40 }).map((_, i) => (
-        <span
-          key={i}
-          className="pointer-events-none absolute top-0 rounded-full bg-white"
-          style={{
-            left: `${(i * 37) % 100}%`,
-            width: `${2 + (i % 4)}px`,
-            height: `${2 + (i % 4)}px`,
-            opacity: 0.3 + (i % 5) * 0.12,
-            animation: `snow ${8 + (i % 7)}s linear ${-(i % 10)}s infinite`,
-          }}
-        />
-      ))}
-
-      <div className="absolute right-6 top-[calc(var(--sat,0px)+2.5rem)] h-14 w-14 rounded-full bg-amber-100 shadow-[0_0_40px_14px_rgba(254,243,199,0.25)] sm:right-12 sm:top-12 sm:h-20 sm:w-20 sm:shadow-[0_0_60px_20px_rgba(254,243,199,0.25)]" />
-
-      <div className="relative z-10 flex flex-col items-center text-center">
-        <div className="mb-6 text-6xl">🚪</div>
-        <h1 className="mb-2 text-2xl font-bold text-white sm:text-3xl">
-          겨울이 무르익는 밤
-        </h1>
-        <p className="mb-10 text-slate-300">
-          따뜻한 집 안에서 친구들이 기다리고 있어요
-        </p>
-        {invited === false ? (
-          /* 💌 초대받지 않은 기기: 초인종 대신 안내 + 초대 코드 입력 */
-          <div className="w-full max-w-sm rounded-2xl bg-slate-900/70 px-5 py-6 ring-1 ring-white/10">
-            <p className="text-3xl">💌</p>
-            <p className="mt-2 font-bold text-amber-200">초대받은 분만 들어올 수 있어요</p>
-            <p className="mt-1 text-sm text-slate-300">받은 초대 링크로 들어오거나, 초대 코드를 입력해 주세요.</p>
-            <form onSubmit={submitCode} className="mt-4 flex gap-2">
-              <input
-                value={code}
-                onChange={(e) => {
-                  setCode(e.target.value);
-                  setCodeMsg('');
-                }}
-                placeholder="초대 코드"
-                aria-label="초대 코드"
-                maxLength={40}
-                className="min-w-0 flex-1 rounded-lg bg-slate-800 px-3 py-2.5 text-white placeholder-slate-500 outline-none ring-1 ring-slate-600 focus:ring-2 focus:ring-amber-400"
-              />
-              <button type="submit" className="rounded-lg bg-amber-400 px-4 font-bold text-slate-900 hover:bg-amber-300">
-                확인
-              </button>
-            </form>
-            {codeMsg && <p className="mt-2 text-sm text-rose-400">{codeMsg}</p>}
-          </div>
-        ) : (
-        <button
-          disabled={invited === null}
-          onClick={() => {
-            playDoorbell(); // 딩~동~
-            setError('');
-            setIsModalOpen(true);
-          }}
-          className="rounded-full bg-amber-400 px-10 py-4 text-lg font-bold text-slate-900 shadow-[0_0_30px_rgba(251,191,36,0.5)] transition hover:scale-105 hover:bg-amber-300 active:scale-95"
-          style={{ touchAction: 'manipulation' }}
-        >
-          🔔 초인종 누르기
-        </button>
-        )}
-      </div>
+    <main className="relative min-h-screen min-h-dvh overflow-hidden bg-[#0b1026]">
+      {/* 🍵 찻집(無害林) 가게 앞 — 배경은 계절마다 바뀌어요 */}
+      <EntranceScene
+        onEnter={() => {
+          playEnterSound(); // 드르륵 + 딸랑
+          setError('');
+          setIsModalOpen(true);
+        }}
+      />
 
       {isModalOpen && (
         <div
@@ -157,7 +85,7 @@ export default function EntranceGate() {
           >
             <p className="mb-1 text-xl"> </p>
             <label htmlFor="nickname" className="mb-2 block text-slate-200">
-              😊 닉네임을 입력해 주세요
+              😊 찻집에서 쓸 이름을 입력해 주세요
             </label>
             <input
               id="nickname"
@@ -176,7 +104,7 @@ export default function EntranceGate() {
 
             {/* 캐릭터 꾸미기 */}
             <h2 className="mb-3 mt-6 text-lg  text-white">
-              🧑‍🎄 내 캐릭터 꾸미기
+              🧑‍🎄 찻집에서 쓸 모습을 골라 주세요
             </h2>
             <CharacterCustomizer look={look} onChange={setLook} />
 
@@ -199,7 +127,7 @@ export default function EntranceGate() {
         </div>
       )}
       {/* 거실로 넘어가는 동안 로딩 화면 */}
-      {entering && <LoadingScreen />}
+      {entering && <LoadingScreen kind="cafe" />}
     </main>
   );
 }

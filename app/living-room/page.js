@@ -205,7 +205,8 @@ export default function LivingRoom() {
     try {
       saved = localStorage.getItem("partyNickname");
     } catch {}
-    if (!saved || !hasInvite()) router.replace("/"); // 닉네임이 없거나 💌 초대받지 않은 기기 → 입구로
+    if (!saved) router.replace("/"); // 닉네임이 없으면 → 입구로
+    else if (!hasInvite()) router.replace(ROOMS.teaHouse.href); // 🔑 거실 입장 코드를 아직 안 맞혔으면 → 찻집으로
     // 오픈 기간이 아니면 찻집으로 (사장님이 정한 기간을 불러온 뒤 확인)
     else schedulesReady().then(() => (isRoomOpen("livingRoom", saved) ? setNickname(saved) : router.replace(ROOMS.teaHouse.href)));
     setOwnerMode(getOwnerLocal());
@@ -245,7 +246,7 @@ export default function LivingRoom() {
 
   // 1-1) 환영 문구는 8초 뒤에 사라지게 (포스터를 가리지 않도록) + 들어올 때 화면 밝아지기
   useEffect(() => {
-    const fade = setTimeout(() => setArriving(false), 60);
+    const fade = setTimeout(() => setArriving(false), 200);
     return () => clearTimeout(fade);
   }, [mapSize]);
   useEffect(() => {
@@ -737,7 +738,7 @@ export default function LivingRoom() {
     targetRef.current = null;
     pressedKeys.current.clear();
     rememberFrom("livingRoom");
-    setTimeout(() => router.push(ROOMS.teaHouse.href), 300);
+    setTimeout(() => router.push(ROOMS.teaHouse.href), 1000); // ☕ 찻집 로딩 화면을 잠깐 보여준 뒤
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pos, mapSize, leaving]);
 
@@ -801,7 +802,7 @@ export default function LivingRoom() {
     }
   }
 
-  if (!nickname) return <LoadingScreen />;
+  if (!nickname) return <LoadingScreen kind="living" />;
 
   return (
     <main id="party-room" className={`relative h-screen w-screen select-none overflow-hidden ${cameraMode ? "bg-[#f7c17f]" : "bg-slate-950"}`} style={{ touchAction: "manipulation" }}>
@@ -820,7 +821,7 @@ export default function LivingRoom() {
       </div>
 
       {/* 배경 그림을 불러오는 동안 로딩 화면 */}
-      {!mapSize && <LoadingScreen />}
+      {!mapSize && <LoadingScreen kind="living" />}
 
       {/* 맵: 화면 가운데에 비율을 유지하며 확대/축소 */}
       {mapSize && (
@@ -1064,8 +1065,11 @@ export default function LivingRoom() {
         weather={weather}
         setWeather={setWeather}
       />
-      {/* 다른 방으로 가는 중: 화면이 스르륵 어두워져요 */}
-      <div className={`pointer-events-none fixed inset-0 z-[90] bg-black transition-opacity duration-300 ${leaving || arriving ? "opacity-100" : "opacity-0"}`} />
+      {/* 들어올 때: 거실 로딩 화면이 스르륵 사라져요 / 나갈 때: ☕ 찻집 로딩 화면 */}
+      <div className={`pointer-events-none fixed inset-0 z-[90] transition-opacity duration-500 ${arriving ? "opacity-100" : "opacity-0"}`}>
+        <LoadingScreen kind="living" />
+      </div>
+      {leaving && <LoadingScreen kind="cafe" />}
     </main>
   );
 }
