@@ -361,7 +361,6 @@ function YachaPanel({ api, teas }) {
                 type="button"
                 onClick={() => {
                   setTea(t);
-                  api.playAction("pouring");
                 }}
                 className="border-4 border-[#2b1d1a] bg-[#e9cf9f] px-3 py-1.5 text-sm font-black active:translate-y-0.5"
               >
@@ -706,7 +705,7 @@ export default function ForestPage() {
       }}
       spots={[{ id: GUIDE_ID, rect: { x: (INTRO_X - 50) / mapW, y: (TREE_Y - 110) / MAP_H, w: 100 / mapW, h: 0.03 }, near: { x: INTRO_X / mapW, y: 0.86 }, radius: 110, icon: "📜", title: "이용안내" }]}
       renderModals={(openId, close) => [
-        <PixelModal key={GUIDE_ID} open={openId === GUIDE_ID} onClose={close} label="🌳 무해림" title="📜 무해림 이용안내" width={520}>
+        <PixelModal key={GUIDE_ID} open={openId === GUIDE_ID} onClose={close} title="🌳 무해림 이용안내" width={520}>
           <ForestGuide
             onSeen={() => {
               setGuideAlert(false);
@@ -753,7 +752,7 @@ function ForestGuide({ onSeen, onClose }) {
         <p className="text-4xl font-bold tracking-[0.15em]">{g.title}</p>
         <div className="mt-5 flex flex-col gap-4 text-[15px] leading-[1.9]">
           {paras.map((p, i) => (
-            <p key={i} className="whitespace-pre-line">
+            <p key={i} className="whitespace-pre-line" style={{ wordBreak: "keep-all" }}>
               {p.trim()}
             </p>
           ))}
